@@ -5,7 +5,6 @@ import dynamic from "next/dynamic";
 import Header from "@/components/ui/Header";
 import StatsPanel from "@/components/ui/StatsPanel";
 import { EarthquakeGeoJSON, AirQualityGeoJSON } from "@/lib/types";
-import { mockAirQualityGeoJSON } from "@/lib/openaq";
 import { fetchLiveEarthquakes } from "@/lib/usgs";
 
 const MapContainer = dynamic(() => import("@/components/map/MapContainer"), {
@@ -24,9 +23,14 @@ const INITIAL_EARTHQUAKES: EarthquakeGeoJSON = {
   features: []
 };
 
+const INITIAL_AIR_QUALITY: AirQualityGeoJSON = {
+  type: "FeatureCollection",
+  features: []
+};
+
 export default function HomePage() {
   const [earthquakes, setEarthquakes] = useState<EarthquakeGeoJSON>(INITIAL_EARTHQUAKES);
-  const [airQuality] = useState<AirQualityGeoJSON>(mockAirQualityGeoJSON());
+  const [airQuality, setAirQuality] = useState<AirQualityGeoJSON>(INITIAL_AIR_QUALITY);
   const [showQuakes, setShowQuakes] = useState<boolean>(true);
   const [showAirQuality, setShowAirQuality] = useState<boolean>(true);
 
@@ -44,7 +48,21 @@ export default function HomePage() {
       }
     }
 
+    async function loadAirQuality() {
+      try {
+        const res = await fetch("/api/air-quality", { signal: controller.signal });
+        if (!res.ok) throw new Error(`Air quality HTTP ${res.status}`);
+        const data: AirQualityGeoJSON = await res.json();
+        setAirQuality(data);
+      } catch (err: unknown) {
+        if (!(err instanceof DOMException && err.name === "AbortError")) {
+          console.error("Error al sincronizar con OpenAQ:", err);
+        }
+      }
+    }
+
     loadData();
+    loadAirQuality();
     return () => controller.abort();
   }, []);
 

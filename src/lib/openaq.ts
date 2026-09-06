@@ -1,10 +1,141 @@
-import { AQICategory, AirQualityGeoJSON } from "./types";
+import { AQICategory, AirQualityGeoJSON, AirQualityFeature } from "./types";
+
+const OPENAQ_BASE = "https://api.openaq.org/v3";
+const PM25_PARAMETER_ID = 2;
+const SEARCH_RADIUS_METERS = 25000;
+
+interface CityAnchor {
+  name: string;
+  lat: number;
+  lon: number;
+}
+
+const CITY_ANCHORS: CityAnchor[] = [
+  { name: "Managua", lat: 12.1150, lon: -86.2362 },
+  { name: "San Jose", lat: 9.9333, lon: -84.0875 },
+  { name: "Guatemala City", lat: 14.6407, lon: -90.5133 },
+  { name: "Mexico City", lat: 19.4326, lon: -99.1332 },
+  { name: "Bogota", lat: 4.6486, lon: -74.0636 },
+  { name: "Lima", lat: -12.1217, lon: -77.0316 },
+  { name: "Santiago", lat: -33.4314, lon: -70.6105 },
+  { name: "Madrid", lat: 40.4168, lon: -3.7038 },
+  { name: "Tokyo", lat: 35.6938, lon: 139.7034 },
+  { name: "Los Angeles", lat: 34.0522, lon: -118.2437 },
+];
+
+interface OpenAQLocationsResponse {
+  results: {
+    id: number;
+    name: string;
+    coordinates: { latitude: number; longitude: number };
+    sensors: { id: number; parameter: { name: string } }[];
+  }[];
+}
+
+interface OpenAQSensorResponse {
+  results: {
+    latest: { value: number; datetime: { utc: string } } | null;
+  }[];
+}
+
+interface NearestStation {
+  locationName: string;
+  sensorId: number;
+  latitude: number;
+  longitude: number;
+}
 
 export function getAQICategory(pm25: number): AQICategory {
   if (pm25 <= 12.0) return "good";
   if (pm25 <= 35.4) return "moderate";
   if (pm25 <= 55.4) return "unhealthy";
   return "hazardous";
+}
+
+async function fetchNearestPm25Station(
+  anchor: CityAnchor,
+  apiKey: string,
+  signal?: AbortSignal
+): Promise<NearestStation | null> {
+  const url = `${OPENAQ_BASE}/locations?coordinates=${anchor.lat},${anchor.lon}&radius=${SEARCH_RADIUS_METERS}&parameters_id=${PM25_PARAMETER_ID}&limit=1`;
+  const res = await fetch(url, { headers: { "X-API-Key": apiKey }, signal });
+  if (!res.ok) return null;
+
+  const data: OpenAQLocationsResponse = await res.json();
+  const location = data.results[0];
+  if (!location) return null;
+
+  const sensor = location.sensors.find((s) => s.parameter.name === "pm25");
+  if (!sensor) return null;
+
+  return {
+    locationName: location.name,
+    sensorId: sensor.id,
+    latitude: location.coordinates.latitude,
+    longitude: location.coordinates.longitude,
+  };
+}
+
+async function fetchSensorLatestValue(
+  sensorId: number,
+  apiKey: string,
+  signal?: AbortSignal
+): Promise<number | null> {
+  const res = await fetch(`${OPENAQ_BASE}/sensors/${sensorId}`, {
+    headers: { "X-API-Key": apiKey },
+    signal,
+  });
+  if (!res.ok) return null;
+
+  const data: OpenAQSensorResponse = await res.json();
+  const value = data.results[0]?.latest?.value;
+  return value === undefined ? null : value;
+}
+
+export async function fetchLiveAirQuality(signal?: AbortSignal): Promise<AirQualityGeoJSON> {
+  const apiKey = process.env.OPENAQ_API_KEY;
+  if (!apiKey) {
+    console.error("OPENAQ_API_KEY no configurada, usando datos de respaldo");
+    return mockAirQualityGeoJSON();
+  }
+
+  const features: AirQualityFeature[] = [];
+
+  for (const anchor of CITY_ANCHORS) {
+    try {
+      const station = await fetchNearestPm25Station(anchor, apiKey, signal);
+      if (!station) continue;
+
+      const pm25 = await fetchSensorLatestValue(station.sensorId, apiKey, signal);
+      // OpenAQ reporta lecturas negativas cuando el sensor esta descalibrado o sin datos validos.
+      if (pm25 === null || pm25 < 0) continue;
+
+      features.push({
+        type: "Feature",
+        id: station.sensorId,
+        properties: {
+          station: station.locationName,
+          pm25,
+          category: getAQICategory(pm25),
+          updated: new Date().toISOString(),
+        },
+        geometry: {
+          type: "Point",
+          coordinates: [station.longitude, station.latitude],
+        },
+      });
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") throw error;
+      console.error(`Error obteniendo calidad de aire para ${anchor.name}:`, error);
+    }
+  }
+
+  if (features.length === 0) {
+    console.error("Sin estaciones OpenAQ validas, usando datos de respaldo");
+    return mockAirQualityGeoJSON();
+  }
+
+  return { type: "FeatureCollection", features };
 }
 
 export function mockAirQualityGeoJSON(): AirQualityGeoJSON {
