@@ -33,7 +33,7 @@ export default function MapContainer({
       center: [-86.2362, 12.1150], // Managua / Centroamérica
       zoom: 3.5,
       pitch: 0,
-      antialias: true,
+      canvasContextAttributes: { antialias: true },
       maxPitch: 60,
     });
 
@@ -178,7 +178,8 @@ export default function MapContainer({
       isMapLoadedRef.current = false;
       map.remove();
     };
-  }, []); // Montaje único
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- inicialización única e intencional; los updates posteriores de earthquakes/airQuality/showQuakes/showAirQuality se manejan en los effects de abajo vía setData/setLayoutProperty sin re-crear el mapa.
+  }, []);
 
   // 2. Actualización de datos de Sismos SIN recargar el mapa
   useEffect(() => {

@@ -1,5 +1,5 @@
 import React from "react";
-import { Activity, Radio, ShieldCheck, Flame } from "lucide-react";
+import { Activity, Radio, Flame } from "lucide-react";
 
 interface HeaderProps {
   earthquakeCount: number;

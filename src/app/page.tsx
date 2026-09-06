@@ -29,7 +29,6 @@ export default function HomePage() {
   const [airQuality] = useState<AirQualityGeoJSON>(mockAirQualityGeoJSON());
   const [showQuakes, setShowQuakes] = useState<boolean>(true);
   const [showAirQuality, setShowAirQuality] = useState<boolean>(true);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -42,8 +41,6 @@ export default function HomePage() {
         if (!(err instanceof DOMException && err.name === "AbortError")) {
           console.error("Error al sincronizar con feed USGS:", err);
         }
-      } finally {
-        setIsLoading(false);
       }
     }
 
