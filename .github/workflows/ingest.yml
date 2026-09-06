@@ -1,0 +1,26 @@
+name: Scheduled Environmental Ingestion
+
+on:
+  schedule:
+    - cron: '*/30 * * * *' # Ejecuta cada 30 minutos
+  workflow_dispatch: # Permite ejecución manual desde la web de GitHub
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Ingest Environmental Data
+        env:
+          SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          echo "Ejecutando pipeline de ingesta automatizado..."
