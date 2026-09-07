@@ -3,6 +3,7 @@ import { fetchLiveEarthquakes } from "@/lib/usgs";
 import { fetchLiveAirQuality } from "@/lib/openaq";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { toEarthquakeRow, toAirQualityRow, isIngestAuthorized } from "@/lib/ingest";
+import { processEarthquakeAlerts, processAirQualityAlerts } from "@/lib/discordAlerts";
 
 export async function GET(request: Request) {
   if (!isIngestAuthorized(request, process.env.INGEST_SECRET)) {
@@ -26,10 +27,22 @@ export async function GET(request: Request) {
       : { error: null };
     if (aqResult.error) throw new Error(`air_quality upsert: ${aqResult.error.message}`);
 
+    let earthquakeAlertsSent = 0;
+    let airQualityAlertsSent = 0;
+    const webhookUrl = process.env.DISCORD_WEBHOOK_URL;
+    if (webhookUrl) {
+      const appUrl = process.env.APP_URL || "https://ecopulse-app.example.com";
+      const deps = { supabaseAdmin, webhookUrl, appUrl };
+      earthquakeAlertsSent = await processEarthquakeAlerts(deps, earthquakes.features);
+      airQualityAlertsSent = await processAirQualityAlerts(deps, airQuality.features);
+    }
+
     return NextResponse.json({
       success: true,
       earthquakesUpserted: earthquakeRows.length,
       airQualityUpserted: airQualityRows.length,
+      earthquakeAlertsSent,
+      airQualityAlertsSent,
       timestamp: new Date().toISOString(),
     });
   } catch (error: unknown) {
