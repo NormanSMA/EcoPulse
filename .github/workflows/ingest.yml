@@ -9,18 +9,17 @@ jobs:
   ingest:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      - name: Ingest Environmental Data
+      - name: Call ingest endpoint
         env:
-          SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-          SUPABASE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          APP_URL: ${{ secrets.APP_URL }}
+          INGEST_SECRET: ${{ secrets.INGEST_SECRET }}
         run: |
-          echo "Ejecutando pipeline de ingesta automatizado..."
+          response=$(curl -s -w "\n%{http_code}" "$APP_URL/api/ingest" \
+            -H "Authorization: Bearer $INGEST_SECRET")
+          http_code=$(echo "$response" | tail -n1)
+          body=$(echo "$response" | sed '$d')
+          echo "$body"
+          if [ "$http_code" -ne 200 ]; then
+            echo "Ingest failed with HTTP $http_code"
+            exit 1
+          fi
