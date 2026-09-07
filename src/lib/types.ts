@@ -83,6 +83,32 @@ export interface FireGeoJSON {
   features: FireFeature[];
 }
 
+export interface WeatherProperties {
+  city: string;
+  temperature: number;
+  humidity: number;
+  windSpeed: number;
+  windDirection: number;
+  weatherCode: number;
+  weatherDescription: string;
+  updated: string;
+}
+
+export interface WeatherFeature {
+  type: "Feature";
+  id: string;
+  properties: WeatherProperties;
+  geometry: {
+    type: "Point";
+    coordinates: [number, number]; // [longitude, latitude]
+  };
+}
+
+export interface WeatherGeoJSON {
+  type: "FeatureCollection";
+  features: WeatherFeature[];
+}
+
 export interface NearbyEarthquakeRow {
   id: string;
   usgs_id: string;

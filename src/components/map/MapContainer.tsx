@@ -2,15 +2,17 @@
 
 import React, { useEffect, useRef } from "react";
 import maplibregl, { GeoJSONSource, Map as MapLibreMap } from "maplibre-gl";
-import { EarthquakeGeoJSON, AirQualityGeoJSON, FireGeoJSON, EarthquakeProperties, AirQualityProperties, FireProperties } from "@/lib/types";
+import { EarthquakeGeoJSON, AirQualityGeoJSON, FireGeoJSON, WeatherGeoJSON, EarthquakeProperties, AirQualityProperties, FireProperties, WeatherProperties } from "@/lib/types";
 
 interface MapContainerProps {
   earthquakes: EarthquakeGeoJSON;
   airQuality: AirQualityGeoJSON;
   fires: FireGeoJSON;
+  weather: WeatherGeoJSON;
   showQuakes: boolean;
   showAirQuality: boolean;
   showFires: boolean;
+  showWeather: boolean;
 }
 
 const OPENFREEMAP_DARK_STYLE = "https://tiles.openfreemap.org/styles/dark";
@@ -19,9 +21,11 @@ export default function MapContainer({
   earthquakes,
   airQuality,
   fires,
+  weather,
   showQuakes,
   showAirQuality,
   showFires,
+  showWeather,
 }: MapContainerProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
@@ -144,6 +148,33 @@ export default function MapContainer({
         },
       });
 
+      // Fuente y capa para Clima (Open-Meteo) - etiqueta de texto, no circulo,
+      // para no tapar los puntos de calidad de aire en las mismas ciudades
+      map.addSource("weather-source", {
+        type: "geojson",
+        data: weather,
+      });
+
+      map.addLayer({
+        id: "weather-layer",
+        type: "symbol",
+        source: "weather-source",
+        layout: {
+          visibility: showWeather ? "visible" : "none",
+          "text-field": ["concat", ["to-string", ["round", ["get", "temperature"]]], "°C"],
+          "text-font": ["Noto Sans Regular"],
+          "text-size": 12,
+          "text-offset": [0, -1.8],
+          "text-anchor": "bottom",
+          "text-allow-overlap": true,
+        },
+        paint: {
+          "text-color": "#7dd3fc",
+          "text-halo-color": "#0f172a",
+          "text-halo-width": 1.5,
+        },
+      });
+
       // Popup de interacción con Sismos
       map.on("click", "earthquakes-layer", (e) => {
         if (!e.features || !e.features[0]) return;
@@ -217,6 +248,29 @@ export default function MapContainer({
           .addTo(map);
       });
 
+      // Popup de interacción con Clima
+      map.on("click", "weather-layer", (e) => {
+        if (!e.features || !e.features[0]) return;
+        const feature = e.features[0];
+        if (feature.geometry.type !== "Point") return;
+        const coordinates = feature.geometry.coordinates.slice();
+        const { city, temperature, humidity, windSpeed, weatherDescription } = feature.properties as WeatherProperties;
+
+        new maplibregl.Popup({ closeButton: true, focusAfterOpen: false })
+          .setLngLat([coordinates[0], coordinates[1]])
+          .setHTML(
+            `<div class="space-y-1.5 p-1 text-xs">
+              <div class="flex items-center justify-between gap-2">
+                <span class="font-bold text-sky-400 text-sm">${city}</span>
+                <span class="text-[10px] bg-sky-500/20 text-sky-300 px-1.5 py-0.5 rounded">${weatherDescription}</span>
+              </div>
+              <div class="text-slate-300">Temperatura: <span class="font-bold text-white">${temperature}°C</span></div>
+              <div class="text-slate-400 text-[10px]">Humedad: ${humidity}% · Viento: ${windSpeed} km/h</div>
+            </div>`
+          )
+          .addTo(map);
+      });
+
       // Efecto cursor pointer
       map.on("mouseenter", "earthquakes-layer", () => { map.getCanvas().style.cursor = "pointer"; });
       map.on("mouseleave", "earthquakes-layer", () => { map.getCanvas().style.cursor = ""; });
@@ -224,6 +278,8 @@ export default function MapContainer({
       map.on("mouseleave", "air-quality-layer", () => { map.getCanvas().style.cursor = ""; });
       map.on("mouseenter", "fires-layer", () => { map.getCanvas().style.cursor = "pointer"; });
       map.on("mouseleave", "fires-layer", () => { map.getCanvas().style.cursor = ""; });
+      map.on("mouseenter", "weather-layer", () => { map.getCanvas().style.cursor = "pointer"; });
+      map.on("mouseleave", "weather-layer", () => { map.getCanvas().style.cursor = ""; });
     });
 
     // Soporte de redimensionamiento automático
@@ -239,7 +295,7 @@ export default function MapContainer({
       isMapLoadedRef.current = false;
       map.remove();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- inicialización única e intencional; los updates posteriores de earthquakes/airQuality/fires/showQuakes/showAirQuality/showFires se manejan en los effects de abajo vía setData/setLayoutProperty sin re-crear el mapa.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- inicialización única e intencional; los updates posteriores de earthquakes/airQuality/fires/weather/showQuakes/showAirQuality/showFires/showWeather se manejan en los effects de abajo vía setData/setLayoutProperty sin re-crear el mapa.
   }, []);
 
   // 2. Actualización de datos de Sismos SIN recargar el mapa
@@ -269,6 +325,15 @@ export default function MapContainer({
     }
   }, [fires]);
 
+  // 3c. Actualización de datos de Clima SIN recargar el mapa
+  useEffect(() => {
+    if (!mapRef.current || !isMapLoadedRef.current) return;
+    const source = mapRef.current.getSource("weather-source") as GeoJSONSource | undefined;
+    if (source) {
+      source.setData(weather);
+    }
+  }, [weather]);
+
   // 4. Conmutación reactiva de visibilidad de capas (Zero-latency toggle)
   useEffect(() => {
     if (!mapRef.current || !isMapLoadedRef.current) return;
@@ -290,6 +355,13 @@ export default function MapContainer({
       mapRef.current.setLayoutProperty("fires-layer", "visibility", showFires ? "visible" : "none");
     }
   }, [showFires]);
+
+  useEffect(() => {
+    if (!mapRef.current || !isMapLoadedRef.current) return;
+    if (mapRef.current.getLayer("weather-layer")) {
+      mapRef.current.setLayoutProperty("weather-layer", "visibility", showWeather ? "visible" : "none");
+    }
+  }, [showWeather]);
 
   return <div ref={mapContainerRef} className="w-full h-screen relative bg-slate-950" />;
 }

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { toEarthquakeRow, toAirQualityRow, toFireRow, dedupeByKey, isIngestAuthorized } from "./ingest";
-import { EarthquakeFeature, AirQualityFeature, FireFeature } from "./types";
+import { toEarthquakeRow, toAirQualityRow, toFireRow, toWeatherRow, dedupeByKey, isIngestAuthorized } from "./ingest";
+import { EarthquakeFeature, AirQualityFeature, FireFeature, WeatherFeature } from "./types";
 
 const sampleEarthquake: EarthquakeFeature = {
   type: "Feature",
@@ -94,6 +94,38 @@ describe("toFireRow", () => {
       satellite: "N20",
       acquired_at: "2026-09-06T13:45:00.000Z",
       location: "SRID=4326;POINT(-85.988 12.432)",
+    });
+  });
+});
+
+const sampleWeather: WeatherFeature = {
+  type: "Feature",
+  id: "Managua",
+  properties: {
+    city: "Managua",
+    temperature: 27.4,
+    humidity: 79,
+    windSpeed: 17.8,
+    windDirection: 146,
+    weatherCode: 3,
+    weatherDescription: "Nublado",
+    updated: "2026-09-07T01:15:00.000Z",
+  },
+  geometry: { type: "Point", coordinates: [-86.2362, 12.1150] },
+};
+
+describe("toWeatherRow", () => {
+  it("mapea una feature de Open-Meteo a la forma de la tabla weather", () => {
+    const row = toWeatherRow(sampleWeather);
+    expect(row).toEqual({
+      city: "Managua",
+      temperature: 27.4,
+      humidity: 79,
+      wind_speed: 17.8,
+      wind_direction: 146,
+      weather_code: 3,
+      location: "SRID=4326;POINT(-86.2362 12.115)",
+      measured_at: "2026-09-07T01:15:00.000Z",
     });
   });
 });

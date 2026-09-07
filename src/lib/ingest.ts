@@ -1,4 +1,4 @@
-import { EarthquakeFeature, AirQualityFeature, FireFeature } from "./types";
+import { EarthquakeFeature, AirQualityFeature, FireFeature, WeatherFeature } from "./types";
 
 export function toEarthquakeRow(feature: EarthquakeFeature) {
   const [lon, lat, depth] = feature.geometry.coordinates;
@@ -35,6 +35,20 @@ export function toFireRow(feature: FireFeature) {
     satellite: feature.properties.satellite,
     acquired_at: feature.properties.acquiredAt,
     location: `SRID=4326;POINT(${lon} ${lat})`,
+  };
+}
+
+export function toWeatherRow(feature: WeatherFeature) {
+  const [lon, lat] = feature.geometry.coordinates;
+  return {
+    city: feature.properties.city,
+    temperature: feature.properties.temperature,
+    humidity: feature.properties.humidity,
+    wind_speed: feature.properties.windSpeed,
+    wind_direction: feature.properties.windDirection,
+    weather_code: feature.properties.weatherCode,
+    location: `SRID=4326;POINT(${lon} ${lat})`,
+    measured_at: feature.properties.updated,
   };
 }
 

@@ -5,7 +5,7 @@ import dynamic from "next/dynamic";
 import Header from "@/components/ui/Header";
 import StatsPanel from "@/components/ui/StatsPanel";
 import NearbySearch from "@/components/ui/NearbySearch";
-import { EarthquakeGeoJSON, AirQualityGeoJSON, FireGeoJSON } from "@/lib/types";
+import { EarthquakeGeoJSON, AirQualityGeoJSON, FireGeoJSON, WeatherGeoJSON } from "@/lib/types";
 import { fetchLiveEarthquakes } from "@/lib/usgs";
 
 const MapContainer = dynamic(() => import("@/components/map/MapContainer"), {
@@ -34,13 +34,20 @@ const INITIAL_FIRES: FireGeoJSON = {
   features: []
 };
 
+const INITIAL_WEATHER: WeatherGeoJSON = {
+  type: "FeatureCollection",
+  features: []
+};
+
 export default function HomePage() {
   const [earthquakes, setEarthquakes] = useState<EarthquakeGeoJSON>(INITIAL_EARTHQUAKES);
   const [airQuality, setAirQuality] = useState<AirQualityGeoJSON>(INITIAL_AIR_QUALITY);
   const [fires, setFires] = useState<FireGeoJSON>(INITIAL_FIRES);
+  const [weather, setWeather] = useState<WeatherGeoJSON>(INITIAL_WEATHER);
   const [showQuakes, setShowQuakes] = useState<boolean>(true);
   const [showAirQuality, setShowAirQuality] = useState<boolean>(true);
   const [showFires, setShowFires] = useState<boolean>(true);
+  const [showWeather, setShowWeather] = useState<boolean>(true);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -82,9 +89,23 @@ export default function HomePage() {
       }
     }
 
+    async function loadWeather() {
+      try {
+        const res = await fetch("/api/weather", { signal: controller.signal });
+        if (!res.ok) throw new Error(`Weather HTTP ${res.status}`);
+        const data: WeatherGeoJSON = await res.json();
+        setWeather(data);
+      } catch (err: unknown) {
+        if (!(err instanceof DOMException && err.name === "AbortError")) {
+          console.error("Error al sincronizar con Open-Meteo:", err);
+        }
+      }
+    }
+
     loadData();
     loadAirQuality();
     loadFires();
+    loadWeather();
     return () => controller.abort();
   }, []);
 
@@ -106,15 +127,19 @@ export default function HomePage() {
         setShowAirQuality={setShowAirQuality}
         showFires={showFires}
         setShowFires={setShowFires}
+        showWeather={showWeather}
+        setShowWeather={setShowWeather}
       />
       <NearbySearch />
       <MapContainer
         earthquakes={earthquakes}
         airQuality={airQuality}
         fires={fires}
+        weather={weather}
         showQuakes={showQuakes}
         showAirQuality={showAirQuality}
         showFires={showFires}
+        showWeather={showWeather}
       />
     </main>
   );
