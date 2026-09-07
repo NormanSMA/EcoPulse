@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { toEarthquakeRow, toAirQualityRow, toFireRow, toWeatherRow, toDisasterRow, dedupeByKey, isIngestAuthorized } from "./ingest";
-import { EarthquakeFeature, AirQualityFeature, FireFeature, WeatherFeature, DisasterFeature } from "./types";
+import { toEarthquakeRow, toAirQualityRow, toFireRow, toWeatherRow, toDisasterRow, toIssRow, dedupeByKey, isIngestAuthorized } from "./ingest";
+import { EarthquakeFeature, AirQualityFeature, FireFeature, WeatherFeature, DisasterFeature, IssFeature } from "./types";
 
 const sampleEarthquake: EarthquakeFeature = {
   type: "Feature",
@@ -160,6 +160,30 @@ describe("toDisasterRow", () => {
       to_date: "2026-09-07T01:00:00.000Z",
       report_url: "https://www.gdacs.org/report.aspx?eventid=1104081",
       location: "SRID=4326;POINT(116 28)",
+    });
+  });
+});
+
+const sampleIss: IssFeature = {
+  type: "Feature",
+  id: "iss",
+  properties: {
+    altitudeKm: 420.79,
+    velocityKmS: 7.66,
+    timestamp: "2026-09-04T12:00:00.000Z",
+  },
+  geometry: { type: "Point", coordinates: [-71.04, -6.73] },
+};
+
+describe("toIssRow", () => {
+  it("mapea la posicion de la ISS a la forma de la tabla iss_position", () => {
+    const row = toIssRow(sampleIss);
+    expect(row).toEqual({
+      id: "current",
+      altitude_km: 420.79,
+      velocity_kms: 7.66,
+      observed_at: "2026-09-04T12:00:00.000Z",
+      location: "SRID=4326;POINT(-71.04 -6.73)",
     });
   });
 });

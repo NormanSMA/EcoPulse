@@ -4,8 +4,9 @@ import { fetchLiveAirQuality } from "@/lib/openaq";
 import { fetchLiveFires } from "@/lib/firms";
 import { fetchLiveWeather } from "@/lib/weather";
 import { fetchLiveDisasters } from "@/lib/gdacs";
+import { fetchLiveIssPosition } from "@/lib/iss";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
-import { toEarthquakeRow, toAirQualityRow, toFireRow, toWeatherRow, toDisasterRow, dedupeByKey, isIngestAuthorized } from "@/lib/ingest";
+import { toEarthquakeRow, toAirQualityRow, toFireRow, toWeatherRow, toDisasterRow, toIssRow, dedupeByKey, isIngestAuthorized } from "@/lib/ingest";
 import { processEarthquakeAlerts, processAirQualityAlerts } from "@/lib/discordAlerts";
 
 export async function GET(request: Request) {
@@ -51,6 +52,13 @@ export async function GET(request: Request) {
       : { error: null };
     if (disasterResult.error) throw new Error(`disasters upsert: ${disasterResult.error.message}`);
 
+    const iss = await fetchLiveIssPosition();
+    const issRows = iss.features.map(toIssRow);
+    const issResult = issRows.length
+      ? await supabaseAdmin.from("iss_position").upsert(issRows, { onConflict: "id" })
+      : { error: null };
+    if (issResult.error) throw new Error(`iss_position upsert: ${issResult.error.message}`);
+
     let earthquakeAlertsSent = 0;
     let airQualityAlertsSent = 0;
     const webhookUrl = process.env.DISCORD_WEBHOOK_URL;
@@ -68,6 +76,7 @@ export async function GET(request: Request) {
       firesUpserted: fireRows.length,
       weatherUpserted: weatherRows.length,
       disastersUpserted: disasterRows.length,
+      issUpserted: issRows.length,
       earthquakeAlertsSent,
       airQualityAlertsSent,
       timestamp: new Date().toISOString(),

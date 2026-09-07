@@ -12,6 +12,8 @@ interface StatsPanelProps {
   setShowWeather: (val: boolean) => void;
   showDisasters: boolean;
   setShowDisasters: (val: boolean) => void;
+  showIss: boolean;
+  setShowIss: (val: boolean) => void;
 }
 
 export default function StatsPanel({
@@ -25,6 +27,8 @@ export default function StatsPanel({
   setShowWeather,
   showDisasters,
   setShowDisasters,
+  showIss,
+  setShowIss,
 }: StatsPanelProps) {
   return (
     <aside className="absolute bottom-6 left-4 z-10 w-72 bg-slate-900/90 backdrop-blur-md border border-slate-800 p-4 rounded-2xl shadow-2xl space-y-4">
@@ -98,6 +102,19 @@ export default function StatsPanel({
             checked={showDisasters}
             onChange={(e) => setShowDisasters(e.target.checked)}
             className="rounded border-slate-700 bg-slate-900 text-amber-500 focus:ring-0 cursor-pointer"
+          />
+        </label>
+
+        <label className="flex items-center justify-between p-2 rounded-xl bg-slate-800/40 hover:bg-slate-800/70 cursor-pointer transition">
+          <div className="flex items-center gap-2">
+            <span className="h-2.5 w-2.5 rounded-full bg-slate-300 shadow-[0_0_8px_rgba(203,213,225,0.6)]" />
+            <span className="text-slate-200">Estación Espacial (ISS)</span>
+          </div>
+          <input
+            type="checkbox"
+            checked={showIss}
+            onChange={(e) => setShowIss(e.target.checked)}
+            className="rounded border-slate-700 bg-slate-900 text-slate-300 focus:ring-0 cursor-pointer"
           />
         </label>
       </div>

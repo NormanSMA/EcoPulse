@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef } from "react";
 import maplibregl, { GeoJSONSource, Map as MapLibreMap } from "maplibre-gl";
-import { EarthquakeGeoJSON, AirQualityGeoJSON, FireGeoJSON, WeatherGeoJSON, DisasterGeoJSON, EarthquakeProperties, AirQualityProperties, FireProperties, WeatherProperties, DisasterProperties } from "@/lib/types";
+import { EarthquakeGeoJSON, AirQualityGeoJSON, FireGeoJSON, WeatherGeoJSON, DisasterGeoJSON, IssGeoJSON, EarthquakeProperties, AirQualityProperties, FireProperties, WeatherProperties, DisasterProperties, IssProperties } from "@/lib/types";
 
 interface MapContainerProps {
   earthquakes: EarthquakeGeoJSON;
@@ -10,11 +10,13 @@ interface MapContainerProps {
   fires: FireGeoJSON;
   weather: WeatherGeoJSON;
   disasters: DisasterGeoJSON;
+  iss: IssGeoJSON;
   showQuakes: boolean;
   showAirQuality: boolean;
   showFires: boolean;
   showWeather: boolean;
   showDisasters: boolean;
+  showIss: boolean;
 }
 
 const OPENFREEMAP_DARK_STYLE = "https://tiles.openfreemap.org/styles/dark";
@@ -25,11 +27,13 @@ export default function MapContainer({
   fires,
   weather,
   disasters,
+  iss,
   showQuakes,
   showAirQuality,
   showFires,
   showWeather,
   showDisasters,
+  showIss,
 }: MapContainerProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
@@ -208,6 +212,48 @@ export default function MapContainer({
         },
       });
 
+      // Fuente y capa para la ISS (posicion interpolada de la trayectoria OEM de NASA)
+      map.addSource("iss-source", {
+        type: "geojson",
+        data: iss,
+      });
+
+      map.addLayer({
+        id: "iss-layer",
+        type: "circle",
+        source: "iss-source",
+        layout: {
+          visibility: showIss ? "visible" : "none",
+        },
+        paint: {
+          "circle-radius": 7,
+          "circle-color": "#e2e8f0",
+          "circle-opacity": 0.95,
+          "circle-stroke-width": 2,
+          "circle-stroke-color": "#38bdf8",
+        },
+      });
+
+      map.addLayer({
+        id: "iss-label-layer",
+        type: "symbol",
+        source: "iss-source",
+        layout: {
+          visibility: showIss ? "visible" : "none",
+          "text-field": "ISS",
+          "text-font": ["Noto Sans Regular"],
+          "text-size": 11,
+          "text-offset": [0, -1.5],
+          "text-anchor": "bottom",
+          "text-allow-overlap": true,
+        },
+        paint: {
+          "text-color": "#e2e8f0",
+          "text-halo-color": "#0f172a",
+          "text-halo-width": 1.5,
+        },
+      });
+
       // Popup de interacción con Sismos
       map.on("click", "earthquakes-layer", (e) => {
         if (!e.features || !e.features[0]) return;
@@ -328,6 +374,30 @@ export default function MapContainer({
           .addTo(map);
       });
 
+      // Popup de interacción con la ISS
+      map.on("click", "iss-layer", (e) => {
+        if (!e.features || !e.features[0]) return;
+        const feature = e.features[0];
+        if (feature.geometry.type !== "Point") return;
+        const coordinates = feature.geometry.coordinates.slice();
+        const { altitudeKm, velocityKmS, timestamp } = feature.properties as IssProperties;
+        const dateStr = new Date(timestamp).toLocaleString();
+
+        new maplibregl.Popup({ closeButton: true, focusAfterOpen: false })
+          .setLngLat([coordinates[0], coordinates[1]])
+          .setHTML(
+            `<div class="space-y-1.5 p-1 text-xs">
+              <div class="flex items-center justify-between gap-2">
+                <span class="font-bold text-slate-200 text-sm">🛰️ Estación Espacial Internacional</span>
+              </div>
+              <div class="text-slate-300">Altitud: <span class="font-bold text-white">${altitudeKm.toFixed(1)} km</span></div>
+              <div class="text-slate-300">Velocidad: <span class="font-bold text-white">${velocityKmS.toFixed(2)} km/s</span></div>
+              <div class="text-slate-400 text-[10px]">${dateStr}</div>
+            </div>`
+          )
+          .addTo(map);
+      });
+
       // Efecto cursor pointer
       map.on("mouseenter", "earthquakes-layer", () => { map.getCanvas().style.cursor = "pointer"; });
       map.on("mouseleave", "earthquakes-layer", () => { map.getCanvas().style.cursor = ""; });
@@ -339,6 +409,8 @@ export default function MapContainer({
       map.on("mouseleave", "weather-layer", () => { map.getCanvas().style.cursor = ""; });
       map.on("mouseenter", "disasters-layer", () => { map.getCanvas().style.cursor = "pointer"; });
       map.on("mouseleave", "disasters-layer", () => { map.getCanvas().style.cursor = ""; });
+      map.on("mouseenter", "iss-layer", () => { map.getCanvas().style.cursor = "pointer"; });
+      map.on("mouseleave", "iss-layer", () => { map.getCanvas().style.cursor = ""; });
     });
 
     // Soporte de redimensionamiento automático
@@ -354,7 +426,7 @@ export default function MapContainer({
       isMapLoadedRef.current = false;
       map.remove();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- inicialización única e intencional; los updates posteriores de earthquakes/airQuality/fires/weather/disasters/showQuakes/showAirQuality/showFires/showWeather/showDisasters se manejan en los effects de abajo vía setData/setLayoutProperty sin re-crear el mapa.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- inicialización única e intencional; los updates posteriores de earthquakes/airQuality/fires/weather/disasters/iss/showQuakes/showAirQuality/showFires/showWeather/showDisasters/showIss se manejan en los effects de abajo vía setData/setLayoutProperty sin re-crear el mapa.
   }, []);
 
   // 2. Actualización de datos de Sismos SIN recargar el mapa
@@ -402,6 +474,15 @@ export default function MapContainer({
     }
   }, [disasters]);
 
+  // 3e. Actualización de datos de la ISS SIN recargar el mapa
+  useEffect(() => {
+    if (!mapRef.current || !isMapLoadedRef.current) return;
+    const source = mapRef.current.getSource("iss-source") as GeoJSONSource | undefined;
+    if (source) {
+      source.setData(iss);
+    }
+  }, [iss]);
+
   // 4. Conmutación reactiva de visibilidad de capas (Zero-latency toggle)
   useEffect(() => {
     if (!mapRef.current || !isMapLoadedRef.current) return;
@@ -437,6 +518,16 @@ export default function MapContainer({
       mapRef.current.setLayoutProperty("disasters-layer", "visibility", showDisasters ? "visible" : "none");
     }
   }, [showDisasters]);
+
+  useEffect(() => {
+    if (!mapRef.current || !isMapLoadedRef.current) return;
+    if (mapRef.current.getLayer("iss-layer")) {
+      mapRef.current.setLayoutProperty("iss-layer", "visibility", showIss ? "visible" : "none");
+    }
+    if (mapRef.current.getLayer("iss-label-layer")) {
+      mapRef.current.setLayoutProperty("iss-label-layer", "visibility", showIss ? "visible" : "none");
+    }
+  }, [showIss]);
 
   return <div ref={mapContainerRef} className="w-full h-screen relative bg-slate-950" />;
 }

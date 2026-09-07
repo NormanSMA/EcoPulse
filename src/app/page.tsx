@@ -5,7 +5,7 @@ import dynamic from "next/dynamic";
 import Header from "@/components/ui/Header";
 import StatsPanel from "@/components/ui/StatsPanel";
 import NearbySearch from "@/components/ui/NearbySearch";
-import { EarthquakeGeoJSON, AirQualityGeoJSON, FireGeoJSON, WeatherGeoJSON, DisasterGeoJSON } from "@/lib/types";
+import { EarthquakeGeoJSON, AirQualityGeoJSON, FireGeoJSON, WeatherGeoJSON, DisasterGeoJSON, IssGeoJSON } from "@/lib/types";
 import { fetchLiveEarthquakes } from "@/lib/usgs";
 
 const MapContainer = dynamic(() => import("@/components/map/MapContainer"), {
@@ -44,17 +44,26 @@ const INITIAL_DISASTERS: DisasterGeoJSON = {
   features: []
 };
 
+const INITIAL_ISS: IssGeoJSON = {
+  type: "FeatureCollection",
+  features: []
+};
+
+const ISS_REFRESH_MS = 15000;
+
 export default function HomePage() {
   const [earthquakes, setEarthquakes] = useState<EarthquakeGeoJSON>(INITIAL_EARTHQUAKES);
   const [airQuality, setAirQuality] = useState<AirQualityGeoJSON>(INITIAL_AIR_QUALITY);
   const [fires, setFires] = useState<FireGeoJSON>(INITIAL_FIRES);
   const [weather, setWeather] = useState<WeatherGeoJSON>(INITIAL_WEATHER);
   const [disasters, setDisasters] = useState<DisasterGeoJSON>(INITIAL_DISASTERS);
+  const [iss, setIss] = useState<IssGeoJSON>(INITIAL_ISS);
   const [showQuakes, setShowQuakes] = useState<boolean>(true);
   const [showAirQuality, setShowAirQuality] = useState<boolean>(true);
   const [showFires, setShowFires] = useState<boolean>(true);
   const [showWeather, setShowWeather] = useState<boolean>(true);
   const [showDisasters, setShowDisasters] = useState<boolean>(true);
+  const [showIss, setShowIss] = useState<boolean>(true);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -130,6 +139,32 @@ export default function HomePage() {
     return () => controller.abort();
   }, []);
 
+  // La ISS viaja a ~7.7 km/s: refrescar solo al cargar la pagina la dejaria
+  // desactualizada en segundos. Se sondea por separado con un intervalo corto.
+  useEffect(() => {
+    const controller = new AbortController();
+
+    async function loadIss() {
+      try {
+        const res = await fetch("/api/iss", { signal: controller.signal });
+        if (!res.ok) throw new Error(`ISS HTTP ${res.status}`);
+        const data: IssGeoJSON = await res.json();
+        setIss(data);
+      } catch (err: unknown) {
+        if (!(err instanceof DOMException && err.name === "AbortError")) {
+          console.error("Error al sincronizar con la posición de la ISS:", err);
+        }
+      }
+    }
+
+    loadIss();
+    const interval = setInterval(loadIss, ISS_REFRESH_MS);
+    return () => {
+      controller.abort();
+      clearInterval(interval);
+    };
+  }, []);
+
   const maxMag = useMemo(() => {
     if (!earthquakes.features.length) return 0;
     return earthquakes.features.reduce((max, f) => {
@@ -152,6 +187,8 @@ export default function HomePage() {
         setShowWeather={setShowWeather}
         showDisasters={showDisasters}
         setShowDisasters={setShowDisasters}
+        showIss={showIss}
+        setShowIss={setShowIss}
       />
       <NearbySearch />
       <MapContainer
@@ -160,11 +197,13 @@ export default function HomePage() {
         fires={fires}
         weather={weather}
         disasters={disasters}
+        iss={iss}
         showQuakes={showQuakes}
         showAirQuality={showAirQuality}
         showFires={showFires}
         showWeather={showWeather}
         showDisasters={showDisasters}
+        showIss={showIss}
       />
     </main>
   );

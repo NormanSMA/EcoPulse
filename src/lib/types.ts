@@ -139,6 +139,27 @@ export interface DisasterGeoJSON {
   features: DisasterFeature[];
 }
 
+export interface IssProperties {
+  altitudeKm: number;
+  velocityKmS: number;
+  timestamp: string;
+}
+
+export interface IssFeature {
+  type: "Feature";
+  id: "iss";
+  properties: IssProperties;
+  geometry: {
+    type: "Point";
+    coordinates: [number, number]; // [longitude, latitude]
+  };
+}
+
+export interface IssGeoJSON {
+  type: "FeatureCollection";
+  features: IssFeature[];
+}
+
 export interface NearbyEarthquakeRow {
   id: string;
   usgs_id: string;
