@@ -1,5 +1,8 @@
-import React from "react";
-import { Layers, Info } from "lucide-react";
+import { useTranslations } from "next-intl";
+import { Layers, Info } from "lucide";
+import { MorphIcon } from "morphicons/react";
+import { Card } from "@/components/ui/Card";
+import { LayerToggle } from "@/components/ui/LayerToggle";
 
 interface StatsPanelProps {
   showQuakes: boolean;
@@ -38,125 +41,72 @@ export default function StatsPanel({
   showAirQualityModel,
   setShowAirQualityModel,
 }: StatsPanelProps) {
+  const t = useTranslations("layers");
+
   return (
-    <aside className="absolute bottom-6 left-4 z-10 w-72 bg-slate-900/90 backdrop-blur-md border border-slate-800 p-4 rounded-2xl shadow-2xl space-y-4">
-      <div className="flex items-center justify-between pb-2 border-b border-slate-800">
-        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-400">
-          <Layers className="h-4 w-4 text-indigo-400" />
-          <span>Capas Activas</span>
+    <Card className="space-y-4">
+      <div className="flex items-center justify-between pb-2 border-b border-ds-border">
+        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-ds-text-secondary">
+          <MorphIcon icon={Layers} size={16} reducedMotion="user" className="text-indigo-400" />
+          <span>{t("title")}</span>
         </div>
       </div>
 
       <div className="space-y-2 text-xs">
-        <label className="flex items-center justify-between p-2 rounded-xl bg-slate-800/40 hover:bg-slate-800/70 cursor-pointer transition">
-          <div className="flex items-center gap-2">
-            <span className="h-2.5 w-2.5 rounded-full bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.6)]" />
-            <span className="text-slate-200">Sismos Recientes (USGS)</span>
-          </div>
-          <input
-            type="checkbox"
-            checked={showQuakes}
-            onChange={(e) => setShowQuakes(e.target.checked)}
-            className="rounded border-slate-700 bg-slate-900 text-rose-500 focus:ring-0 cursor-pointer"
-          />
-        </label>
-
-        <label className="flex items-center justify-between p-2 rounded-xl bg-slate-800/40 hover:bg-slate-800/70 cursor-pointer transition">
-          <div className="flex items-center gap-2">
-            <span className="h-2.5 w-2.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]" />
-            <span className="text-slate-200">Calidad del Aire (PM2.5)</span>
-          </div>
-          <input
-            type="checkbox"
-            checked={showAirQuality}
-            onChange={(e) => setShowAirQuality(e.target.checked)}
-            className="rounded border-slate-700 bg-slate-900 text-emerald-500 focus:ring-0 cursor-pointer"
-          />
-        </label>
-
-        <label className="flex items-center justify-between p-2 rounded-xl bg-slate-800/40 hover:bg-slate-800/70 cursor-pointer transition">
-          <div className="flex items-center gap-2">
-            <span className="h-2.5 w-2.5 rounded-full bg-orange-500 shadow-[0_0_8px_rgba(249,115,22,0.6)]" />
-            <span className="text-slate-200">Incendios (NASA FIRMS)</span>
-          </div>
-          <input
-            type="checkbox"
-            checked={showFires}
-            onChange={(e) => setShowFires(e.target.checked)}
-            className="rounded border-slate-700 bg-slate-900 text-orange-500 focus:ring-0 cursor-pointer"
-          />
-        </label>
-
-        <label className="flex items-center justify-between p-2 rounded-xl bg-slate-800/40 hover:bg-slate-800/70 cursor-pointer transition">
-          <div className="flex items-center gap-2">
-            <span className="h-2.5 w-2.5 rounded-full bg-sky-500 shadow-[0_0_8px_rgba(14,165,233,0.6)]" />
-            <span className="text-slate-200">Clima (Open-Meteo)</span>
-          </div>
-          <input
-            type="checkbox"
-            checked={showWeather}
-            onChange={(e) => setShowWeather(e.target.checked)}
-            className="rounded border-slate-700 bg-slate-900 text-sky-500 focus:ring-0 cursor-pointer"
-          />
-        </label>
-
-        <label className="flex items-center justify-between p-2 rounded-xl bg-slate-800/40 hover:bg-slate-800/70 cursor-pointer transition">
-          <div className="flex items-center gap-2">
-            <span className="h-2.5 w-2.5 rounded-full bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.6)]" />
-            <span className="text-slate-200">Desastres Globales (GDACS)</span>
-          </div>
-          <input
-            type="checkbox"
-            checked={showDisasters}
-            onChange={(e) => setShowDisasters(e.target.checked)}
-            className="rounded border-slate-700 bg-slate-900 text-amber-500 focus:ring-0 cursor-pointer"
-          />
-        </label>
-
-        <label className="flex items-center justify-between p-2 rounded-xl bg-slate-800/40 hover:bg-slate-800/70 cursor-pointer transition">
-          <div className="flex items-center gap-2">
-            <span className="h-2.5 w-2.5 rounded-full bg-slate-300 shadow-[0_0_8px_rgba(203,213,225,0.6)]" />
-            <span className="text-slate-200">Estación Espacial (ISS)</span>
-          </div>
-          <input
-            type="checkbox"
-            checked={showIss}
-            onChange={(e) => setShowIss(e.target.checked)}
-            className="rounded border-slate-700 bg-slate-900 text-slate-300 focus:ring-0 cursor-pointer"
-          />
-        </label>
-
-        <label className="flex items-center justify-between p-2 rounded-xl bg-slate-800/40 hover:bg-slate-800/70 cursor-pointer transition">
-          <div className="flex items-center gap-2">
-            <span className="h-2.5 w-2.5 rounded-full bg-yellow-700 shadow-[0_0_8px_rgba(161,98,7,0.6)]" />
-            <span className="text-slate-200">Volcanes (Smithsonian GVP)</span>
-          </div>
-          <input
-            type="checkbox"
-            checked={showVolcanoes}
-            onChange={(e) => setShowVolcanoes(e.target.checked)}
-            className="rounded border-slate-700 bg-slate-900 text-yellow-700 focus:ring-0 cursor-pointer"
-          />
-        </label>
-
-        <label className="flex items-center justify-between p-2 rounded-xl bg-slate-800/40 hover:bg-slate-800/70 cursor-pointer transition">
-          <div className="flex items-center gap-2">
-            <span className="h-2.5 w-2.5 rounded-full border-2 border-cyan-400" />
-            <span className="text-slate-200">Aire Modelado (Open-Meteo)</span>
-          </div>
-          <input
-            type="checkbox"
-            checked={showAirQualityModel}
-            onChange={(e) => setShowAirQualityModel(e.target.checked)}
-            className="rounded border-slate-700 bg-slate-900 text-cyan-400 focus:ring-0 cursor-pointer"
-          />
-        </label>
+        <LayerToggle
+          label={t("earthquakes")}
+          dotColorClassName="bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.6)]"
+          checked={showQuakes}
+          onChange={setShowQuakes}
+        />
+        <LayerToggle
+          label={t("airQuality")}
+          dotColorClassName="bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]"
+          checked={showAirQuality}
+          onChange={setShowAirQuality}
+        />
+        <LayerToggle
+          label={t("fires")}
+          dotColorClassName="bg-orange-500 shadow-[0_0_8px_rgba(249,115,22,0.6)]"
+          checked={showFires}
+          onChange={setShowFires}
+        />
+        <LayerToggle
+          label={t("weather")}
+          dotColorClassName="bg-sky-500 shadow-[0_0_8px_rgba(14,165,233,0.6)]"
+          checked={showWeather}
+          onChange={setShowWeather}
+        />
+        <LayerToggle
+          label={t("disasters")}
+          dotColorClassName="bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.6)]"
+          checked={showDisasters}
+          onChange={setShowDisasters}
+        />
+        <LayerToggle
+          label={t("iss")}
+          dotColorClassName="bg-slate-300 shadow-[0_0_8px_rgba(203,213,225,0.6)]"
+          checked={showIss}
+          onChange={setShowIss}
+        />
+        <LayerToggle
+          label={t("volcanoes")}
+          dotColorClassName="bg-yellow-700 shadow-[0_0_8px_rgba(161,98,7,0.6)]"
+          checked={showVolcanoes}
+          onChange={setShowVolcanoes}
+        />
+        <LayerToggle
+          label={t("airQualityModel")}
+          dotColorClassName="border-2 border-cyan-400"
+          checked={showAirQualityModel}
+          onChange={setShowAirQualityModel}
+        />
       </div>
 
-      <div className="pt-2 border-t border-slate-800 text-[11px] text-slate-500 flex items-start gap-1.5">
-        <Info className="h-3.5 w-3.5 shrink-0 mt-0.5 text-slate-400" />
-        <span>Haz clic sobre cualquier círculo para ver detalles de magnitud o partículas en tiempo real.</span>
+      <div className="pt-2 border-t border-ds-border text-[11px] text-ds-text-muted flex items-start gap-1.5">
+        <MorphIcon icon={Info} size={14} reducedMotion="user" className="shrink-0 mt-0.5 text-ds-text-muted" />
+        <span>{t("hint")}</span>
       </div>
-    </aside>
+    </Card>
   );
 }

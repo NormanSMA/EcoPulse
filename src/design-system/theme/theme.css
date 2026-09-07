@@ -1,0 +1,43 @@
+/*
+ * Variables CSS del sistema de temas (Fase 3.1). Los valores deben
+ * mantenerse sincronizados a mano con `design-system/tokens/colors.ts`
+ * (`colors.themes.dark` / `colors.themes.light`) — CSS no puede importar
+ * los tokens de TypeScript directamente.
+ *
+ * Dark es el default (sin atributo) para no cambiar el comportamiento
+ * actual de la app para nadie que no haya elegido explícitamente "light".
+ * `useTheme()` alterna `data-theme` en <html> y persiste en localStorage.
+ */
+
+:root {
+  --ds-bg-canvas: #090d16;
+  --ds-bg-surface: rgba(15, 23, 42, 0.9);
+  --ds-bg-surface-elevated: #1e293b;
+  --ds-text-primary: #f1f5f9;
+  --ds-text-secondary: #94a3b8;
+  --ds-text-muted: #64748b;
+  --ds-border-subtle: #1e293b;
+  --ds-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+:root[data-theme="light"] {
+  --ds-bg-canvas: #f8fafc;
+  --ds-bg-surface: #ffffff;
+  --ds-bg-surface-elevated: #f1f5f9;
+  --ds-text-primary: #0f172a;
+  --ds-text-secondary: #475569;
+  --ds-text-muted: #94a3b8;
+  --ds-border-subtle: #e2e8f0;
+  --ds-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+:root[data-theme="dark"] {
+  --ds-bg-canvas: #090d16;
+  --ds-bg-surface: rgba(15, 23, 42, 0.9);
+  --ds-bg-surface-elevated: #1e293b;
+  --ds-text-primary: #f1f5f9;
+  --ds-text-secondary: #94a3b8;
+  --ds-text-muted: #64748b;
+  --ds-border-subtle: #1e293b;
+  --ds-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
+}

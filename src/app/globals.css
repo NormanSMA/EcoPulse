@@ -3,10 +3,12 @@
 @tailwind utilities;
 
 @import 'maplibre-gl/dist/maplibre-gl.css';
+@import '../design-system/theme/theme.css';
 
 :root {
-  --background: #090d16;
-  --foreground: #f1f5f9;
+  /* Alias legacy: mismo nombre que antes, ahora resuelven vía theme.css. */
+  --background: var(--ds-bg-canvas);
+  --foreground: var(--ds-text-primary);
 }
 
 body {
@@ -14,6 +16,7 @@ body {
   background: var(--background);
   font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   overflow: hidden;
+  transition: background-color 200ms ease, color 200ms ease;
 }
 
 /* Custom styles for MapLibre popups */

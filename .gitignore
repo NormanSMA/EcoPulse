@@ -35,3 +35,7 @@ next-env.d.ts
 
 # local research/planning docs, not part of the shipped project
 /Docs ideas/
+/Diseño sistema/
+
+# assets estaticos de Cesium copiados de node_modules por next.config.ts (webpack)
+/public/cesium/

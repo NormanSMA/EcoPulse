@@ -3,6 +3,7 @@
 import React, { useEffect, useRef } from "react";
 import maplibregl, { GeoJSONSource, Map as MapLibreMap } from "maplibre-gl";
 import { EarthquakeGeoJSON, AirQualityGeoJSON, FireGeoJSON, WeatherGeoJSON, DisasterGeoJSON, IssGeoJSON, VolcanoGeoJSON, AirQualityModelGeoJSON, EarthquakeProperties, AirQualityProperties, FireProperties, WeatherProperties, DisasterProperties, IssProperties, VolcanoProperties, AirQualityModelProperties } from "@/lib/types";
+import { DEFAULT_MAP_VIEW, type MapView } from "@/lib/mapView";
 
 interface MapContainerProps {
   earthquakes: EarthquakeGeoJSON;
@@ -21,6 +22,9 @@ interface MapContainerProps {
   showIss: boolean;
   showVolcanoes: boolean;
   showAirQualityModel: boolean;
+  onSelectEarthquake?: (id: string) => void;
+  onViewChange?: (view: MapView) => void;
+  initialView?: MapView;
 }
 
 const OPENFREEMAP_DARK_STYLE = "https://tiles.openfreemap.org/styles/dark";
@@ -42,10 +46,17 @@ export default function MapContainer({
   showIss,
   showVolcanoes,
   showAirQualityModel,
+  onSelectEarthquake,
+  onViewChange,
+  initialView = DEFAULT_MAP_VIEW,
 }: MapContainerProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const isMapLoadedRef = useRef<boolean>(false);
+  const onSelectEarthquakeRef = useRef(onSelectEarthquake);
+  onSelectEarthquakeRef.current = onSelectEarthquake;
+  const onViewChangeRef = useRef(onViewChange);
+  onViewChangeRef.current = onViewChange;
 
   // 1. Inicialización única del mapa (Previene memory leaks y pérdida de contexto WebGL)
   useEffect(() => {
@@ -54,14 +65,19 @@ export default function MapContainer({
     const map = new maplibregl.Map({
       container: mapContainerRef.current,
       style: OPENFREEMAP_DARK_STYLE,
-      center: [-86.2362, 12.1150], // Managua / Centroamérica
-      zoom: 3.5,
+      center: [initialView.lng, initialView.lat],
+      zoom: initialView.zoom,
       pitch: 0,
       canvasContextAttributes: { antialias: true },
       maxPitch: 60,
     });
 
     map.addControl(new maplibregl.NavigationControl({ showCompass: true }), "top-right");
+
+    map.on("moveend", () => {
+      const center = map.getCenter();
+      onViewChangeRef.current?.({ lng: center.lng, lat: center.lat, zoom: map.getZoom() });
+    });
 
     map.on("load", () => {
       isMapLoadedRef.current = true;
@@ -328,6 +344,8 @@ export default function MapContainer({
         const coordinates = feature.geometry.coordinates.slice();
         const { mag, place, time } = feature.properties as EarthquakeProperties;
         const dateStr = new Date(Number(time)).toLocaleString();
+
+        if (feature.id != null) onSelectEarthquakeRef.current?.(String(feature.id));
 
         new maplibregl.Popup({ closeButton: true, focusAfterOpen: false })
           .setLngLat([coordinates[0], coordinates[1]])
@@ -684,5 +702,5 @@ export default function MapContainer({
     }
   }, [showAirQualityModel]);
 
-  return <div ref={mapContainerRef} className="w-full h-screen relative bg-slate-950" />;
+  return <div ref={mapContainerRef} className="w-full h-full relative bg-slate-950" />;
 }

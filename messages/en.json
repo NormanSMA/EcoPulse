@@ -1,0 +1,71 @@
+{
+  "app": {
+    "title": "EcoPulse",
+    "tagline": "Global Earthquake & Air Quality Monitor",
+    "liveMonitor": "Live Monitor"
+  },
+  "metrics": {
+    "earthquakes24h": "Earthquakes 24h",
+    "maxMagnitude": "Max Magnitude"
+  },
+  "status": {
+    "live": "Live",
+    "recent": "Recent",
+    "stale": "Stale",
+    "unknown": "No data"
+  },
+  "search": {
+    "placeholder": "Search earthquakes by place...",
+    "shortcutHint": "Ctrl+K"
+  },
+  "theme": {
+    "toLight": "Switch to light theme",
+    "toDark": "Switch to dark theme"
+  },
+  "language": {
+    "es": "Spanish",
+    "en": "English"
+  },
+  "layers": {
+    "title": "Active Layers",
+    "earthquakes": "Recent Earthquakes (USGS)",
+    "airQuality": "Air Quality (PM2.5)",
+    "fires": "Wildfires (NASA FIRMS)",
+    "weather": "Weather (Open-Meteo)",
+    "disasters": "Global Disasters (GDACS)",
+    "iss": "Space Station (ISS)",
+    "volcanoes": "Volcanoes (Smithsonian GVP)",
+    "airQualityModel": "Modeled Air Quality (Open-Meteo)",
+    "hint": "Click any circle to see magnitude or particle details in real time."
+  },
+  "nearby": {
+    "title": "Earthquakes Near Me",
+    "radiusLabel": "Radius:",
+    "locating": "Locating...",
+    "loading": "Searching...",
+    "useLocation": "Use my location",
+    "geoNotSupported": "Your browser does not support geolocation.",
+    "geoDenied": "Could not get your location. Check your browser permissions.",
+    "resultsFound": "earthquake(s) found:"
+  },
+  "timeControl": {
+    "live": "Live",
+    "playback": "Playback"
+  },
+  "events": {
+    "title": "Recent Events",
+    "empty": "No recent events",
+    "emptyDescription": "Enable a layer to see events here.",
+    "kinds": {
+      "earthquake": "Earthquake",
+      "fire": "Wildfire",
+      "disaster": "Disaster"
+    },
+    "trend": {
+      "selectPrompt": "Select an earthquake to see its trend",
+      "noAftershocks": "No aftershocks recorded in the last 24h",
+      "magnitude": "Magnitude",
+      "time": "Time"
+    }
+  }
+}
