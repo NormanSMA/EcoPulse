@@ -79,13 +79,21 @@ describe("buildEarthquakeEmbed", () => {
     expect(embed.color).toBe(0x8b0000);
     expect(embed.description).toContain("6.5");
     expect(embed.description).toContain("50km W of Managua");
+    expect(embed.url).toBe(strongQuake.properties.url);
+    expect(embed.timestamp).toBe(new Date(strongQuake.properties.time).toISOString());
+    expect(embed.footer.text).toContain("EcoPulse Monitor");
+  });
+
+  it("usa la appUrl de respaldo si la feature no trae url", () => {
+    const noUrlQuake = { ...strongQuake, properties: { ...strongQuake.properties, url: "" } };
+    const embed = buildEarthquakeEmbed(noUrlQuake, "https://ecopulse.example.com");
     expect(embed.url).toBe("https://ecopulse.example.com");
   });
 });
 
 describe("buildAirQualityEmbed", () => {
   it("construye un embed con el PM2.5 y la estacion en la descripcion", () => {
-    const embed = buildAirQualityEmbed(hazardousStation, "https://ecopulse.example.com");
+    const embed = buildAirQualityEmbed(hazardousStation);
     expect(embed.description).toContain("120");
     expect(embed.description).toContain("Ciudad Contaminada");
   });

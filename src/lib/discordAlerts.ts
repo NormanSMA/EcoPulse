@@ -10,6 +10,8 @@ interface DiscordEmbed {
   color: number;
   fields: { name: string; value: string; inline: boolean }[];
   url: string;
+  timestamp: string;
+  footer: { text: string };
 }
 
 type AlertSourceType = "earthquake" | "air_quality";
@@ -23,30 +25,35 @@ export function shouldAlertAirQuality(feature: AirQualityFeature): boolean {
 }
 
 export function buildEarthquakeEmbed(feature: EarthquakeFeature, appUrl: string): DiscordEmbed {
-  const [lon, lat] = feature.geometry.coordinates;
+  const [lon, lat, depth] = feature.geometry.coordinates;
+  const mapsUrl = `https://www.google.com/maps?q=${lat},${lon}`;
   return {
     title: "🚨 ALERTA DE SISMO FUERTE",
-    description: `Se ha detectado un sismo de magnitud ${feature.properties.mag} en ${feature.properties.place}.`,
+    description: `Se ha detectado un sismo de magnitud **${feature.properties.mag}** en ${feature.properties.place}.`,
     color: 0x8b0000,
     fields: [
-      { name: "Coordenadas", value: `${lat.toFixed(4)}, ${lon.toFixed(4)}`, inline: true },
-      { name: "Hora", value: new Date(feature.properties.time).toISOString(), inline: true },
+      { name: "Coordenadas", value: `[${lat.toFixed(4)}, ${lon.toFixed(4)}](${mapsUrl})`, inline: true },
+      { name: "Profundidad", value: `${depth ?? "N/D"} km`, inline: true },
     ],
-    url: appUrl,
+    url: feature.properties.url || appUrl,
+    timestamp: new Date(feature.properties.time).toISOString(),
+    footer: { text: "EcoPulse Monitor · USGS" },
   };
 }
 
-export function buildAirQualityEmbed(feature: AirQualityFeature, appUrl: string): DiscordEmbed {
+export function buildAirQualityEmbed(feature: AirQualityFeature): DiscordEmbed {
   const [lon, lat] = feature.geometry.coordinates;
+  const mapsUrl = `https://www.google.com/maps?q=${lat},${lon}`;
   return {
     title: "⚠️ CALIDAD DE AIRE PELIGROSA",
-    description: `${feature.properties.station} reporta PM2.5 de ${feature.properties.pm25} µg/m³ (categoría: hazardous).`,
+    description: `**${feature.properties.station}** reporta PM2.5 de **${feature.properties.pm25} µg/m³** (categoría: hazardous).`,
     color: 0xff8c00,
     fields: [
-      { name: "Coordenadas", value: `${lat.toFixed(4)}, ${lon.toFixed(4)}`, inline: true },
-      { name: "Medido", value: feature.properties.updated, inline: true },
+      { name: "Coordenadas", value: `[${lat.toFixed(4)}, ${lon.toFixed(4)}](${mapsUrl})`, inline: true },
     ],
-    url: appUrl,
+    url: mapsUrl,
+    timestamp: feature.properties.updated,
+    footer: { text: "EcoPulse Monitor · OpenAQ" },
   };
 }
 
@@ -119,7 +126,7 @@ export async function processAirQualityAlerts(
   for (const feature of features.filter(shouldAlertAirQuality)) {
     const sourceId = String(feature.id);
     if (await wasRecentlyNotified(deps.supabaseAdmin, "air_quality", sourceId)) continue;
-    await sendDiscordAlert(deps.webhookUrl, buildAirQualityEmbed(feature, deps.appUrl));
+    await sendDiscordAlert(deps.webhookUrl, buildAirQualityEmbed(feature));
     await recordAlertSent(deps.supabaseAdmin, "air_quality", sourceId);
     sent++;
   }
