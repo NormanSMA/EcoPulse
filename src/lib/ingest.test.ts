@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { toEarthquakeRow, toAirQualityRow, toFireRow, toWeatherRow, dedupeByKey, isIngestAuthorized } from "./ingest";
-import { EarthquakeFeature, AirQualityFeature, FireFeature, WeatherFeature } from "./types";
+import { toEarthquakeRow, toAirQualityRow, toFireRow, toWeatherRow, toDisasterRow, dedupeByKey, isIngestAuthorized } from "./ingest";
+import { EarthquakeFeature, AirQualityFeature, FireFeature, WeatherFeature, DisasterFeature } from "./types";
 
 const sampleEarthquake: EarthquakeFeature = {
   type: "Feature",
@@ -126,6 +126,40 @@ describe("toWeatherRow", () => {
       weather_code: 3,
       location: "SRID=4326;POINT(-86.2362 12.115)",
       measured_at: "2026-09-07T01:15:00.000Z",
+    });
+  });
+});
+
+const sampleDisaster: DisasterFeature = {
+  type: "Feature",
+  id: "FL-1104081",
+  properties: {
+    eventId: "FL-1104081",
+    eventType: "FL",
+    eventTypeLabel: "Inundación",
+    name: "Flood in China",
+    country: "China",
+    alertLevel: "Orange",
+    fromDate: "2026-07-31T01:00:00.000Z",
+    toDate: "2026-09-07T01:00:00.000Z",
+    reportUrl: "https://www.gdacs.org/report.aspx?eventid=1104081",
+  },
+  geometry: { type: "Point", coordinates: [116.0, 28.0] },
+};
+
+describe("toDisasterRow", () => {
+  it("mapea una feature de GDACS a la forma de la tabla disasters", () => {
+    const row = toDisasterRow(sampleDisaster);
+    expect(row).toEqual({
+      event_id: "FL-1104081",
+      event_type: "FL",
+      name: "Flood in China",
+      country: "China",
+      alert_level: "Orange",
+      from_date: "2026-07-31T01:00:00.000Z",
+      to_date: "2026-09-07T01:00:00.000Z",
+      report_url: "https://www.gdacs.org/report.aspx?eventid=1104081",
+      location: "SRID=4326;POINT(116 28)",
     });
   });
 });

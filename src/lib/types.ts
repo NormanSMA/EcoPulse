@@ -109,6 +109,36 @@ export interface WeatherGeoJSON {
   features: WeatherFeature[];
 }
 
+export type DisasterEventType = "FL" | "TC" | "DR" | "VO";
+export type AlertLevel = "Green" | "Orange" | "Red";
+
+export interface DisasterProperties {
+  eventId: string;
+  eventType: DisasterEventType;
+  eventTypeLabel: string;
+  name: string;
+  country: string;
+  alertLevel: AlertLevel;
+  fromDate: string | null;
+  toDate: string | null;
+  reportUrl: string;
+}
+
+export interface DisasterFeature {
+  type: "Feature";
+  id: string;
+  properties: DisasterProperties;
+  geometry: {
+    type: "Point";
+    coordinates: [number, number]; // [longitude, latitude]
+  };
+}
+
+export interface DisasterGeoJSON {
+  type: "FeatureCollection";
+  features: DisasterFeature[];
+}
+
 export interface NearbyEarthquakeRow {
   id: string;
   usgs_id: string;

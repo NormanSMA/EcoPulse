@@ -2,17 +2,19 @@
 
 import React, { useEffect, useRef } from "react";
 import maplibregl, { GeoJSONSource, Map as MapLibreMap } from "maplibre-gl";
-import { EarthquakeGeoJSON, AirQualityGeoJSON, FireGeoJSON, WeatherGeoJSON, EarthquakeProperties, AirQualityProperties, FireProperties, WeatherProperties } from "@/lib/types";
+import { EarthquakeGeoJSON, AirQualityGeoJSON, FireGeoJSON, WeatherGeoJSON, DisasterGeoJSON, EarthquakeProperties, AirQualityProperties, FireProperties, WeatherProperties, DisasterProperties } from "@/lib/types";
 
 interface MapContainerProps {
   earthquakes: EarthquakeGeoJSON;
   airQuality: AirQualityGeoJSON;
   fires: FireGeoJSON;
   weather: WeatherGeoJSON;
+  disasters: DisasterGeoJSON;
   showQuakes: boolean;
   showAirQuality: boolean;
   showFires: boolean;
   showWeather: boolean;
+  showDisasters: boolean;
 }
 
 const OPENFREEMAP_DARK_STYLE = "https://tiles.openfreemap.org/styles/dark";
@@ -22,10 +24,12 @@ export default function MapContainer({
   airQuality,
   fires,
   weather,
+  disasters,
   showQuakes,
   showAirQuality,
   showFires,
   showWeather,
+  showDisasters,
 }: MapContainerProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
@@ -175,6 +179,35 @@ export default function MapContainer({
         },
       });
 
+      // Fuente y capa para Desastres Globales (GDACS: inundaciones, ciclones,
+      // sequias, volcanes - EQ y WF se excluyen para no duplicar USGS/FIRMS)
+      map.addSource("disasters-source", {
+        type: "geojson",
+        data: disasters,
+      });
+
+      map.addLayer({
+        id: "disasters-layer",
+        type: "circle",
+        source: "disasters-source",
+        layout: {
+          visibility: showDisasters ? "visible" : "none",
+        },
+        paint: {
+          "circle-radius": 9,
+          "circle-color": [
+            "match",
+            ["get", "alertLevel"],
+            "Red", "#dc2626",
+            "Orange", "#f59e0b",
+            "#22c55e"
+          ],
+          "circle-opacity": 0.85,
+          "circle-stroke-width": 1.5,
+          "circle-stroke-color": "#ffffff",
+        },
+      });
+
       // Popup de interacción con Sismos
       map.on("click", "earthquakes-layer", (e) => {
         if (!e.features || !e.features[0]) return;
@@ -271,6 +304,30 @@ export default function MapContainer({
           .addTo(map);
       });
 
+      // Popup de interacción con Desastres Globales
+      map.on("click", "disasters-layer", (e) => {
+        if (!e.features || !e.features[0]) return;
+        const feature = e.features[0];
+        if (feature.geometry.type !== "Point") return;
+        const coordinates = feature.geometry.coordinates.slice();
+        const { name, eventTypeLabel, country, alertLevel, reportUrl } = feature.properties as DisasterProperties;
+
+        new maplibregl.Popup({ closeButton: true, focusAfterOpen: false })
+          .setLngLat([coordinates[0], coordinates[1]])
+          .setHTML(
+            `<div class="space-y-1.5 p-1 text-xs">
+              <div class="flex items-center justify-between gap-2">
+                <span class="font-bold text-amber-400 text-sm">${eventTypeLabel}</span>
+                <span class="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded ${alertLevel === 'Red' ? 'bg-red-500/20 text-red-300' : 'bg-amber-500/20 text-amber-300'}">${alertLevel}</span>
+              </div>
+              <div class="text-slate-200 font-medium leading-snug">${name}</div>
+              <div class="text-slate-400 text-[10px]">${country}</div>
+              <a href="${reportUrl}" target="_blank" rel="noopener noreferrer" class="text-amber-400 text-[10px] underline">Ver reporte GDACS</a>
+            </div>`
+          )
+          .addTo(map);
+      });
+
       // Efecto cursor pointer
       map.on("mouseenter", "earthquakes-layer", () => { map.getCanvas().style.cursor = "pointer"; });
       map.on("mouseleave", "earthquakes-layer", () => { map.getCanvas().style.cursor = ""; });
@@ -280,6 +337,8 @@ export default function MapContainer({
       map.on("mouseleave", "fires-layer", () => { map.getCanvas().style.cursor = ""; });
       map.on("mouseenter", "weather-layer", () => { map.getCanvas().style.cursor = "pointer"; });
       map.on("mouseleave", "weather-layer", () => { map.getCanvas().style.cursor = ""; });
+      map.on("mouseenter", "disasters-layer", () => { map.getCanvas().style.cursor = "pointer"; });
+      map.on("mouseleave", "disasters-layer", () => { map.getCanvas().style.cursor = ""; });
     });
 
     // Soporte de redimensionamiento automático
@@ -295,7 +354,7 @@ export default function MapContainer({
       isMapLoadedRef.current = false;
       map.remove();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- inicialización única e intencional; los updates posteriores de earthquakes/airQuality/fires/weather/showQuakes/showAirQuality/showFires/showWeather se manejan en los effects de abajo vía setData/setLayoutProperty sin re-crear el mapa.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- inicialización única e intencional; los updates posteriores de earthquakes/airQuality/fires/weather/disasters/showQuakes/showAirQuality/showFires/showWeather/showDisasters se manejan en los effects de abajo vía setData/setLayoutProperty sin re-crear el mapa.
   }, []);
 
   // 2. Actualización de datos de Sismos SIN recargar el mapa
@@ -334,6 +393,15 @@ export default function MapContainer({
     }
   }, [weather]);
 
+  // 3d. Actualización de datos de Desastres Globales SIN recargar el mapa
+  useEffect(() => {
+    if (!mapRef.current || !isMapLoadedRef.current) return;
+    const source = mapRef.current.getSource("disasters-source") as GeoJSONSource | undefined;
+    if (source) {
+      source.setData(disasters);
+    }
+  }, [disasters]);
+
   // 4. Conmutación reactiva de visibilidad de capas (Zero-latency toggle)
   useEffect(() => {
     if (!mapRef.current || !isMapLoadedRef.current) return;
@@ -362,6 +430,13 @@ export default function MapContainer({
       mapRef.current.setLayoutProperty("weather-layer", "visibility", showWeather ? "visible" : "none");
     }
   }, [showWeather]);
+
+  useEffect(() => {
+    if (!mapRef.current || !isMapLoadedRef.current) return;
+    if (mapRef.current.getLayer("disasters-layer")) {
+      mapRef.current.setLayoutProperty("disasters-layer", "visibility", showDisasters ? "visible" : "none");
+    }
+  }, [showDisasters]);
 
   return <div ref={mapContainerRef} className="w-full h-screen relative bg-slate-950" />;
 }

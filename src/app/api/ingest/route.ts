@@ -3,8 +3,9 @@ import { fetchLiveEarthquakes } from "@/lib/usgs";
 import { fetchLiveAirQuality } from "@/lib/openaq";
 import { fetchLiveFires } from "@/lib/firms";
 import { fetchLiveWeather } from "@/lib/weather";
+import { fetchLiveDisasters } from "@/lib/gdacs";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
-import { toEarthquakeRow, toAirQualityRow, toFireRow, toWeatherRow, dedupeByKey, isIngestAuthorized } from "@/lib/ingest";
+import { toEarthquakeRow, toAirQualityRow, toFireRow, toWeatherRow, toDisasterRow, dedupeByKey, isIngestAuthorized } from "@/lib/ingest";
 import { processEarthquakeAlerts, processAirQualityAlerts } from "@/lib/discordAlerts";
 
 export async function GET(request: Request) {
@@ -43,6 +44,13 @@ export async function GET(request: Request) {
       : { error: null };
     if (weatherResult.error) throw new Error(`weather upsert: ${weatherResult.error.message}`);
 
+    const disasters = await fetchLiveDisasters();
+    const disasterRows = disasters.features.map(toDisasterRow);
+    const disasterResult = disasterRows.length
+      ? await supabaseAdmin.from("disasters").upsert(disasterRows, { onConflict: "event_id" })
+      : { error: null };
+    if (disasterResult.error) throw new Error(`disasters upsert: ${disasterResult.error.message}`);
+
     let earthquakeAlertsSent = 0;
     let airQualityAlertsSent = 0;
     const webhookUrl = process.env.DISCORD_WEBHOOK_URL;
@@ -59,6 +67,7 @@ export async function GET(request: Request) {
       airQualityUpserted: airQualityRows.length,
       firesUpserted: fireRows.length,
       weatherUpserted: weatherRows.length,
+      disastersUpserted: disasterRows.length,
       earthquakeAlertsSent,
       airQualityAlertsSent,
       timestamp: new Date().toISOString(),
