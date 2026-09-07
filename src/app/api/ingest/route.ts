@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { fetchLiveEarthquakes } from "@/lib/usgs";
 import { fetchLiveAirQuality } from "@/lib/openaq";
+import { fetchLiveFires } from "@/lib/firms";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
-import { toEarthquakeRow, toAirQualityRow, isIngestAuthorized } from "@/lib/ingest";
+import { toEarthquakeRow, toAirQualityRow, toFireRow, dedupeByKey, isIngestAuthorized } from "@/lib/ingest";
 import { processEarthquakeAlerts, processAirQualityAlerts } from "@/lib/discordAlerts";
 
 export async function GET(request: Request) {
@@ -27,6 +28,13 @@ export async function GET(request: Request) {
       : { error: null };
     if (aqResult.error) throw new Error(`air_quality upsert: ${aqResult.error.message}`);
 
+    const fires = await fetchLiveFires();
+    const fireRows = dedupeByKey(fires.features.map(toFireRow), "fire_key");
+    const fireResult = fireRows.length
+      ? await supabaseAdmin.from("fires").upsert(fireRows, { onConflict: "fire_key" })
+      : { error: null };
+    if (fireResult.error) throw new Error(`fires upsert: ${fireResult.error.message}`);
+
     let earthquakeAlertsSent = 0;
     let airQualityAlertsSent = 0;
     const webhookUrl = process.env.DISCORD_WEBHOOK_URL;
@@ -41,6 +49,7 @@ export async function GET(request: Request) {
       success: true,
       earthquakesUpserted: earthquakeRows.length,
       airQualityUpserted: airQualityRows.length,
+      firesUpserted: fireRows.length,
       earthquakeAlertsSent,
       airQualityAlertsSent,
       timestamp: new Date().toISOString(),

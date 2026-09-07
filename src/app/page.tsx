@@ -5,7 +5,7 @@ import dynamic from "next/dynamic";
 import Header from "@/components/ui/Header";
 import StatsPanel from "@/components/ui/StatsPanel";
 import NearbySearch from "@/components/ui/NearbySearch";
-import { EarthquakeGeoJSON, AirQualityGeoJSON } from "@/lib/types";
+import { EarthquakeGeoJSON, AirQualityGeoJSON, FireGeoJSON } from "@/lib/types";
 import { fetchLiveEarthquakes } from "@/lib/usgs";
 
 const MapContainer = dynamic(() => import("@/components/map/MapContainer"), {
@@ -29,11 +29,18 @@ const INITIAL_AIR_QUALITY: AirQualityGeoJSON = {
   features: []
 };
 
+const INITIAL_FIRES: FireGeoJSON = {
+  type: "FeatureCollection",
+  features: []
+};
+
 export default function HomePage() {
   const [earthquakes, setEarthquakes] = useState<EarthquakeGeoJSON>(INITIAL_EARTHQUAKES);
   const [airQuality, setAirQuality] = useState<AirQualityGeoJSON>(INITIAL_AIR_QUALITY);
+  const [fires, setFires] = useState<FireGeoJSON>(INITIAL_FIRES);
   const [showQuakes, setShowQuakes] = useState<boolean>(true);
   const [showAirQuality, setShowAirQuality] = useState<boolean>(true);
+  const [showFires, setShowFires] = useState<boolean>(true);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -62,8 +69,22 @@ export default function HomePage() {
       }
     }
 
+    async function loadFires() {
+      try {
+        const res = await fetch("/api/fires", { signal: controller.signal });
+        if (!res.ok) throw new Error(`Fires HTTP ${res.status}`);
+        const data: FireGeoJSON = await res.json();
+        setFires(data);
+      } catch (err: unknown) {
+        if (!(err instanceof DOMException && err.name === "AbortError")) {
+          console.error("Error al sincronizar con NASA FIRMS:", err);
+        }
+      }
+    }
+
     loadData();
     loadAirQuality();
+    loadFires();
     return () => controller.abort();
   }, []);
 
@@ -83,13 +104,17 @@ export default function HomePage() {
         setShowQuakes={setShowQuakes}
         showAirQuality={showAirQuality}
         setShowAirQuality={setShowAirQuality}
+        showFires={showFires}
+        setShowFires={setShowFires}
       />
       <NearbySearch />
       <MapContainer
         earthquakes={earthquakes}
         airQuality={airQuality}
+        fires={fires}
         showQuakes={showQuakes}
         showAirQuality={showAirQuality}
+        showFires={showFires}
       />
     </main>
   );

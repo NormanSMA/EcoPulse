@@ -6,6 +6,8 @@ interface StatsPanelProps {
   setShowQuakes: (val: boolean) => void;
   showAirQuality: boolean;
   setShowAirQuality: (val: boolean) => void;
+  showFires: boolean;
+  setShowFires: (val: boolean) => void;
 }
 
 export default function StatsPanel({
@@ -13,6 +15,8 @@ export default function StatsPanel({
   setShowQuakes,
   showAirQuality,
   setShowAirQuality,
+  showFires,
+  setShowFires,
 }: StatsPanelProps) {
   return (
     <aside className="absolute bottom-6 left-4 z-10 w-72 bg-slate-900/90 backdrop-blur-md border border-slate-800 p-4 rounded-2xl shadow-2xl space-y-4">
@@ -47,6 +51,19 @@ export default function StatsPanel({
             checked={showAirQuality}
             onChange={(e) => setShowAirQuality(e.target.checked)}
             className="rounded border-slate-700 bg-slate-900 text-emerald-500 focus:ring-0 cursor-pointer"
+          />
+        </label>
+
+        <label className="flex items-center justify-between p-2 rounded-xl bg-slate-800/40 hover:bg-slate-800/70 cursor-pointer transition">
+          <div className="flex items-center gap-2">
+            <span className="h-2.5 w-2.5 rounded-full bg-orange-500 shadow-[0_0_8px_rgba(249,115,22,0.6)]" />
+            <span className="text-slate-200">Incendios (NASA FIRMS)</span>
+          </div>
+          <input
+            type="checkbox"
+            checked={showFires}
+            onChange={(e) => setShowFires(e.target.checked)}
+            className="rounded border-slate-700 bg-slate-900 text-orange-500 focus:ring-0 cursor-pointer"
           />
         </label>
       </div>

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { toEarthquakeRow, toAirQualityRow, isIngestAuthorized } from "./ingest";
-import { EarthquakeFeature, AirQualityFeature } from "./types";
+import { toEarthquakeRow, toAirQualityRow, toFireRow, dedupeByKey, isIngestAuthorized } from "./ingest";
+import { EarthquakeFeature, AirQualityFeature, FireFeature } from "./types";
 
 const sampleEarthquake: EarthquakeFeature = {
   type: "Feature",
@@ -66,6 +66,54 @@ describe("toAirQualityRow", () => {
       location: "SRID=4326;POINT(-86.2 12.1)",
       measured_at: "2026-01-01T00:00:00.000Z",
     });
+  });
+});
+
+const sampleFire: FireFeature = {
+  type: "Feature",
+  id: "12.432_-85.988_2026-09-06_1345_N20",
+  properties: {
+    fireKey: "12.432_-85.988_2026-09-06_1345_N20",
+    brightness: 345.8,
+    frp: 42.7,
+    confidence: "high",
+    satellite: "N20",
+    acquiredAt: "2026-09-06T13:45:00.000Z",
+  },
+  geometry: { type: "Point", coordinates: [-85.988, 12.432] },
+};
+
+describe("toFireRow", () => {
+  it("mapea una feature de FIRMS a la forma de la tabla fires", () => {
+    const row = toFireRow(sampleFire);
+    expect(row).toEqual({
+      fire_key: "12.432_-85.988_2026-09-06_1345_N20",
+      brightness: 345.8,
+      frp: 42.7,
+      confidence: "high",
+      satellite: "N20",
+      acquired_at: "2026-09-06T13:45:00.000Z",
+      location: "SRID=4326;POINT(-85.988 12.432)",
+    });
+  });
+});
+
+describe("dedupeByKey", () => {
+  it("elimina filas con la misma clave, quedandose con la ultima ocurrencia", () => {
+    const rows = [
+      { id: "a", value: 1 },
+      { id: "b", value: 2 },
+      { id: "a", value: 3 },
+    ];
+    expect(dedupeByKey(rows, "id")).toEqual([
+      { id: "a", value: 3 },
+      { id: "b", value: 2 },
+    ]);
+  });
+
+  it("no cambia nada si no hay claves repetidas", () => {
+    const rows = [{ id: "a" }, { id: "b" }, { id: "c" }];
+    expect(dedupeByKey(rows, "id")).toEqual(rows);
   });
 });
 

@@ -57,6 +57,32 @@ export interface AirQualityGeoJSON {
   features: AirQualityFeature[];
 }
 
+export type FireConfidence = "low" | "nominal" | "high";
+
+export interface FireProperties {
+  fireKey: string;
+  brightness: number;
+  frp: number;
+  confidence: FireConfidence;
+  satellite: string;
+  acquiredAt: string;
+}
+
+export interface FireFeature {
+  type: "Feature";
+  id: string;
+  properties: FireProperties;
+  geometry: {
+    type: "Point";
+    coordinates: [number, number]; // [longitude, latitude]
+  };
+}
+
+export interface FireGeoJSON {
+  type: "FeatureCollection";
+  features: FireFeature[];
+}
+
 export interface NearbyEarthquakeRow {
   id: string;
   usgs_id: string;

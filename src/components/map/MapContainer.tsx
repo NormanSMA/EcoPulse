@@ -2,13 +2,15 @@
 
 import React, { useEffect, useRef } from "react";
 import maplibregl, { GeoJSONSource, Map as MapLibreMap } from "maplibre-gl";
-import { EarthquakeGeoJSON, AirQualityGeoJSON, EarthquakeProperties, AirQualityProperties } from "@/lib/types";
+import { EarthquakeGeoJSON, AirQualityGeoJSON, FireGeoJSON, EarthquakeProperties, AirQualityProperties, FireProperties } from "@/lib/types";
 
 interface MapContainerProps {
   earthquakes: EarthquakeGeoJSON;
   airQuality: AirQualityGeoJSON;
+  fires: FireGeoJSON;
   showQuakes: boolean;
   showAirQuality: boolean;
+  showFires: boolean;
 }
 
 const OPENFREEMAP_DARK_STYLE = "https://tiles.openfreemap.org/styles/dark";
@@ -16,8 +18,10 @@ const OPENFREEMAP_DARK_STYLE = "https://tiles.openfreemap.org/styles/dark";
 export default function MapContainer({
   earthquakes,
   airQuality,
+  fires,
   showQuakes,
   showAirQuality,
+  showFires,
 }: MapContainerProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
@@ -110,6 +114,36 @@ export default function MapContainer({
         },
       });
 
+      // Fuente y capa para Incendios (NASA FIRMS)
+      map.addSource("fires-source", {
+        type: "geojson",
+        data: fires,
+      });
+
+      map.addLayer({
+        id: "fires-layer",
+        type: "circle",
+        source: "fires-source",
+        layout: {
+          visibility: showFires ? "visible" : "none",
+        },
+        paint: {
+          "circle-radius": [
+            "interpolate",
+            ["linear"],
+            ["coalesce", ["get", "frp"], 10],
+            10, 4,
+            50, 8,
+            200, 14,
+            500, 22
+          ],
+          "circle-color": "#f97316",
+          "circle-opacity": 0.8,
+          "circle-stroke-width": 1,
+          "circle-stroke-color": "#fde047",
+        },
+      });
+
       // Popup de interacción con Sismos
       map.on("click", "earthquakes-layer", (e) => {
         if (!e.features || !e.features[0]) return;
@@ -158,11 +192,38 @@ export default function MapContainer({
           .addTo(map);
       });
 
+      // Popup de interacción con Incendios
+      map.on("click", "fires-layer", (e) => {
+        if (!e.features || !e.features[0]) return;
+        const feature = e.features[0];
+        if (feature.geometry.type !== "Point") return;
+        const coordinates = feature.geometry.coordinates.slice();
+        const { frp, confidence, satellite, acquiredAt } = feature.properties as FireProperties;
+        const dateStr = new Date(acquiredAt).toLocaleString();
+
+        new maplibregl.Popup({ closeButton: true, focusAfterOpen: false })
+          .setLngLat([coordinates[0], coordinates[1]])
+          .setHTML(
+            `<div class="space-y-1.5 p-1 text-xs">
+              <div class="flex items-center justify-between gap-2">
+                <span class="font-bold text-orange-400 text-sm">🔥 Incendio activo</span>
+                <span class="text-[10px] bg-orange-500/20 text-orange-300 px-1.5 py-0.5 rounded">${satellite}</span>
+              </div>
+              <div class="text-slate-300">FRP: <span class="font-bold text-white">${frp} MW</span></div>
+              <div class="text-slate-400 text-[10px]">Confianza: ${confidence}</div>
+              <div class="text-slate-400 text-[10px]">${dateStr}</div>
+            </div>`
+          )
+          .addTo(map);
+      });
+
       // Efecto cursor pointer
       map.on("mouseenter", "earthquakes-layer", () => { map.getCanvas().style.cursor = "pointer"; });
       map.on("mouseleave", "earthquakes-layer", () => { map.getCanvas().style.cursor = ""; });
       map.on("mouseenter", "air-quality-layer", () => { map.getCanvas().style.cursor = "pointer"; });
       map.on("mouseleave", "air-quality-layer", () => { map.getCanvas().style.cursor = ""; });
+      map.on("mouseenter", "fires-layer", () => { map.getCanvas().style.cursor = "pointer"; });
+      map.on("mouseleave", "fires-layer", () => { map.getCanvas().style.cursor = ""; });
     });
 
     // Soporte de redimensionamiento automático
@@ -178,7 +239,7 @@ export default function MapContainer({
       isMapLoadedRef.current = false;
       map.remove();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- inicialización única e intencional; los updates posteriores de earthquakes/airQuality/showQuakes/showAirQuality se manejan en los effects de abajo vía setData/setLayoutProperty sin re-crear el mapa.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- inicialización única e intencional; los updates posteriores de earthquakes/airQuality/fires/showQuakes/showAirQuality/showFires se manejan en los effects de abajo vía setData/setLayoutProperty sin re-crear el mapa.
   }, []);
 
   // 2. Actualización de datos de Sismos SIN recargar el mapa
@@ -199,6 +260,15 @@ export default function MapContainer({
     }
   }, [airQuality]);
 
+  // 3b. Actualización de datos de Incendios SIN recargar el mapa
+  useEffect(() => {
+    if (!mapRef.current || !isMapLoadedRef.current) return;
+    const source = mapRef.current.getSource("fires-source") as GeoJSONSource | undefined;
+    if (source) {
+      source.setData(fires);
+    }
+  }, [fires]);
+
   // 4. Conmutación reactiva de visibilidad de capas (Zero-latency toggle)
   useEffect(() => {
     if (!mapRef.current || !isMapLoadedRef.current) return;
@@ -213,6 +283,13 @@ export default function MapContainer({
       mapRef.current.setLayoutProperty("air-quality-layer", "visibility", showAirQuality ? "visible" : "none");
     }
   }, [showAirQuality]);
+
+  useEffect(() => {
+    if (!mapRef.current || !isMapLoadedRef.current) return;
+    if (mapRef.current.getLayer("fires-layer")) {
+      mapRef.current.setLayoutProperty("fires-layer", "visibility", showFires ? "visible" : "none");
+    }
+  }, [showFires]);
 
   return <div ref={mapContainerRef} className="w-full h-screen relative bg-slate-950" />;
 }
