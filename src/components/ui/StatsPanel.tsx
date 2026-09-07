@@ -14,6 +14,10 @@ interface StatsPanelProps {
   setShowDisasters: (val: boolean) => void;
   showIss: boolean;
   setShowIss: (val: boolean) => void;
+  showVolcanoes: boolean;
+  setShowVolcanoes: (val: boolean) => void;
+  showAirQualityModel: boolean;
+  setShowAirQualityModel: (val: boolean) => void;
 }
 
 export default function StatsPanel({
@@ -29,6 +33,10 @@ export default function StatsPanel({
   setShowDisasters,
   showIss,
   setShowIss,
+  showVolcanoes,
+  setShowVolcanoes,
+  showAirQualityModel,
+  setShowAirQualityModel,
 }: StatsPanelProps) {
   return (
     <aside className="absolute bottom-6 left-4 z-10 w-72 bg-slate-900/90 backdrop-blur-md border border-slate-800 p-4 rounded-2xl shadow-2xl space-y-4">
@@ -115,6 +123,32 @@ export default function StatsPanel({
             checked={showIss}
             onChange={(e) => setShowIss(e.target.checked)}
             className="rounded border-slate-700 bg-slate-900 text-slate-300 focus:ring-0 cursor-pointer"
+          />
+        </label>
+
+        <label className="flex items-center justify-between p-2 rounded-xl bg-slate-800/40 hover:bg-slate-800/70 cursor-pointer transition">
+          <div className="flex items-center gap-2">
+            <span className="h-2.5 w-2.5 rounded-full bg-yellow-700 shadow-[0_0_8px_rgba(161,98,7,0.6)]" />
+            <span className="text-slate-200">Volcanes (Smithsonian GVP)</span>
+          </div>
+          <input
+            type="checkbox"
+            checked={showVolcanoes}
+            onChange={(e) => setShowVolcanoes(e.target.checked)}
+            className="rounded border-slate-700 bg-slate-900 text-yellow-700 focus:ring-0 cursor-pointer"
+          />
+        </label>
+
+        <label className="flex items-center justify-between p-2 rounded-xl bg-slate-800/40 hover:bg-slate-800/70 cursor-pointer transition">
+          <div className="flex items-center gap-2">
+            <span className="h-2.5 w-2.5 rounded-full border-2 border-cyan-400" />
+            <span className="text-slate-200">Aire Modelado (Open-Meteo)</span>
+          </div>
+          <input
+            type="checkbox"
+            checked={showAirQualityModel}
+            onChange={(e) => setShowAirQualityModel(e.target.checked)}
+            className="rounded border-slate-700 bg-slate-900 text-cyan-400 focus:ring-0 cursor-pointer"
           />
         </label>
       </div>

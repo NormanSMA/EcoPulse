@@ -1,4 +1,4 @@
-import { EarthquakeFeature, AirQualityFeature, FireFeature, WeatherFeature, DisasterFeature, IssFeature } from "./types";
+import { EarthquakeFeature, AirQualityFeature, FireFeature, WeatherFeature, DisasterFeature, IssFeature, VolcanoFeature, AirQualityModelFeature } from "./types";
 
 export function toEarthquakeRow(feature: EarthquakeFeature) {
   const [lon, lat, depth] = feature.geometry.coordinates;
@@ -75,6 +75,30 @@ export function toIssRow(feature: IssFeature) {
     velocity_kms: feature.properties.velocityKmS,
     observed_at: feature.properties.timestamp,
     location: `SRID=4326;POINT(${lon} ${lat})`,
+  };
+}
+
+export function toVolcanoRow(feature: VolcanoFeature) {
+  const [lon, lat] = feature.geometry.coordinates;
+  return {
+    volcano_number: feature.properties.volcanoNumber,
+    name: feature.properties.name,
+    country: feature.properties.country,
+    volcano_type: feature.properties.volcanoType,
+    last_eruption_year: feature.properties.lastEruptionYear,
+    elevation_m: feature.properties.elevationM,
+    location: `SRID=4326;POINT(${lon} ${lat})`,
+  };
+}
+
+export function toAirQualityModelRow(feature: AirQualityModelFeature) {
+  const [lon, lat] = feature.geometry.coordinates;
+  return {
+    city: feature.properties.city,
+    pm25_value: feature.properties.pm25,
+    aqi_category: feature.properties.category,
+    location: `SRID=4326;POINT(${lon} ${lat})`,
+    measured_at: feature.properties.updated,
   };
 }
 

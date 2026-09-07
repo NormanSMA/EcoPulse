@@ -160,6 +160,54 @@ export interface IssGeoJSON {
   features: IssFeature[];
 }
 
+export interface VolcanoProperties {
+  volcanoNumber: number;
+  name: string;
+  country: string;
+  volcanoType: string;
+  lastEruptionYear: number | null;
+  elevationM: number | null;
+}
+
+export interface VolcanoFeature {
+  type: "Feature";
+  id: number;
+  properties: VolcanoProperties;
+  geometry: {
+    type: "Point";
+    coordinates: [number, number]; // [longitude, latitude]
+  };
+}
+
+export interface VolcanoGeoJSON {
+  type: "FeatureCollection";
+  features: VolcanoFeature[];
+}
+
+export type ModeledAQICategory = AQICategory;
+
+export interface AirQualityModelProperties {
+  city: string;
+  pm25: number;
+  category: ModeledAQICategory;
+  updated: string;
+}
+
+export interface AirQualityModelFeature {
+  type: "Feature";
+  id: string;
+  properties: AirQualityModelProperties;
+  geometry: {
+    type: "Point";
+    coordinates: [number, number]; // [longitude, latitude]
+  };
+}
+
+export interface AirQualityModelGeoJSON {
+  type: "FeatureCollection";
+  features: AirQualityModelFeature[];
+}
+
 export interface NearbyEarthquakeRow {
   id: string;
   usgs_id: string;

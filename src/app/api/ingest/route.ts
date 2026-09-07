@@ -5,9 +5,16 @@ import { fetchLiveFires } from "@/lib/firms";
 import { fetchLiveWeather } from "@/lib/weather";
 import { fetchLiveDisasters } from "@/lib/gdacs";
 import { fetchLiveIssPosition } from "@/lib/iss";
+import { fetchVolcanoes } from "@/lib/gvp";
+import { fetchModeledAirQuality } from "@/lib/openMeteoAirQuality";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
-import { toEarthquakeRow, toAirQualityRow, toFireRow, toWeatherRow, toDisasterRow, toIssRow, dedupeByKey, isIngestAuthorized } from "@/lib/ingest";
+import { toEarthquakeRow, toAirQualityRow, toFireRow, toWeatherRow, toDisasterRow, toIssRow, toVolcanoRow, toAirQualityModelRow, dedupeByKey, isIngestAuthorized } from "@/lib/ingest";
 import { processEarthquakeAlerts, processAirQualityAlerts } from "@/lib/discordAlerts";
+
+// Con 8 fuentes externas y ~3500 filas totales (sobre todo incendios y
+// volcanes), la ingesta secuencial tardaba ~40s. Vercel corta funciones
+// serverless a los 10s por defecto.
+export const maxDuration = 60;
 
 export async function GET(request: Request) {
   if (!isIngestAuthorized(request, process.env.INGEST_SECRET)) {
@@ -17,47 +24,76 @@ export async function GET(request: Request) {
   try {
     const supabaseAdmin = getSupabaseAdmin();
 
-    const earthquakes = await fetchLiveEarthquakes();
+    // Las 8 fuentes externas son independientes entre si: se piden en
+    // paralelo en vez de una por una.
+    const [earthquakes, airQuality, fires, weather, disasters, iss, volcanoes, airQualityModel] =
+      await Promise.all([
+        fetchLiveEarthquakes(),
+        fetchLiveAirQuality(),
+        fetchLiveFires(),
+        fetchLiveWeather(),
+        fetchLiveDisasters(),
+        fetchLiveIssPosition(),
+        fetchVolcanoes(),
+        fetchModeledAirQuality(),
+      ]);
+
     const earthquakeRows = earthquakes.features.map(toEarthquakeRow);
-    const eqResult = earthquakeRows.length
-      ? await supabaseAdmin.from("earthquakes").upsert(earthquakeRows, { onConflict: "usgs_id" })
-      : { error: null };
-    if (eqResult.error) throw new Error(`earthquakes upsert: ${eqResult.error.message}`);
-
-    const airQuality = await fetchLiveAirQuality();
     const airQualityRows = airQuality.features.map(toAirQualityRow);
-    const aqResult = airQualityRows.length
-      ? await supabaseAdmin.from("air_quality").upsert(airQualityRows, { onConflict: "station_id" })
-      : { error: null };
-    if (aqResult.error) throw new Error(`air_quality upsert: ${aqResult.error.message}`);
-
-    const fires = await fetchLiveFires();
     const fireRows = dedupeByKey(fires.features.map(toFireRow), "fire_key");
-    const fireResult = fireRows.length
-      ? await supabaseAdmin.from("fires").upsert(fireRows, { onConflict: "fire_key" })
-      : { error: null };
-    if (fireResult.error) throw new Error(`fires upsert: ${fireResult.error.message}`);
-
-    const weather = await fetchLiveWeather();
     const weatherRows = weather.features.map(toWeatherRow);
-    const weatherResult = weatherRows.length
-      ? await supabaseAdmin.from("weather").upsert(weatherRows, { onConflict: "city" })
-      : { error: null };
-    if (weatherResult.error) throw new Error(`weather upsert: ${weatherResult.error.message}`);
-
-    const disasters = await fetchLiveDisasters();
     const disasterRows = disasters.features.map(toDisasterRow);
-    const disasterResult = disasterRows.length
-      ? await supabaseAdmin.from("disasters").upsert(disasterRows, { onConflict: "event_id" })
-      : { error: null };
-    if (disasterResult.error) throw new Error(`disasters upsert: ${disasterResult.error.message}`);
-
-    const iss = await fetchLiveIssPosition();
     const issRows = iss.features.map(toIssRow);
-    const issResult = issRows.length
-      ? await supabaseAdmin.from("iss_position").upsert(issRows, { onConflict: "id" })
-      : { error: null };
+    const volcanoRows = volcanoes.features.map(toVolcanoRow);
+    const airQualityModelRows = airQualityModel.features.map(toAirQualityModelRow);
+
+    // Cada upsert va a una tabla distinta - tambien se corren en paralelo.
+    const [
+      eqResult,
+      aqResult,
+      fireResult,
+      weatherResult,
+      disasterResult,
+      issResult,
+      volcanoResult,
+      airQualityModelResult,
+    ] = await Promise.all([
+      earthquakeRows.length
+        ? supabaseAdmin.from("earthquakes").upsert(earthquakeRows, { onConflict: "usgs_id" })
+        : { error: null },
+      airQualityRows.length
+        ? supabaseAdmin.from("air_quality").upsert(airQualityRows, { onConflict: "station_id" })
+        : { error: null },
+      fireRows.length
+        ? supabaseAdmin.from("fires").upsert(fireRows, { onConflict: "fire_key" })
+        : { error: null },
+      weatherRows.length
+        ? supabaseAdmin.from("weather").upsert(weatherRows, { onConflict: "city" })
+        : { error: null },
+      disasterRows.length
+        ? supabaseAdmin.from("disasters").upsert(disasterRows, { onConflict: "event_id" })
+        : { error: null },
+      issRows.length
+        ? supabaseAdmin.from("iss_position").upsert(issRows, { onConflict: "id" })
+        : { error: null },
+      volcanoRows.length
+        ? supabaseAdmin.from("volcanoes").upsert(volcanoRows, { onConflict: "volcano_number" })
+        : { error: null },
+      airQualityModelRows.length
+        ? supabaseAdmin.from("air_quality_model").upsert(airQualityModelRows, { onConflict: "city" })
+        : { error: null },
+    ]);
+
+    if (eqResult.error) throw new Error(`earthquakes upsert: ${eqResult.error.message}`);
+    if (aqResult.error) throw new Error(`air_quality upsert: ${aqResult.error.message}`);
+    if (fireResult.error) throw new Error(`fires upsert: ${fireResult.error.message}`);
+    if (weatherResult.error) throw new Error(`weather upsert: ${weatherResult.error.message}`);
+    if (disasterResult.error) throw new Error(`disasters upsert: ${disasterResult.error.message}`);
     if (issResult.error) throw new Error(`iss_position upsert: ${issResult.error.message}`);
+    if (volcanoResult.error) throw new Error(`volcanoes upsert: ${volcanoResult.error.message}`);
+    if (airQualityModelResult.error) {
+      throw new Error(`air_quality_model upsert: ${airQualityModelResult.error.message}`);
+    }
 
     let earthquakeAlertsSent = 0;
     let airQualityAlertsSent = 0;
@@ -77,6 +113,8 @@ export async function GET(request: Request) {
       weatherUpserted: weatherRows.length,
       disastersUpserted: disasterRows.length,
       issUpserted: issRows.length,
+      volcanoesUpserted: volcanoRows.length,
+      airQualityModelUpserted: airQualityModelRows.length,
       earthquakeAlertsSent,
       airQualityAlertsSent,
       timestamp: new Date().toISOString(),

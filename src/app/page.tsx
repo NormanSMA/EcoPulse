@@ -5,7 +5,7 @@ import dynamic from "next/dynamic";
 import Header from "@/components/ui/Header";
 import StatsPanel from "@/components/ui/StatsPanel";
 import NearbySearch from "@/components/ui/NearbySearch";
-import { EarthquakeGeoJSON, AirQualityGeoJSON, FireGeoJSON, WeatherGeoJSON, DisasterGeoJSON, IssGeoJSON } from "@/lib/types";
+import { EarthquakeGeoJSON, AirQualityGeoJSON, FireGeoJSON, WeatherGeoJSON, DisasterGeoJSON, IssGeoJSON, VolcanoGeoJSON, AirQualityModelGeoJSON } from "@/lib/types";
 import { fetchLiveEarthquakes } from "@/lib/usgs";
 
 const MapContainer = dynamic(() => import("@/components/map/MapContainer"), {
@@ -49,6 +49,16 @@ const INITIAL_ISS: IssGeoJSON = {
   features: []
 };
 
+const INITIAL_VOLCANOES: VolcanoGeoJSON = {
+  type: "FeatureCollection",
+  features: []
+};
+
+const INITIAL_AIR_QUALITY_MODEL: AirQualityModelGeoJSON = {
+  type: "FeatureCollection",
+  features: []
+};
+
 const ISS_REFRESH_MS = 15000;
 
 export default function HomePage() {
@@ -58,12 +68,16 @@ export default function HomePage() {
   const [weather, setWeather] = useState<WeatherGeoJSON>(INITIAL_WEATHER);
   const [disasters, setDisasters] = useState<DisasterGeoJSON>(INITIAL_DISASTERS);
   const [iss, setIss] = useState<IssGeoJSON>(INITIAL_ISS);
+  const [volcanoes, setVolcanoes] = useState<VolcanoGeoJSON>(INITIAL_VOLCANOES);
+  const [airQualityModel, setAirQualityModel] = useState<AirQualityModelGeoJSON>(INITIAL_AIR_QUALITY_MODEL);
   const [showQuakes, setShowQuakes] = useState<boolean>(true);
   const [showAirQuality, setShowAirQuality] = useState<boolean>(true);
   const [showFires, setShowFires] = useState<boolean>(true);
   const [showWeather, setShowWeather] = useState<boolean>(true);
   const [showDisasters, setShowDisasters] = useState<boolean>(true);
   const [showIss, setShowIss] = useState<boolean>(true);
+  const [showVolcanoes, setShowVolcanoes] = useState<boolean>(true);
+  const [showAirQualityModel, setShowAirQualityModel] = useState<boolean>(false);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -131,11 +145,39 @@ export default function HomePage() {
       }
     }
 
+    async function loadVolcanoes() {
+      try {
+        const res = await fetch("/api/volcanoes", { signal: controller.signal });
+        if (!res.ok) throw new Error(`Volcanoes HTTP ${res.status}`);
+        const data: VolcanoGeoJSON = await res.json();
+        setVolcanoes(data);
+      } catch (err: unknown) {
+        if (!(err instanceof DOMException && err.name === "AbortError")) {
+          console.error("Error al sincronizar con Smithsonian GVP:", err);
+        }
+      }
+    }
+
+    async function loadAirQualityModel() {
+      try {
+        const res = await fetch("/api/air-quality-model", { signal: controller.signal });
+        if (!res.ok) throw new Error(`Air quality model HTTP ${res.status}`);
+        const data: AirQualityModelGeoJSON = await res.json();
+        setAirQualityModel(data);
+      } catch (err: unknown) {
+        if (!(err instanceof DOMException && err.name === "AbortError")) {
+          console.error("Error al sincronizar con el modelo de aire de Open-Meteo:", err);
+        }
+      }
+    }
+
     loadData();
     loadAirQuality();
     loadFires();
     loadWeather();
     loadDisasters();
+    loadVolcanoes();
+    loadAirQualityModel();
     return () => controller.abort();
   }, []);
 
@@ -189,6 +231,10 @@ export default function HomePage() {
         setShowDisasters={setShowDisasters}
         showIss={showIss}
         setShowIss={setShowIss}
+        showVolcanoes={showVolcanoes}
+        setShowVolcanoes={setShowVolcanoes}
+        showAirQualityModel={showAirQualityModel}
+        setShowAirQualityModel={setShowAirQualityModel}
       />
       <NearbySearch />
       <MapContainer
@@ -198,12 +244,16 @@ export default function HomePage() {
         weather={weather}
         disasters={disasters}
         iss={iss}
+        volcanoes={volcanoes}
+        airQualityModel={airQualityModel}
         showQuakes={showQuakes}
         showAirQuality={showAirQuality}
         showFires={showFires}
         showWeather={showWeather}
         showDisasters={showDisasters}
         showIss={showIss}
+        showVolcanoes={showVolcanoes}
+        showAirQualityModel={showAirQualityModel}
       />
     </main>
   );

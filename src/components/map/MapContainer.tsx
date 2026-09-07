@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef } from "react";
 import maplibregl, { GeoJSONSource, Map as MapLibreMap } from "maplibre-gl";
-import { EarthquakeGeoJSON, AirQualityGeoJSON, FireGeoJSON, WeatherGeoJSON, DisasterGeoJSON, IssGeoJSON, EarthquakeProperties, AirQualityProperties, FireProperties, WeatherProperties, DisasterProperties, IssProperties } from "@/lib/types";
+import { EarthquakeGeoJSON, AirQualityGeoJSON, FireGeoJSON, WeatherGeoJSON, DisasterGeoJSON, IssGeoJSON, VolcanoGeoJSON, AirQualityModelGeoJSON, EarthquakeProperties, AirQualityProperties, FireProperties, WeatherProperties, DisasterProperties, IssProperties, VolcanoProperties, AirQualityModelProperties } from "@/lib/types";
 
 interface MapContainerProps {
   earthquakes: EarthquakeGeoJSON;
@@ -11,12 +11,16 @@ interface MapContainerProps {
   weather: WeatherGeoJSON;
   disasters: DisasterGeoJSON;
   iss: IssGeoJSON;
+  volcanoes: VolcanoGeoJSON;
+  airQualityModel: AirQualityModelGeoJSON;
   showQuakes: boolean;
   showAirQuality: boolean;
   showFires: boolean;
   showWeather: boolean;
   showDisasters: boolean;
   showIss: boolean;
+  showVolcanoes: boolean;
+  showAirQualityModel: boolean;
 }
 
 const OPENFREEMAP_DARK_STYLE = "https://tiles.openfreemap.org/styles/dark";
@@ -28,12 +32,16 @@ export default function MapContainer({
   weather,
   disasters,
   iss,
+  volcanoes,
+  airQualityModel,
   showQuakes,
   showAirQuality,
   showFires,
   showWeather,
   showDisasters,
   showIss,
+  showVolcanoes,
+  showAirQualityModel,
 }: MapContainerProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
@@ -254,6 +262,64 @@ export default function MapContainer({
         },
       });
 
+      // Fuente y capa para Volcanes (Smithsonian GVP - catalogo estatico de
+      // volcanes del Holoceno; distinto de "VO" en GDACS, que son erupciones
+      // activas). Poll diario, casi no cambia.
+      map.addSource("volcanoes-source", {
+        type: "geojson",
+        data: volcanoes,
+      });
+
+      map.addLayer({
+        id: "volcanoes-layer",
+        type: "circle",
+        source: "volcanoes-source",
+        layout: {
+          visibility: showVolcanoes ? "visible" : "none",
+        },
+        paint: {
+          "circle-radius": 5,
+          "circle-color": "#a16207",
+          "circle-opacity": 0.75,
+          "circle-stroke-width": 1,
+          "circle-stroke-color": "#fef3c7",
+        },
+      });
+
+      // Fuente y capa para Calidad del Aire Modelada (Open-Meteo) - anillo
+      // hueco en las mismas coordenadas del AQ observado, para comparar
+      // visualmente "relleno" (observado) vs "contorno" (modelo)
+      map.addSource("air-quality-model-source", {
+        type: "geojson",
+        data: airQualityModel,
+      });
+
+      map.addLayer({
+        id: "air-quality-model-layer",
+        type: "circle",
+        source: "air-quality-model-source",
+        layout: {
+          visibility: showAirQualityModel ? "visible" : "none",
+        },
+        paint: {
+          "circle-radius": 11,
+          // Casi transparente en vez de "transparent" (alpha 0): con alfa
+          // cero MapLibre no detecta clicks dentro del circulo, solo en el
+          // borde/stroke - confirmado interactivamente en el navegador.
+          "circle-color": "rgba(0,0,0,0.01)",
+          "circle-stroke-width": 2,
+          "circle-stroke-color": [
+            "match",
+            ["get", "category"],
+            "good", "#10b981",
+            "moderate", "#f59e0b",
+            "unhealthy", "#f97316",
+            "hazardous", "#8b5cf6",
+            "#cbd5e1"
+          ],
+        },
+      });
+
       // Popup de interacción con Sismos
       map.on("click", "earthquakes-layer", (e) => {
         if (!e.features || !e.features[0]) return;
@@ -398,6 +464,59 @@ export default function MapContainer({
           .addTo(map);
       });
 
+      // Popup de interacción con Volcanes
+      map.on("click", "volcanoes-layer", (e) => {
+        if (!e.features || !e.features[0]) return;
+        const feature = e.features[0];
+        if (feature.geometry.type !== "Point") return;
+        const coordinates = feature.geometry.coordinates.slice();
+        const { name, country, volcanoType, lastEruptionYear, elevationM } = feature.properties as VolcanoProperties;
+        const eruptionText = lastEruptionYear === null
+          ? "Sin fecha documentada"
+          : lastEruptionYear < 0
+            ? `${Math.abs(lastEruptionYear)} a.C.`
+            : `${lastEruptionYear} d.C.`;
+
+        new maplibregl.Popup({ closeButton: true, focusAfterOpen: false })
+          .setLngLat([coordinates[0], coordinates[1]])
+          .setHTML(
+            `<div class="space-y-1.5 p-1 text-xs">
+              <div class="flex items-center justify-between gap-2">
+                <span class="font-bold text-amber-600 text-sm">🌋 ${name}</span>
+                <span class="text-[10px] bg-amber-700/20 text-amber-600 px-1.5 py-0.5 rounded">${volcanoType}</span>
+              </div>
+              <div class="text-slate-200 font-medium">${country}</div>
+              <div class="text-slate-400 text-[10px]">Última erupción: ${eruptionText}</div>
+              <div class="text-slate-400 text-[10px]">Elevación: ${elevationM ?? "N/D"} m</div>
+            </div>`
+          )
+          .addTo(map);
+      });
+
+      // Popup de interacción con Calidad del Aire Modelada
+      map.on("click", "air-quality-model-layer", (e) => {
+        if (!e.features || !e.features[0]) return;
+        const feature = e.features[0];
+        if (feature.geometry.type !== "Point") return;
+        const coordinates = feature.geometry.coordinates.slice();
+        const { city, pm25, category } = feature.properties as AirQualityModelProperties;
+
+        new maplibregl.Popup({ closeButton: true, focusAfterOpen: false })
+          .setLngLat([coordinates[0], coordinates[1]])
+          .setHTML(
+            `<div class="space-y-1.5 p-1 text-xs">
+              <div class="flex items-center justify-between gap-2">
+                <span class="font-bold text-cyan-400 text-sm">Aire (modelo)</span>
+                <span class="text-[10px] uppercase font-bold text-cyan-300 bg-cyan-500/20 px-1.5 py-0.5 rounded">${category}</span>
+              </div>
+              <div class="text-slate-200 font-medium">${city}</div>
+              <div class="text-slate-300">PM2.5: <span class="font-bold text-white">${pm25} µg/m³</span></div>
+              <div class="text-slate-400 text-[10px]">Estimado por Open-Meteo, no observado directamente</div>
+            </div>`
+          )
+          .addTo(map);
+      });
+
       // Efecto cursor pointer
       map.on("mouseenter", "earthquakes-layer", () => { map.getCanvas().style.cursor = "pointer"; });
       map.on("mouseleave", "earthquakes-layer", () => { map.getCanvas().style.cursor = ""; });
@@ -411,6 +530,10 @@ export default function MapContainer({
       map.on("mouseleave", "disasters-layer", () => { map.getCanvas().style.cursor = ""; });
       map.on("mouseenter", "iss-layer", () => { map.getCanvas().style.cursor = "pointer"; });
       map.on("mouseleave", "iss-layer", () => { map.getCanvas().style.cursor = ""; });
+      map.on("mouseenter", "volcanoes-layer", () => { map.getCanvas().style.cursor = "pointer"; });
+      map.on("mouseleave", "volcanoes-layer", () => { map.getCanvas().style.cursor = ""; });
+      map.on("mouseenter", "air-quality-model-layer", () => { map.getCanvas().style.cursor = "pointer"; });
+      map.on("mouseleave", "air-quality-model-layer", () => { map.getCanvas().style.cursor = ""; });
     });
 
     // Soporte de redimensionamiento automático
@@ -426,7 +549,7 @@ export default function MapContainer({
       isMapLoadedRef.current = false;
       map.remove();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- inicialización única e intencional; los updates posteriores de earthquakes/airQuality/fires/weather/disasters/iss/showQuakes/showAirQuality/showFires/showWeather/showDisasters/showIss se manejan en los effects de abajo vía setData/setLayoutProperty sin re-crear el mapa.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- inicialización única e intencional; los updates posteriores de earthquakes/airQuality/fires/weather/disasters/iss/volcanoes/airQualityModel/showQuakes/showAirQuality/showFires/showWeather/showDisasters/showIss/showVolcanoes/showAirQualityModel se manejan en los effects de abajo vía setData/setLayoutProperty sin re-crear el mapa.
   }, []);
 
   // 2. Actualización de datos de Sismos SIN recargar el mapa
@@ -483,6 +606,24 @@ export default function MapContainer({
     }
   }, [iss]);
 
+  // 3f. Actualización de datos de Volcanes SIN recargar el mapa
+  useEffect(() => {
+    if (!mapRef.current || !isMapLoadedRef.current) return;
+    const source = mapRef.current.getSource("volcanoes-source") as GeoJSONSource | undefined;
+    if (source) {
+      source.setData(volcanoes);
+    }
+  }, [volcanoes]);
+
+  // 3g. Actualización de datos de Calidad del Aire Modelada SIN recargar el mapa
+  useEffect(() => {
+    if (!mapRef.current || !isMapLoadedRef.current) return;
+    const source = mapRef.current.getSource("air-quality-model-source") as GeoJSONSource | undefined;
+    if (source) {
+      source.setData(airQualityModel);
+    }
+  }, [airQualityModel]);
+
   // 4. Conmutación reactiva de visibilidad de capas (Zero-latency toggle)
   useEffect(() => {
     if (!mapRef.current || !isMapLoadedRef.current) return;
@@ -528,6 +669,20 @@ export default function MapContainer({
       mapRef.current.setLayoutProperty("iss-label-layer", "visibility", showIss ? "visible" : "none");
     }
   }, [showIss]);
+
+  useEffect(() => {
+    if (!mapRef.current || !isMapLoadedRef.current) return;
+    if (mapRef.current.getLayer("volcanoes-layer")) {
+      mapRef.current.setLayoutProperty("volcanoes-layer", "visibility", showVolcanoes ? "visible" : "none");
+    }
+  }, [showVolcanoes]);
+
+  useEffect(() => {
+    if (!mapRef.current || !isMapLoadedRef.current) return;
+    if (mapRef.current.getLayer("air-quality-model-layer")) {
+      mapRef.current.setLayoutProperty("air-quality-model-layer", "visibility", showAirQualityModel ? "visible" : "none");
+    }
+  }, [showAirQualityModel]);
 
   return <div ref={mapContainerRef} className="w-full h-screen relative bg-slate-950" />;
 }

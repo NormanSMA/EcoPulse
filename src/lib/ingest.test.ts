@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { toEarthquakeRow, toAirQualityRow, toFireRow, toWeatherRow, toDisasterRow, toIssRow, dedupeByKey, isIngestAuthorized } from "./ingest";
-import { EarthquakeFeature, AirQualityFeature, FireFeature, WeatherFeature, DisasterFeature, IssFeature } from "./types";
+import { toEarthquakeRow, toAirQualityRow, toFireRow, toWeatherRow, toDisasterRow, toIssRow, toVolcanoRow, toAirQualityModelRow, dedupeByKey, isIngestAuthorized } from "./ingest";
+import { EarthquakeFeature, AirQualityFeature, FireFeature, WeatherFeature, DisasterFeature, IssFeature, VolcanoFeature, AirQualityModelFeature } from "./types";
 
 const sampleEarthquake: EarthquakeFeature = {
   type: "Feature",
@@ -184,6 +184,60 @@ describe("toIssRow", () => {
       velocity_kms: 7.66,
       observed_at: "2026-09-04T12:00:00.000Z",
       location: "SRID=4326;POINT(-71.04 -6.73)",
+    });
+  });
+});
+
+const sampleVolcano: VolcanoFeature = {
+  type: "Feature",
+  id: 210020,
+  properties: {
+    volcanoNumber: 210020,
+    name: "Chaine des Puys",
+    country: "France",
+    volcanoType: "Lava dome(s)",
+    lastEruptionYear: -4040,
+    elevationM: 1464,
+  },
+  geometry: { type: "Point", coordinates: [2.981, 45.786] },
+};
+
+describe("toVolcanoRow", () => {
+  it("mapea una feature de GVP a la forma de la tabla volcanoes", () => {
+    const row = toVolcanoRow(sampleVolcano);
+    expect(row).toEqual({
+      volcano_number: 210020,
+      name: "Chaine des Puys",
+      country: "France",
+      volcano_type: "Lava dome(s)",
+      last_eruption_year: -4040,
+      elevation_m: 1464,
+      location: "SRID=4326;POINT(2.981 45.786)",
+    });
+  });
+});
+
+const sampleAirQualityModel: AirQualityModelFeature = {
+  type: "Feature",
+  id: "Managua",
+  properties: {
+    city: "Managua",
+    pm25: 5.9,
+    category: "good",
+    updated: "2026-09-07T02:00:00.000Z",
+  },
+  geometry: { type: "Point", coordinates: [-86.2362, 12.1150] },
+};
+
+describe("toAirQualityModelRow", () => {
+  it("mapea una feature modelada de Open-Meteo a la forma de la tabla air_quality_model", () => {
+    const row = toAirQualityModelRow(sampleAirQualityModel);
+    expect(row).toEqual({
+      city: "Managua",
+      pm25_value: 5.9,
+      aqi_category: "good",
+      location: "SRID=4326;POINT(-86.2362 12.115)",
+      measured_at: "2026-09-07T02:00:00.000Z",
     });
   });
 });
