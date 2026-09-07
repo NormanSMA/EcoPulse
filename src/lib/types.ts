@@ -57,6 +57,16 @@ export interface AirQualityGeoJSON {
   features: AirQualityFeature[];
 }
 
+export interface NearbyEarthquakeRow {
+  id: string;
+  usgs_id: string;
+  magnitude: number | null;
+  place: string;
+  depth: number | null;
+  alert: "green" | "yellow" | "orange" | "red" | null;
+  event_time: string;
+}
+
 export interface SystemHealthResponse {
   status: "healthy" | "degraded" | "unhealthy";
   timestamp: string;

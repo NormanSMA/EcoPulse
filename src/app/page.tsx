@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import dynamic from "next/dynamic";
 import Header from "@/components/ui/Header";
 import StatsPanel from "@/components/ui/StatsPanel";
+import NearbySearch from "@/components/ui/NearbySearch";
 import { EarthquakeGeoJSON, AirQualityGeoJSON } from "@/lib/types";
 import { fetchLiveEarthquakes } from "@/lib/usgs";
 
@@ -83,6 +84,7 @@ export default function HomePage() {
         showAirQuality={showAirQuality}
         setShowAirQuality={setShowAirQuality}
       />
+      <NearbySearch />
       <MapContainer
         earthquakes={earthquakes}
         airQuality={airQuality}
