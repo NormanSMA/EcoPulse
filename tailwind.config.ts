@@ -49,7 +49,10 @@ export default {
         "ds-lg": radius.lg,
         "ds-xl": radius.xl,
         "ds-2xl": radius["2xl"],
+        "ds-3xl": radius["3xl"],
         "ds-full": radius.full,
+        "ds-control": "var(--ds-radius-control)",
+        "ds-panel": "var(--ds-radius-panel)",
       },
       transitionDuration: {
         "ds-fast": motion.duration.fast,

@@ -28,14 +28,14 @@ export function StatusBadge({ status, label, size = "md", className }: StatusBad
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-full font-medium",
+        "inline-flex items-center gap-1.5 rounded-full font-medium border border-current/15",
         size === "sm" ? "px-2 py-0.5 text-[10px]" : "px-2.5 py-1 text-xs",
         text,
-        "bg-current/10",
+        "bg-current/10 backdrop-blur-sm",
         className
       )}
     >
-      <span className={cn("h-1.5 w-1.5 rounded-full", dot)} />
+      <span className={cn("h-1.5 w-1.5 rounded-full", dot, status === "live" && "animate-pulse")} />
       {label ?? t(status)}
     </span>
   );

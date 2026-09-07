@@ -3,14 +3,21 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/design-system/utils/cn";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 rounded-xl font-semibold transition-colors duration-ds-fast ease-ds-standard focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 disabled:opacity-50 disabled:pointer-events-none",
+  "relative inline-flex items-center justify-center gap-2 rounded-ds-control font-semibold select-none " +
+    "transition-[transform,box-shadow,background-color,color] duration-ds-fast ease-ds-standard " +
+    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent " +
+    "active:scale-[0.97] disabled:opacity-40 disabled:pointer-events-none disabled:active:scale-100",
   {
     variants: {
       variant: {
-        primary: "bg-emerald-500 text-white hover:bg-emerald-600 active:bg-emerald-700",
-        secondary: "bg-slate-800 text-slate-100 border border-slate-700 hover:bg-slate-700",
-        quiet: "text-slate-200 hover:bg-slate-800",
-        danger: "bg-rose-500 text-white hover:bg-rose-600 active:bg-rose-700",
+        primary:
+          "bg-gradient-to-b from-brand-400 to-brand-600 text-white shadow-[0_2px_2px_rgba(0,0,0,0.15),0_8px_20px_-6px_rgba(99,102,241,0.55)] hover:brightness-110 active:shadow-[inset_0_2px_6px_rgba(0,0,0,0.35)]",
+        secondary:
+          "text-ds-text-primary [background:var(--ds-neu-base)] shadow-[var(--ds-shadow-neu-raised)] hover:brightness-105 active:shadow-[var(--ds-shadow-neu-pressed)]",
+        quiet:
+          "text-ds-text-secondary hover:text-ds-text-primary hover:[background:var(--ds-glass-highlight)] active:shadow-[var(--ds-shadow-neu-pressed)]",
+        danger:
+          "bg-gradient-to-b from-rose-400 to-rose-600 text-white shadow-[0_2px_2px_rgba(0,0,0,0.15),0_8px_20px_-6px_rgba(244,63,94,0.5)] hover:brightness-110 active:shadow-[inset_0_2px_6px_rgba(0,0,0,0.35)]",
       },
       size: {
         sm: "px-3 py-1.5 text-xs",

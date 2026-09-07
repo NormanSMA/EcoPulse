@@ -31,7 +31,7 @@ export default function Header({ earthquakeCount, maxMag, generatedAt, onSearchC
   }
 
   return (
-    <header className="w-full flex flex-wrap items-center gap-3 border-b border-ds-border bg-ds-surface px-4 py-2.5 z-10">
+    <header className="relative w-full flex flex-wrap items-center gap-3 border-b [border-color:var(--ds-glass-border)] [background:var(--ds-glass-bg-strong)] [backdrop-filter:blur(var(--ds-glass-blur))_saturate(var(--ds-glass-saturate))] px-4 py-2.5 z-10 shadow-[var(--ds-shadow-glass-sm)]">
       <div className="flex items-center gap-3 shrink-0">
         {/* Marca (índigo) — el verde queda reservado para el estado "live" (StatusBadge). */}
         <div className="h-9 w-9 rounded-xl bg-brand-500/10 border border-brand-500/30 flex items-center justify-center text-brand-400">
@@ -78,7 +78,7 @@ export default function Header({ earthquakeCount, maxMag, generatedAt, onSearchC
           size="sm"
           onClick={toggleLocale}
           aria-label="Toggle language"
-          className="!p-2.5 !bg-ds-surface !text-ds-text-primary border border-ds-border hover:!bg-ds-surface-elevated"
+          className="!p-2.5 !text-ds-text-primary"
         >
           <MorphIcon icon={Globe} size={16} reducedMotion="user" />
           <span className="uppercase text-[10px] font-bold">{locale}</span>
@@ -89,7 +89,7 @@ export default function Header({ earthquakeCount, maxMag, generatedAt, onSearchC
           size="sm"
           onClick={toggleTheme}
           aria-label={theme === "dark" ? tTheme("toLight") : tTheme("toDark")}
-          className="!p-2.5 !bg-ds-surface !text-ds-text-primary border border-ds-border hover:!bg-ds-surface-elevated"
+          className="!p-2.5 !text-ds-text-primary"
         >
           <MorphIcon icon={theme === "dark" ? Sun : Moon} size={16} reducedMotion="user" />
         </Button>

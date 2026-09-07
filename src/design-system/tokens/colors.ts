@@ -44,23 +44,31 @@ export const colors = {
   themes: {
     dark: {
       bgCanvas: "#090d16",
-      bgSurface: "rgba(15, 23, 42, 0.9)",
-      bgSurfaceElevated: "#1e293b",
+      bgSurface: "rgba(15, 23, 42, 0.55)",
+      bgSurfaceElevated: "rgba(30, 41, 59, 0.65)",
       textPrimary: "#f1f5f9",
       textSecondary: "#94a3b8",
       textMuted: "#64748b",
-      borderSubtle: "#1e293b",
+      borderSubtle: "rgba(148, 163, 184, 0.14)",
       shadowSm: "0 1px 2px rgba(0,0,0,0.5)",
     },
     light: {
-      bgCanvas: "#f8fafc",
-      bgSurface: "#ffffff",
-      bgSurfaceElevated: "#f1f5f9",
+      bgCanvas: "#eef2f9",
+      bgSurface: "rgba(255, 255, 255, 0.6)",
+      bgSurfaceElevated: "rgba(255, 255, 255, 0.75)",
       textPrimary: "#0f172a",
       textSecondary: "#475569",
-      textMuted: "#94a3b8",
-      borderSubtle: "#e2e8f0",
-      shadowSm: "0 1px 2px rgba(0,0,0,0.05)",
+      textMuted: "#64748b",
+      borderSubtle: "rgba(15, 23, 42, 0.08)",
+      shadowSm: "0 1px 2px rgba(15,23,42,0.06)",
     },
+  },
+
+  // Glassmorphism/neumorphism (Fase 3.4) — ver theme.css para los valores
+  // reales por tema; estos son solo referencia de arquitectura de tokens.
+  glass: {
+    blur: "20px",
+    blurSm: "10px",
+    saturate: "160%",
   },
 } as const;

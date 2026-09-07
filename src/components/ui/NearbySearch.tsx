@@ -58,7 +58,7 @@ export default function NearbySearch() {
 
   return (
     <Card className="space-y-3">
-      <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-ds-text-secondary pb-2 border-b border-ds-border">
+      <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-ds-text-secondary pb-2 border-b [border-color:var(--ds-glass-border)]">
         <MorphIcon icon={MapPin} size={16} reducedMotion="user" className="text-indigo-400" />
         <span>{t("title")}</span>
       </div>
@@ -68,7 +68,7 @@ export default function NearbySearch() {
         <select
           value={radiusKm}
           onChange={(e) => setRadiusKm(Number(e.target.value))}
-          className="bg-ds-surface-elevated border border-ds-border rounded-ds-lg px-2 py-1 text-ds-text-primary flex-1"
+          className="[background:var(--ds-glass-bg-elevated)] border [border-color:var(--ds-glass-border)] rounded-ds-control px-2 py-1 text-ds-text-primary flex-1 shadow-[var(--ds-shadow-neu-flat)]"
         >
           {RADIUS_OPTIONS_KM.map((km) => (
             <option key={km} value={km}>
@@ -81,7 +81,7 @@ export default function NearbySearch() {
       <button
         onClick={handleSearch}
         disabled={status === "locating" || status === "loading"}
-        className="w-full flex items-center justify-center gap-2 bg-brand-500 hover:bg-brand-600 disabled:opacity-50 text-white text-xs font-semibold py-2 rounded-ds-xl transition"
+        className="w-full flex items-center justify-center gap-2 bg-brand-500 hover:bg-brand-600 disabled:opacity-50 text-white text-xs font-semibold py-2 rounded-ds-control shadow-[var(--ds-shadow-neu-raised)] active:shadow-[var(--ds-shadow-neu-pressed)] transition-[background-color,box-shadow] duration-ds-fast active:scale-[0.98]"
       >
         {(status === "locating" || status === "loading") && (
           <MorphIcon icon={Loader2} size={14} reducedMotion="user" className="animate-spin" />
@@ -102,7 +102,7 @@ export default function NearbySearch() {
             {results.length} {t("resultsFound")}
           </p>
           {results.map((eq) => (
-            <div key={eq.id} className="bg-ds-surface-elevated/60 rounded-ds-lg px-2 py-1.5 flex justify-between gap-2">
+            <div key={eq.id} className="[background:var(--ds-glass-bg-elevated)] rounded-ds-control px-2 py-1.5 flex justify-between gap-2">
               <span className="text-ds-text-primary truncate">{eq.place}</span>
               <span className="text-amber-400 font-semibold shrink-0">M {eq.magnitude ?? "N/D"}</span>
             </div>

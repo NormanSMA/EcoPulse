@@ -14,9 +14,11 @@ export function Card({ elevated, className, children, ...props }: CardProps) {
   return (
     <div
       className={cn(
-        "rounded-ds-2xl border border-ds-border backdrop-blur-md shadow-[var(--ds-shadow-sm)] p-4",
-        elevated ? "bg-ds-surface-elevated" : "bg-ds-surface",
-        "text-ds-text-primary",
+        "rounded-ds-2xl border p-4 text-ds-text-primary",
+        "[border-color:var(--ds-glass-border)] [backdrop-filter:blur(var(--ds-glass-blur))_saturate(var(--ds-glass-saturate))]",
+        elevated
+          ? "[background:var(--ds-glass-bg-elevated)] shadow-[var(--ds-shadow-glass-md)]"
+          : "[background:var(--ds-glass-bg)] shadow-[var(--ds-shadow-glass-sm)]",
         className
       )}
       {...props}

@@ -106,6 +106,7 @@ function HomePageContent() {
   const [mapMode, setMapMode] = useState<"2d" | "3d">("2d");
   const [mapView, setMapView] = useState<MapView>(DEFAULT_MAP_VIEW);
   const { theme } = useTheme();
+  const [mobileSheet, setMobileSheet] = useState<"layers" | "events" | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -319,8 +320,8 @@ function HomePageContent() {
         onSearchChange={setSearchQuery}
       />
 
-      <div className="flex-1 flex overflow-hidden">
-        <aside className="hidden lg:flex lg:flex-col w-80 shrink-0 gap-3 overflow-y-auto p-3 border-r border-ds-border">
+      <div className="flex-1 flex overflow-hidden relative">
+        <aside className="hidden lg:flex lg:flex-col w-80 shrink-0 gap-3 overflow-y-auto p-3 border-r [border-color:var(--ds-glass-border)]">
           <StatsPanel
             showQuakes={showQuakes}
             setShowQuakes={setShowQuakes}
@@ -364,6 +365,7 @@ function HomePageContent() {
               onSelectEarthquake={setSelectedQuakeId}
               onViewChange={setMapView}
               initialView={mapView}
+              theme={theme}
             />
           ) : (
             <GlobeContainer
@@ -392,16 +394,35 @@ function HomePageContent() {
 
           <button
             onClick={() => setMapMode((m) => (m === "2d" ? "3d" : "2d"))}
-            className="absolute top-32 right-4 z-10 flex items-center gap-1.5 px-3 py-1.5 bg-ds-surface border border-ds-border rounded-ds-lg text-xs font-semibold text-ds-text-primary hover:bg-ds-surface-elevated transition-colors shadow-[var(--ds-shadow-sm)]"
+            className="absolute top-32 right-4 z-10 flex items-center gap-1.5 px-3 py-1.5 [background:var(--ds-glass-bg-strong)] [backdrop-filter:blur(var(--ds-glass-blur))_saturate(var(--ds-glass-saturate))] border [border-color:var(--ds-glass-border)] rounded-ds-control text-xs font-semibold text-ds-text-primary hover:[background:var(--ds-glass-bg-elevated)] transition-[background-color] duration-ds-fast active:scale-[0.97] shadow-[var(--ds-shadow-glass-sm)]"
           >
             <MorphIcon icon={mapMode === "2d" ? Globe2 : MapIcon} size={14} reducedMotion="user" />
             {mapMode === "2d" ? "3D" : "2D"}
           </button>
+
+          {/* Accesos móviles/tablet: los paneles laterales se ocultan por debajo de lg y
+              se abren como bottom sheet de vidrio (ver aside inferior fixed). */}
+          <div className="lg:hidden absolute bottom-4 right-4 z-10 flex flex-col gap-2">
+            <button
+              onClick={() => setMobileSheet((s) => (s === "layers" ? null : "layers"))}
+              aria-label={t("title")}
+              className="h-11 w-11 flex items-center justify-center rounded-ds-full [background:var(--ds-glass-bg-strong)] [backdrop-filter:blur(var(--ds-glass-blur))_saturate(var(--ds-glass-saturate))] border [border-color:var(--ds-glass-border)] text-ds-text-primary shadow-[var(--ds-shadow-glass-md)] active:scale-95 transition-transform"
+            >
+              <MorphIcon icon={MapIcon} size={18} reducedMotion="user" />
+            </button>
+            <button
+              onClick={() => setMobileSheet((s) => (s === "events" ? null : "events"))}
+              aria-label={t("title")}
+              className="h-11 w-11 flex items-center justify-center rounded-ds-full [background:var(--ds-glass-bg-strong)] [backdrop-filter:blur(var(--ds-glass-blur))_saturate(var(--ds-glass-saturate))] border [border-color:var(--ds-glass-border)] text-ds-text-primary shadow-[var(--ds-shadow-glass-md)] active:scale-95 transition-transform"
+            >
+              <MorphIcon icon={Inbox} size={18} reducedMotion="user" />
+            </button>
+          </div>
         </div>
 
-        <aside className="hidden lg:flex lg:flex-col w-80 shrink-0 gap-3 overflow-hidden p-3 border-l border-ds-border">
+        <aside className="hidden lg:flex lg:flex-col w-80 shrink-0 gap-3 overflow-hidden p-3 border-l [border-color:var(--ds-glass-border)]">
           <Card className="flex-1 flex flex-col overflow-hidden min-h-0">
-            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-ds-text-secondary pb-2 border-b border-ds-border mb-2">
+            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-ds-text-secondary pb-2 border-b [border-color:var(--ds-glass-border)] mb-2">
               <span>{t("title")}</span>
             </div>
             <EventList
@@ -421,6 +442,60 @@ function HomePageContent() {
             />
           </Card>
         </aside>
+
+        {/* Bottom sheet móvil/tablet: mismo contenido que los asides de escritorio,
+            en un panel de vidrio anclado abajo con scrim para cerrar al tocar fuera. */}
+        {mobileSheet && (
+          <div className="lg:hidden absolute inset-0 z-20 flex items-end">
+            <button
+              aria-label="Cerrar"
+              onClick={() => setMobileSheet(null)}
+              className="absolute inset-0 bg-black/40 backdrop-blur-[2px]"
+            />
+            <div
+              className="relative w-full max-h-[70vh] overflow-y-auto rounded-t-ds-panel border-t [border-color:var(--ds-glass-border)] [background:var(--ds-glass-bg-strong)] [backdrop-filter:blur(var(--ds-glass-blur))_saturate(var(--ds-glass-saturate))] shadow-[var(--ds-shadow-glass-lg)] p-4 pb-6"
+            >
+              <div className="mx-auto mb-3 h-1.5 w-10 rounded-full bg-ds-text-muted/40" />
+              {mobileSheet === "layers" ? (
+                <div className="space-y-3">
+                  <StatsPanel
+                    showQuakes={showQuakes}
+                    setShowQuakes={setShowQuakes}
+                    showAirQuality={showAirQuality}
+                    setShowAirQuality={setShowAirQuality}
+                    showFires={showFires}
+                    setShowFires={setShowFires}
+                    showWeather={showWeather}
+                    setShowWeather={setShowWeather}
+                    showDisasters={showDisasters}
+                    setShowDisasters={setShowDisasters}
+                    showIss={showIss}
+                    setShowIss={setShowIss}
+                    showVolcanoes={showVolcanoes}
+                    setShowVolcanoes={setShowVolcanoes}
+                    showAirQualityModel={showAirQualityModel}
+                    setShowAirQualityModel={setShowAirQualityModel}
+                    className="border-0 shadow-none [background:transparent] backdrop-blur-none p-0"
+                  />
+                  <NearbySearch />
+                </div>
+              ) : (
+                <div className="flex flex-col gap-3">
+                  <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-ds-text-secondary">
+                    <span>{t("title")}</span>
+                  </div>
+                  <EventList
+                    items={eventItems}
+                    emptyIcon={Inbox}
+                    emptyTitle={t("empty")}
+                    emptyDescription={t("emptyDescription")}
+                    className="max-h-[40vh]"
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       <TimeControl

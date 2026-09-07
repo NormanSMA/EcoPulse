@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useTranslations } from "next-intl";
-import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
+import { AreaChart, Area, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import type { EarthquakeGeoJSON } from "@/lib/types";
 import { EmptyState } from "@/components/ui/EmptyState";
 
@@ -11,7 +11,7 @@ export interface TrendChartProps {
 }
 
 const NEARBY_DEGREES = 2;
-const LIVE_COLOR = "#10b981"; // token status.live
+const TREND_COLOR = "#818cf8"; // brand.400 (design-system/tokens/colors.ts) - acento de marca, no de estado
 
 function formatHour(timeMs: number, multiDay: boolean) {
   const d = new Date(timeMs);
@@ -64,37 +64,54 @@ export function TrendChart({ earthquakes, selectedEarthquakeId, className }: Tre
     <div className={className} style={{ minHeight: 150 }}>
       <ResponsiveContainer width="100%" height="100%" minHeight={150}>
         <AreaChart data={data} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
+          <defs>
+            <linearGradient id="trend-area-fill" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={TREND_COLOR} stopOpacity={0.35} />
+              <stop offset="100%" stopColor={TREND_COLOR} stopOpacity={0.02} />
+            </linearGradient>
+          </defs>
+          <CartesianGrid
+            stroke="var(--ds-glass-border)"
+            strokeDasharray="3 3"
+            vertical={false}
+          />
           <XAxis
             dataKey="timeLabel"
             tick={{ fontSize: 10, fill: "var(--ds-text-secondary)" }}
-            axisLine={{ stroke: "var(--ds-border-subtle)" }}
+            axisLine={{ stroke: "var(--ds-glass-border-strong)" }}
             tickLine={false}
           />
           <YAxis
             domain={[0, maxMag + 1]}
             tick={{ fontSize: 10, fill: "var(--ds-text-secondary)" }}
-            axisLine={{ stroke: "var(--ds-border-subtle)" }}
+            axisLine={{ stroke: "var(--ds-glass-border-strong)" }}
             tickLine={false}
             width={28}
           />
           <Tooltip
+            cursor={{ stroke: "var(--ds-glass-border-strong)", strokeWidth: 1 }}
             contentStyle={{
-              background: "var(--ds-bg-surface-elevated)",
-              border: "1px solid var(--ds-border-subtle)",
-              borderRadius: 8,
+              background: "var(--ds-glass-bg-strong)",
+              backdropFilter: `blur(var(--ds-glass-blur-sm)) saturate(var(--ds-glass-saturate))`,
+              border: "1px solid var(--ds-glass-border-strong)",
+              borderRadius: "var(--ds-radius-control)",
+              boxShadow: "var(--ds-shadow-glass-sm)",
+              color: "var(--ds-text-primary)",
               fontSize: 12,
             }}
+            labelStyle={{ color: "var(--ds-text-secondary)" }}
+            itemStyle={{ color: "var(--ds-text-primary)" }}
             formatter={(value) => [Number(value).toFixed(1), t("magnitude")]}
             labelFormatter={(label) => `${t("time")}: ${label}`}
           />
           <Area
             type="monotone"
             dataKey="mag"
-            stroke={LIVE_COLOR}
-            fill={LIVE_COLOR}
-            fillOpacity={0.2}
-            dot={{ r: 3, fill: LIVE_COLOR, strokeWidth: 0 }}
-            activeDot={{ r: 5 }}
+            stroke={TREND_COLOR}
+            strokeWidth={2}
+            fill="url(#trend-area-fill)"
+            dot={{ r: 3, fill: TREND_COLOR, strokeWidth: 0 }}
+            activeDot={{ r: 5, fill: TREND_COLOR, stroke: "var(--ds-glass-bg-strong)", strokeWidth: 2 }}
           />
         </AreaChart>
       </ResponsiveContainer>

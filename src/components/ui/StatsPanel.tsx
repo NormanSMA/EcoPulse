@@ -21,6 +21,7 @@ interface StatsPanelProps {
   setShowVolcanoes: (val: boolean) => void;
   showAirQualityModel: boolean;
   setShowAirQualityModel: (val: boolean) => void;
+  className?: string;
 }
 
 export default function StatsPanel({
@@ -40,11 +41,12 @@ export default function StatsPanel({
   setShowVolcanoes,
   showAirQualityModel,
   setShowAirQualityModel,
+  className,
 }: StatsPanelProps) {
   const t = useTranslations("layers");
 
   return (
-    <Card className="space-y-4">
+    <Card className={`space-y-4 ${className ?? ""}`}>
       <div className="flex items-center justify-between pb-2 border-b border-ds-border">
         <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-ds-text-secondary">
           <MorphIcon icon={Layers} size={16} reducedMotion="user" className="text-indigo-400" />

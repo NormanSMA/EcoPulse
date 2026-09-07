@@ -33,7 +33,8 @@ export function TimeControl({
   return (
     <div
       className={cn(
-        "flex items-center justify-center gap-1.5 border-t border-ds-border bg-ds-surface px-4 py-2",
+        "flex items-center justify-center gap-1.5 border-t px-4 py-2",
+        "[border-color:var(--ds-glass-border)] [background:var(--ds-glass-bg-strong)] [backdrop-filter:blur(var(--ds-glass-blur))_saturate(var(--ds-glass-saturate))]",
         className
       )}
     >
@@ -42,10 +43,10 @@ export function TimeControl({
           key={w}
           onClick={() => onWindowChange(w)}
           className={cn(
-            "px-3 py-1.5 rounded-ds-lg text-xs font-semibold transition-colors",
+            "px-3 py-1.5 rounded-ds-control text-xs font-semibold transition-[box-shadow,background-color,color] duration-ds-fast active:scale-[0.97]",
             activeWindow === w
-              ? "bg-brand-500 text-white"
-              : "text-ds-text-secondary hover:bg-ds-surface-elevated"
+              ? "bg-gradient-to-b from-brand-400 to-brand-600 text-white shadow-[0_2px_2px_rgba(0,0,0,0.15),0_6px_14px_-4px_rgba(99,102,241,0.5)]"
+              : "text-ds-text-secondary hover:[background:var(--ds-glass-highlight)]"
           )}
         >
           {w === "live" ? (
@@ -64,7 +65,7 @@ export function TimeControl({
       <button
         onClick={onTogglePlayback}
         aria-label={playbackLabel}
-        className="flex items-center gap-1.5 px-3 py-1.5 rounded-ds-lg text-xs font-semibold text-ds-text-secondary hover:bg-ds-surface-elevated transition-colors"
+        className="flex items-center gap-1.5 px-3 py-1.5 rounded-ds-control text-xs font-semibold text-ds-text-secondary hover:[background:var(--ds-glass-highlight)] transition-[background-color] duration-ds-fast active:scale-[0.97]"
       >
         <MorphIcon icon={playing ? Pause : Play} size={14} reducedMotion="user" />
         {playbackLabel}

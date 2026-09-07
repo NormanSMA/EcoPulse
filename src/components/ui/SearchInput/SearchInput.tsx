@@ -47,7 +47,9 @@ export function SearchInput({
   return (
     <div
       className={cn(
-        "flex items-center gap-2 rounded-ds-xl border border-ds-border bg-ds-surface-elevated px-3 py-2 text-sm text-ds-text-primary focus-within:ring-2 focus-within:ring-brand-500",
+        "flex items-center gap-2 rounded-ds-control border px-3 py-2 text-sm text-ds-text-primary",
+        "[border-color:var(--ds-glass-border)] [background:var(--ds-glass-highlight)] shadow-[var(--ds-shadow-neu-flat)]",
+        "transition-shadow duration-ds-fast focus-within:shadow-[var(--ds-shadow-neu-pressed)] focus-within:ring-2 focus-within:ring-brand-400/60",
         className
       )}
     >
