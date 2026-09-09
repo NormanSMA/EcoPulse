@@ -62,9 +62,6 @@ body {
   left: 0;
   z-index: 20;
   transform: translate(-50%, calc(-100% - 14px));
-}
-.cesium-glass-popup.cesium-glass-popup-flip {
-  transform: translate(-50%, 14px);
   background: var(--ds-glass-bg-strong);
   backdrop-filter: blur(var(--ds-glass-blur)) saturate(var(--ds-glass-saturate));
   -webkit-backdrop-filter: blur(var(--ds-glass-blur)) saturate(var(--ds-glass-saturate));
@@ -77,6 +74,9 @@ body {
   min-width: 12rem;
   max-width: 18rem;
   pointer-events: auto;
+}
+.cesium-glass-popup.cesium-glass-popup-flip {
+  transform: translate(-50%, 14px);
 }
 
 .cesium-glass-popup-close {
