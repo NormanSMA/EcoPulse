@@ -1,28 +1,32 @@
 'use client';
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback, type CSSProperties, type ReactNode } from "react";
 import dynamic from "next/dynamic";
 import { useTranslations } from "next-intl";
-import { Inbox, Waves, Flame, AlertTriangle } from "lucide";
-import { I18nProvider } from "@/design-system/i18n/I18nProvider";
-import { getFreshness, useTheme } from "@/design-system/hooks";
-import { DEFAULT_MAP_VIEW, type MapView } from "@/lib/mapView";
-import { Globe2, Map as MapIcon } from "lucide";
+import { Inbox, Waves, Flame, AlertTriangle, Radio, Activity, SlidersHorizontal, X, ChartSpline } from "lucide";
+import type { IconNode } from "lucide";
 import { MorphIcon } from "morphicons/react";
-import Header from "@/components/ui/Header";
-import StatsPanel from "@/components/ui/StatsPanel";
-import NearbySearch from "@/components/ui/NearbySearch";
-import { Card } from "@/components/ui/Card";
+import { I18nProvider, useLocale } from "@/design-system/i18n/I18nProvider";
+import { getFreshness, useFreshness, useTheme, useBasemap } from "@/design-system/hooks";
+import { layers, magnitudeColor, alertColor, type LayerKey } from "@/design-system/tokens";
+import { cn } from "@/design-system/utils/cn";
+import { DEFAULT_MAP_VIEW, type MapView } from "@/lib/mapView";
+import Header, { type MapMode } from "@/components/ui/Header";
+import ControlsPanel, { type LayerVisibility } from "@/components/ui/ControlsPanel";
+import { Button, IconButton } from "@/components/ui/Button";
+import { MetricCard } from "@/components/ui/MetricCard";
+import { StatusBadge } from "@/components/ui/StatusBadge";
 import { EventList, type EventListItem } from "@/components/ui/EventList";
 import { TimeControl, type TimeWindow } from "@/components/ui/TimeControl";
 import { TrendChart } from "@/components/ui/TrendChart";
+import { Legend } from "@/components/ui/Legend";
 import { EarthquakeGeoJSON, AirQualityGeoJSON, FireGeoJSON, WeatherGeoJSON, DisasterGeoJSON, IssGeoJSON, VolcanoGeoJSON, AirQualityModelGeoJSON } from "@/lib/types";
 import { fetchLiveEarthquakes } from "@/lib/usgs";
 
 const MAP_LOADING = (
-  <div className="w-full h-full flex flex-col items-center justify-center bg-ds-canvas text-slate-400 gap-3">
-    <div className="h-8 w-8 rounded-full border-2 border-emerald-500 border-t-transparent animate-spin" />
-    <p className="text-xs font-medium tracking-wide">Inicializando motor de renderizado WebGL...</p>
+  <div className="flex h-full w-full flex-col items-center justify-center gap-4 bg-ds-canvas text-ds-text-secondary">
+    <div className="h-10 w-10 animate-spin rounded-full border-[3px] border-ds-surface-highest border-t-ds-primary" />
+    <p className="text-sm">Inicializando motor de renderizado WebGL…</p>
   </div>
 );
 
@@ -79,9 +83,50 @@ const INITIAL_AIR_QUALITY_MODEL: AirQualityModelGeoJSON = {
 
 const ISS_REFRESH_MS = 15000;
 
+const INITIAL_VISIBILITY: LayerVisibility = {
+  earthquakes: true,
+  airQuality: true,
+  fires: true,
+  weather: true,
+  disasters: true,
+  iss: true,
+  volcanoes: true,
+  airQualityModel: false,
+};
+
+/** Cabecera de panel flotante: título + cerrar (como "Controls ✕" de Weather Lab). */
+function PanelHeader({
+  title,
+  icon,
+  meta,
+  onClose,
+  closeLabel,
+}: {
+  title: string;
+  icon: IconNode;
+  meta?: ReactNode;
+  onClose: () => void;
+  closeLabel: string;
+}) {
+  return (
+    <div className="flex h-16 shrink-0 items-center gap-3 border-b border-ds-outline-variant pl-5 pr-3">
+      <MorphIcon icon={icon} size={20} reducedMotion="user" className="shrink-0 text-ds-text-secondary" />
+      <h2 className="min-w-0 flex-1 truncate text-lg font-medium text-ds-text-primary">{title}</h2>
+      {meta}
+      <IconButton aria-label={closeLabel} onClick={onClose}>
+        <MorphIcon icon={X} size={20} reducedMotion="user" />
+      </IconButton>
+    </div>
+  );
+}
+
 function HomePageContent() {
   const t = useTranslations("events");
   const tKinds = useTranslations("events.kinds");
+  const tPanel = useTranslations("panel");
+  const tMetrics = useTranslations("metrics");
+  const tTime = useTranslations("timeControl");
+  const { locale } = useLocale();
 
   const [earthquakes, setEarthquakes] = useState<EarthquakeGeoJSON>(INITIAL_EARTHQUAKES);
   const [airQuality, setAirQuality] = useState<AirQualityGeoJSON>(INITIAL_AIR_QUALITY);
@@ -91,22 +136,33 @@ function HomePageContent() {
   const [iss, setIss] = useState<IssGeoJSON>(INITIAL_ISS);
   const [volcanoes, setVolcanoes] = useState<VolcanoGeoJSON>(INITIAL_VOLCANOES);
   const [airQualityModel, setAirQualityModel] = useState<AirQualityModelGeoJSON>(INITIAL_AIR_QUALITY_MODEL);
-  const [showQuakes, setShowQuakes] = useState<boolean>(true);
-  const [showAirQuality, setShowAirQuality] = useState<boolean>(true);
-  const [showFires, setShowFires] = useState<boolean>(true);
-  const [showWeather, setShowWeather] = useState<boolean>(true);
-  const [showDisasters, setShowDisasters] = useState<boolean>(true);
-  const [showIss, setShowIss] = useState<boolean>(true);
-  const [showVolcanoes, setShowVolcanoes] = useState<boolean>(true);
-  const [showAirQualityModel, setShowAirQualityModel] = useState<boolean>(false);
+  const [visibility, setVisibility] = useState<LayerVisibility>(INITIAL_VISIBILITY);
   const [searchQuery, setSearchQuery] = useState("");
   const [timeWindow, setTimeWindow] = useState<TimeWindow>("live");
   const [playing, setPlaying] = useState(false);
   const [selectedQuakeId, setSelectedQuakeId] = useState<string | null>(null);
-  const [mapMode, setMapMode] = useState<"2d" | "3d">("2d");
+  const [mapMode, setMapMode] = useState<MapMode>("2d");
   const [mapView, setMapView] = useState<MapView>(DEFAULT_MAP_VIEW);
-  const { theme } = useTheme();
+  // Un solo useTheme() para toda la página: Header lo recibe por props, así
+  // el basemap (que sigue al tema) y el globo se enteran del cambio.
+  const { theme, toggleTheme } = useTheme();
+  const { basemap, setBasemap } = useBasemap(theme);
+  const [controlsOpen, setControlsOpen] = useState(true);
+  const [eventsOpen, setEventsOpen] = useState(true);
   const [mobileSheet, setMobileSheet] = useState<"layers" | "events" | null>(null);
+
+  const setLayer = useCallback((key: LayerKey, value: boolean) => {
+    setVisibility((prev) => (prev[key] === value ? prev : { ...prev, [key]: value }));
+  }, []);
+
+  useEffect(() => {
+    if (!mobileSheet) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMobileSheet(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [mobileSheet]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -255,20 +311,23 @@ function HomePageContent() {
     }, 0);
   }, [filteredEarthquakes]);
 
-  // Fase 3.2: EventList combina sismos/incendios/desastres ya obtenidos en
-  // una sola lista ordenada por recencia — presentacional, no agrega
-  // ninguna fuente ni campo nuevo a src/lib/types.ts.
+  const generatedAt = earthquakes.metadata.generated || null;
+  const feedStatus = useFreshness(generatedAt);
+
+  // Lista combinada de sismos/incendios/desastres ordenada por recencia —
+  // presentacional, no agrega ninguna fuente nueva.
   const eventItems = useMemo<EventListItem[]>(() => {
     type RankedItem = EventListItem & { ts: number };
 
     const quakeItems: RankedItem[] = filteredEarthquakes.features.map((f) => ({
       id: `eq-${f.id}`,
       icon: Waves,
-      iconClassName: "text-rose-400",
+      color: magnitudeColor(f.properties.mag ?? 0),
       title: `M ${f.properties.mag?.toFixed(1) ?? "?"} — ${f.properties.place}`,
       description: tKinds("earthquake"),
-      timestamp: new Date(f.properties.time).toLocaleString(),
+      timestamp: new Date(f.properties.time).toLocaleString(locale),
       status: getFreshness(f.properties.time),
+      selected: String(f.id) === selectedQuakeId,
       onClick: () => setSelectedQuakeId(String(f.id)),
       ts: f.properties.time,
     }));
@@ -278,10 +337,10 @@ function HomePageContent() {
       return {
         id: `fire-${f.id}`,
         icon: Flame,
-        iconClassName: "text-amber-400",
+        color: layers.fires,
         title: `${tKinds("fire")} · FRP ${f.properties.frp.toFixed(1)}`,
         description: f.properties.satellite,
-        timestamp: new Date(f.properties.acquiredAt).toLocaleString(),
+        timestamp: new Date(f.properties.acquiredAt).toLocaleString(locale),
         status: getFreshness(ts, { live: 180, recent: 720 }),
         ts,
       };
@@ -292,10 +351,10 @@ function HomePageContent() {
       return {
         id: `disaster-${f.id}`,
         icon: AlertTriangle,
-        iconClassName: "text-orange-400",
+        color: alertColor(f.properties.alertLevel),
         title: `${f.properties.eventTypeLabel} — ${f.properties.name}`,
         description: f.properties.country,
-        timestamp: f.properties.fromDate ? new Date(f.properties.fromDate).toLocaleString() : "",
+        timestamp: f.properties.fromDate ? new Date(f.properties.fromDate).toLocaleString(locale) : "",
         status: getFreshness(ts || null, { live: 1440, recent: 10080 }),
         ts,
       };
@@ -309,201 +368,239 @@ function HomePageContent() {
         void _rank;
         return rest;
       });
-  }, [filteredEarthquakes, fires, disasters, tKinds]);
+  }, [filteredEarthquakes, fires, disasters, tKinds, locale, selectedQuakeId]);
+
+  const mapProps = {
+    earthquakes: filteredEarthquakes,
+    airQuality,
+    fires,
+    weather,
+    disasters,
+    iss,
+    volcanoes,
+    airQualityModel,
+    showQuakes: visibility.earthquakes,
+    showAirQuality: visibility.airQuality,
+    showFires: visibility.fires,
+    showWeather: visibility.weather,
+    showDisasters: visibility.disasters,
+    showIss: visibility.iss,
+    showVolcanoes: visibility.volcanoes,
+    showAirQualityModel: visibility.airQualityModel,
+    onSelectEarthquake: setSelectedQuakeId,
+    initialView: mapView,
+  };
+
+  const feedBadge = generatedAt != null ? <StatusBadge status={feedStatus} size="sm" /> : null;
+
+  const metrics = (
+    <div className="grid grid-cols-2 gap-2">
+      <MetricCard
+        icon={Radio}
+        iconColor={layers.earthquakes}
+        label={tMetrics("earthquakes24h")}
+        value={filteredEarthquakes.features.length}
+      />
+      <MetricCard
+        icon={Activity}
+        iconColor={magnitudeColor(maxMag)}
+        label={tMetrics("maxMagnitude")}
+        value={maxMag ? `M ${maxMag.toFixed(1)}` : "—"}
+      />
+    </div>
+  );
+
+  const eventList = (className?: string) => (
+    <EventList
+      items={eventItems}
+      emptyIcon={Inbox}
+      emptyTitle={t("empty")}
+      emptyDescription={t("emptyDescription")}
+      className={className}
+    />
+  );
+
+  const trend = (
+    <div className="flex flex-col gap-2">
+      <div className="flex items-center gap-2 px-1 text-sm font-medium text-ds-text-primary">
+        <MorphIcon icon={ChartSpline} size={18} reducedMotion="user" className="text-ds-text-secondary" />
+        {t("trend.title")}
+      </div>
+      <TrendChart earthquakes={earthquakes} selectedEarthquakeId={selectedQuakeId} className="h-40" />
+    </div>
+  );
+
+  // Desplazamientos de los controles nativos del mapa (zoom, atribución,
+  // créditos de Cesium) para que no queden debajo de los paneles flotantes
+  // — ver .ep-map-stage en globals.css.
+  const stageStyle = {
+    "--ep-inset-right-lg": eventsOpen ? "372px" : "16px",
+    "--ep-inset-top-lg": eventsOpen ? "16px" : "80px",
+  } as CSSProperties;
+
+  const floatingPanel =
+    "absolute bottom-[128px] top-4 z-10 hidden animate-ds-pop-in flex-col overflow-hidden rounded-ds-panel border border-ds-outline-variant bg-ds-panel shadow-ds-2 backdrop-blur-ds-panel lg:flex";
 
   return (
-    <main className="relative w-full h-screen overflow-hidden bg-ds-canvas flex flex-col">
+    <main className="relative flex h-dvh w-full flex-col overflow-hidden bg-ds-canvas">
       <Header
-        earthquakeCount={filteredEarthquakes.features.length}
-        maxMag={maxMag}
-        generatedAt={earthquakes.metadata.generated || null}
         onSearchChange={setSearchQuery}
+        mapMode={mapMode}
+        onMapModeChange={setMapMode}
+        basemap={basemap}
+        onBasemapChange={setBasemap}
+        theme={theme}
+        onToggleTheme={toggleTheme}
       />
 
-      <div className="flex-1 flex overflow-hidden relative">
-        <aside className="hidden lg:flex lg:flex-col w-80 shrink-0 gap-3 overflow-y-auto p-3 border-r [border-color:var(--ds-glass-border)]">
-          <StatsPanel
-            showQuakes={showQuakes}
-            setShowQuakes={setShowQuakes}
-            showAirQuality={showAirQuality}
-            setShowAirQuality={setShowAirQuality}
-            showFires={showFires}
-            setShowFires={setShowFires}
-            showWeather={showWeather}
-            setShowWeather={setShowWeather}
-            showDisasters={showDisasters}
-            setShowDisasters={setShowDisasters}
-            showIss={showIss}
-            setShowIss={setShowIss}
-            showVolcanoes={showVolcanoes}
-            setShowVolcanoes={setShowVolcanoes}
-            showAirQualityModel={showAirQualityModel}
-            setShowAirQualityModel={setShowAirQualityModel}
-          />
-          <NearbySearch />
-        </aside>
-
-        <div className="flex-1 relative">
+      <div
+        style={stageStyle}
+        className={cn(
+          "ep-map-stage relative min-h-0 flex-1 overflow-hidden",
+          "[--ep-inset-bottom:172px] [--ep-inset-left:12px] [--ep-inset-right:12px] [--ep-inset-top:12px]",
+          "lg:[--ep-inset-bottom:16px] lg:[--ep-inset-left:16px] lg:[--ep-inset-right:var(--ep-inset-right-lg)] lg:[--ep-inset-top:var(--ep-inset-top-lg)]"
+        )}
+      >
+        <div className="absolute inset-0">
           {mapMode === "2d" ? (
-            <MapContainer
-              earthquakes={filteredEarthquakes}
-              airQuality={airQuality}
-              fires={fires}
-              weather={weather}
-              disasters={disasters}
-              iss={iss}
-              volcanoes={volcanoes}
-              airQualityModel={airQualityModel}
-              showQuakes={showQuakes}
-              showAirQuality={showAirQuality}
-              showFires={showFires}
-              showWeather={showWeather}
-              showDisasters={showDisasters}
-              showIss={showIss}
-              showVolcanoes={showVolcanoes}
-              showAirQualityModel={showAirQualityModel}
-              onSelectEarthquake={setSelectedQuakeId}
-              onViewChange={setMapView}
-              initialView={mapView}
-              theme={theme}
-            />
+            <MapContainer {...mapProps} onViewChange={setMapView} basemap={basemap} />
           ) : (
-            <GlobeContainer
-              earthquakes={filteredEarthquakes}
-              airQuality={airQuality}
-              fires={fires}
-              weather={weather}
-              disasters={disasters}
-              iss={iss}
-              volcanoes={volcanoes}
-              airQualityModel={airQualityModel}
-              showQuakes={showQuakes}
-              showAirQuality={showAirQuality}
-              showFires={showFires}
-              showWeather={showWeather}
-              showDisasters={showDisasters}
-              showIss={showIss}
-              showVolcanoes={showVolcanoes}
-              showAirQualityModel={showAirQualityModel}
-              onSelectEarthquake={setSelectedQuakeId}
-              selectedEarthquakeId={selectedQuakeId}
-              initialView={mapView}
-              theme={theme}
-            />
+            <GlobeContainer {...mapProps} selectedEarthquakeId={selectedQuakeId} theme={theme} />
           )}
+        </div>
 
-          <button
-            onClick={() => setMapMode((m) => (m === "2d" ? "3d" : "2d"))}
-            className="absolute top-32 right-4 z-10 flex items-center gap-1.5 px-3 py-1.5 [background:var(--ds-glass-bg-strong)] [backdrop-filter:blur(var(--ds-glass-blur))_saturate(var(--ds-glass-saturate))] border [border-color:var(--ds-glass-border)] rounded-ds-control text-xs font-semibold text-ds-text-primary hover:[background:var(--ds-glass-bg-elevated)] transition-[background-color] duration-ds-fast active:scale-[0.97] shadow-[var(--ds-shadow-glass-sm)]"
+        {/* ---------- Escritorio: panel "Controles" (izquierda) ---------- */}
+        {controlsOpen ? (
+          <aside aria-label={tPanel("controls")} className={cn(floatingPanel, "left-4 w-[360px]")}>
+            <PanelHeader
+              title={tPanel("controls")}
+              icon={SlidersHorizontal}
+              onClose={() => setControlsOpen(false)}
+              closeLabel={tPanel("close")}
+            />
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain py-2">
+              <ControlsPanel visibility={visibility} onChange={setLayer} />
+            </div>
+          </aside>
+        ) : (
+          <Button
+            variant="elevated"
+            size="lg"
+            onClick={() => setControlsOpen(true)}
+            className="absolute left-4 top-4 z-10 hidden lg:inline-flex"
           >
-            <MorphIcon icon={mapMode === "2d" ? Globe2 : MapIcon} size={14} reducedMotion="user" />
-            {mapMode === "2d" ? "3D" : "2D"}
-          </button>
+            <MorphIcon icon={SlidersHorizontal} size={20} reducedMotion="user" />
+            {tPanel("controls")}
+          </Button>
+        )}
 
-          {/* Accesos móviles/tablet: los paneles laterales se ocultan por debajo de lg y
-              se abren como bottom sheet de vidrio (ver aside inferior fixed). */}
-          <div className="lg:hidden absolute bottom-4 right-4 z-10 flex flex-col gap-2">
-            <button
-              onClick={() => setMobileSheet((s) => (s === "layers" ? null : "layers"))}
-              aria-label={t("title")}
-              className="h-11 w-11 flex items-center justify-center rounded-ds-full [background:var(--ds-glass-bg-strong)] [backdrop-filter:blur(var(--ds-glass-blur))_saturate(var(--ds-glass-saturate))] border [border-color:var(--ds-glass-border)] text-ds-text-primary shadow-[var(--ds-shadow-glass-md)] active:scale-95 transition-transform"
-            >
-              <MorphIcon icon={MapIcon} size={18} reducedMotion="user" />
-            </button>
-            <button
-              onClick={() => setMobileSheet((s) => (s === "events" ? null : "events"))}
-              aria-label={t("title")}
-              className="h-11 w-11 flex items-center justify-center rounded-ds-full [background:var(--ds-glass-bg-strong)] [backdrop-filter:blur(var(--ds-glass-blur))_saturate(var(--ds-glass-saturate))] border [border-color:var(--ds-glass-border)] text-ds-text-primary shadow-[var(--ds-shadow-glass-md)] active:scale-95 transition-transform"
-            >
+        {/* ---------- Escritorio: panel "Eventos" (derecha) ---------- */}
+        {eventsOpen ? (
+          <aside aria-label={t("title")} className={cn(floatingPanel, "right-4 w-[340px]")}>
+            <PanelHeader
+              title={t("title")}
+              icon={Inbox}
+              meta={feedBadge}
+              onClose={() => setEventsOpen(false)}
+              closeLabel={tPanel("close")}
+            />
+            {/* En viewports bajos todo el cuerpo hace scroll; en altos la lista llena el espacio. */}
+            <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain p-3">
+              {metrics}
+              {eventList("-mx-1 flex-none [@media(min-height:760px)]:min-h-[220px] [@media(min-height:760px)]:flex-1")}
+              <div className="shrink-0 border-t border-ds-outline-variant pt-3">{trend}</div>
+            </div>
+          </aside>
+        ) : (
+          <Button
+            variant="elevated"
+            size="lg"
+            onClick={() => setEventsOpen(true)}
+            className="absolute right-4 top-4 z-10 hidden lg:inline-flex"
+          >
+            <MorphIcon icon={Inbox} size={20} reducedMotion="user" />
+            {t("title")}
+            <span className="grid h-6 min-w-6 place-items-center rounded-ds-full bg-ds-primary px-1.5 text-xs font-medium text-ds-primary-on">
+              {eventItems.length}
+            </span>
+          </Button>
+        )}
+
+        {/* ---------- Fila inferior: accesos móviles + timeline + leyenda ---------- */}
+        <div className="pointer-events-none absolute inset-x-3 bottom-3 z-10 flex flex-col gap-2 pb-[env(safe-area-inset-bottom)] lg:inset-x-4 lg:bottom-4 lg:grid lg:grid-cols-[1fr_minmax(0,640px)_1fr] lg:items-end lg:gap-4">
+          <div className="pointer-events-auto flex gap-2 lg:hidden">
+            <Button variant="elevated" onClick={() => setMobileSheet("layers")} className="flex-1 sm:flex-none">
+              <MorphIcon icon={SlidersHorizontal} size={18} reducedMotion="user" />
+              {tPanel("controls")}
+            </Button>
+            <Button variant="elevated" onClick={() => setMobileSheet("events")} className="flex-1 sm:flex-none">
               <MorphIcon icon={Inbox} size={18} reducedMotion="user" />
-            </button>
+              {t("title")}
+              <span className="grid h-5 min-w-5 place-items-center rounded-ds-full bg-ds-primary px-1 text-[11px] font-medium text-ds-primary-on">
+                {eventItems.length}
+              </span>
+            </Button>
+          </div>
+
+          <span className="hidden lg:block" aria-hidden="true" />
+
+          <TimeControl
+            window={timeWindow}
+            onWindowChange={setTimeWindow}
+            playing={playing}
+            onTogglePlayback={() => setPlaying((p) => !p)}
+            liveLabel={tTime("live")}
+            playbackLabel={tTime("playback")}
+            windowLabel={tTime("window")}
+            locale={locale}
+            className="pointer-events-auto w-full"
+          />
+
+          <div className="hidden justify-self-end xl:block">
+            <Legend variant="floating" className="pointer-events-auto" />
           </div>
         </div>
 
-        <aside className="hidden lg:flex lg:flex-col w-80 shrink-0 gap-3 overflow-hidden p-3 border-l [border-color:var(--ds-glass-border)]">
-          <Card className="flex-1 flex flex-col overflow-hidden min-h-0">
-            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-ds-text-secondary pb-2 border-b [border-color:var(--ds-glass-border)] mb-2">
-              <span>{t("title")}</span>
-            </div>
-            <EventList
-              items={eventItems}
-              emptyIcon={Inbox}
-              emptyTitle={t("empty")}
-              emptyDescription={t("emptyDescription")}
-              className="flex-1"
-            />
-          </Card>
-
-          <Card className="shrink-0" style={{ height: 200 }}>
-            <TrendChart
-              earthquakes={earthquakes}
-              selectedEarthquakeId={selectedQuakeId}
-              className="h-full"
-            />
-          </Card>
-        </aside>
-
-        {/* Bottom sheet móvil/tablet: mismo contenido que los asides de escritorio,
-            en un panel de vidrio anclado abajo con scrim para cerrar al tocar fuera. */}
+        {/* ---------- Móvil/tablet: bottom sheet ---------- */}
         {mobileSheet && (
-          <div className="lg:hidden absolute inset-0 z-20 flex items-end">
+          <div className="absolute inset-0 z-40 flex items-end lg:hidden">
             <button
-              aria-label="Cerrar"
+              type="button"
+              aria-label={tPanel("close")}
               onClick={() => setMobileSheet(null)}
-              className="absolute inset-0 bg-black/40 backdrop-blur-[2px]"
+              className="absolute inset-0 animate-ds-fade-in bg-ds-scrim"
             />
             <div
-              className="relative w-full max-h-[70vh] overflow-y-auto rounded-t-ds-panel border-t [border-color:var(--ds-glass-border)] [background:var(--ds-glass-bg-strong)] [backdrop-filter:blur(var(--ds-glass-blur))_saturate(var(--ds-glass-saturate))] shadow-[var(--ds-shadow-glass-lg)] p-4 pb-6"
+              role="dialog"
+              aria-modal="true"
+              aria-label={mobileSheet === "layers" ? tPanel("controls") : t("title")}
+              className="relative flex max-h-[85%] w-full animate-ds-sheet-in flex-col overflow-hidden rounded-t-ds-sheet bg-ds-surface-container shadow-ds-3 sm:mx-auto sm:max-w-xl"
             >
-              <div className="mx-auto mb-3 h-1.5 w-10 rounded-full bg-ds-text-muted/40" />
-              {mobileSheet === "layers" ? (
-                <div className="space-y-3">
-                  <StatsPanel
-                    showQuakes={showQuakes}
-                    setShowQuakes={setShowQuakes}
-                    showAirQuality={showAirQuality}
-                    setShowAirQuality={setShowAirQuality}
-                    showFires={showFires}
-                    setShowFires={setShowFires}
-                    showWeather={showWeather}
-                    setShowWeather={setShowWeather}
-                    showDisasters={showDisasters}
-                    setShowDisasters={setShowDisasters}
-                    showIss={showIss}
-                    setShowIss={setShowIss}
-                    showVolcanoes={showVolcanoes}
-                    setShowVolcanoes={setShowVolcanoes}
-                    showAirQualityModel={showAirQualityModel}
-                    setShowAirQualityModel={setShowAirQualityModel}
-                    className="border-0 shadow-none [background:transparent] backdrop-blur-none p-0"
-                  />
-                  <NearbySearch />
-                </div>
-              ) : (
-                <div className="flex flex-col gap-3">
-                  <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-ds-text-secondary">
-                    <span>{t("title")}</span>
+              <div className="mx-auto mt-3 h-1 w-8 shrink-0 rounded-full bg-ds-outline" aria-hidden="true" />
+              <PanelHeader
+                title={mobileSheet === "layers" ? tPanel("controls") : t("title")}
+                icon={mobileSheet === "layers" ? SlidersHorizontal : Inbox}
+                meta={mobileSheet === "events" ? feedBadge : undefined}
+                onClose={() => setMobileSheet(null)}
+                closeLabel={tPanel("close")}
+              />
+              <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-[max(1rem,env(safe-area-inset-bottom))]">
+                {mobileSheet === "layers" ? (
+                  <div className="py-2">
+                    <ControlsPanel visibility={visibility} onChange={setLayer} />
                   </div>
-                  <EventList
-                    items={eventItems}
-                    emptyIcon={Inbox}
-                    emptyTitle={t("empty")}
-                    emptyDescription={t("emptyDescription")}
-                    className="max-h-[40vh]"
-                  />
-                </div>
-              )}
+                ) : (
+                  <div className="flex flex-col gap-3 p-3">
+                    {metrics}
+                    {eventList("-mx-1 overflow-visible")}
+                    <div className="border-t border-ds-outline-variant pt-3">{trend}</div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         )}
       </div>
-
-      <TimeControl
-        window={timeWindow}
-        onWindowChange={setTimeWindow}
-        playing={playing}
-        onTogglePlayback={() => setPlaying((p) => !p)}
-      />
     </main>
   );
 }

@@ -1,35 +1,75 @@
 import type { Config } from "tailwindcss";
-import { colors, spacing, radius, motion } from "./src/design-system/tokens";
+import { spacing, radius, motion } from "./src/design-system/tokens";
+
+// Color con tema: la variable guarda canales RGB (ver theme.css), así las
+// utilidades soportan opacidad (`bg-ds-primary/10`).
+const v = (name: string) => `rgb(var(--ds-${name}) / <alpha-value>)`;
 
 export default {
   content: [
     "./src/pages/**/*.{js,ts,jsx,tsx,mdx}",
     "./src/components/**/*.{js,ts,jsx,tsx,mdx}",
     "./src/app/**/*.{js,ts,jsx,tsx,mdx}",
+    "./src/lib/**/*.{js,ts,jsx,tsx,mdx}",
   ],
   theme: {
     extend: {
+      fontFamily: {
+        sans: ["var(--ds-font-sans)"],
+        mono: ["var(--ds-font-mono)"],
+      },
       colors: {
-        // Alias legacy (globals.css sigue definiendo estas 2 variables,
-        // ahora apuntando a --ds-bg-canvas/--ds-text-primary de theme.css).
-        background: "var(--background)",
-        foreground: "var(--foreground)",
-
-        // Tokens con tema (light/dark vía [data-theme] en <html>, ver
-        // design-system/theme/theme.css + design-system/hooks/useTheme.ts).
-        "ds-canvas": "var(--ds-bg-canvas)",
-        "ds-surface": "var(--ds-bg-surface)",
-        "ds-surface-elevated": "var(--ds-bg-surface-elevated)",
-        "ds-border": "var(--ds-border-subtle)",
-        "ds-text": {
-          primary: "var(--ds-text-primary)",
-          secondary: "var(--ds-text-secondary)",
-          muted: "var(--ds-text-muted)",
+        "ds-canvas": v("canvas"),
+        "ds-surface": {
+          DEFAULT: v("surface"),
+          container: v("surface-container"),
+          high: v("surface-container-high"),
+          highest: v("surface-container-highest"),
         },
-
-        // Marca y estado: independientes del tema, no van en theme.css.
-        brand: colors.brand,
-        "ds-status": colors.status,
+        "ds-text": {
+          primary: v("text-primary"),
+          secondary: v("text-secondary"),
+          muted: v("text-muted"),
+        },
+        "ds-outline": {
+          DEFAULT: v("outline"),
+          variant: v("outline-variant"),
+        },
+        "ds-primary": {
+          DEFAULT: v("primary"),
+          on: v("on-primary"),
+          container: v("primary-container"),
+          "on-container": v("on-primary-container"),
+        },
+        "ds-secondary": {
+          container: v("secondary-container"),
+          "on-container": v("on-secondary-container"),
+        },
+        "ds-highlight": v("highlight"),
+        "ds-error": v("error"),
+        "ds-success": v("success"),
+        "ds-warning": v("warning"),
+        "ds-status": {
+          live: v("status-live"),
+          recent: v("status-recent"),
+          stale: v("status-stale"),
+          unknown: v("status-unknown"),
+        },
+      },
+      backgroundColor: {
+        "ds-panel": "var(--ds-panel)",
+        "ds-panel-strong": "var(--ds-panel-strong)",
+        "ds-scrim": "var(--ds-scrim)",
+        "ds-hover": "var(--ds-state-hover)",
+        "ds-press": "var(--ds-state-press)",
+      },
+      boxShadow: {
+        "ds-1": "var(--ds-shadow-1)",
+        "ds-2": "var(--ds-shadow-2)",
+        "ds-3": "var(--ds-shadow-3)",
+      },
+      backdropBlur: {
+        "ds-panel": "var(--ds-panel-blur)",
       },
       spacing: {
         "ds-1": spacing[1],
@@ -53,6 +93,7 @@ export default {
         "ds-full": radius.full,
         "ds-control": "var(--ds-radius-control)",
         "ds-panel": "var(--ds-radius-panel)",
+        "ds-sheet": "var(--ds-radius-sheet)",
       },
       transitionDuration: {
         "ds-fast": motion.duration.fast,
@@ -62,6 +103,25 @@ export default {
       transitionTimingFunction: {
         "ds-standard": motion.easing.standard,
         "ds-out": motion.easing.out,
+      },
+      keyframes: {
+        "ds-sheet-in": {
+          from: { transform: "translateY(100%)" },
+          to: { transform: "translateY(0)" },
+        },
+        "ds-fade-in": {
+          from: { opacity: "0" },
+          to: { opacity: "1" },
+        },
+        "ds-pop-in": {
+          from: { opacity: "0", transform: "translateY(4px) scale(0.98)" },
+          to: { opacity: "1", transform: "translateY(0) scale(1)" },
+        },
+      },
+      animation: {
+        "ds-sheet-in": `ds-sheet-in ${motion.duration.slow} ${motion.easing.out}`,
+        "ds-fade-in": `ds-fade-in ${motion.duration.base} ${motion.easing.standard}`,
+        "ds-pop-in": `ds-pop-in ${motion.duration.base} ${motion.easing.out}`,
       },
     },
   },

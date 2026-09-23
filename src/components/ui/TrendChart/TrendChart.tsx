@@ -11,7 +11,8 @@ export interface TrendChartProps {
 }
 
 const NEARBY_DEGREES = 2;
-const TREND_COLOR = "#818cf8"; // brand.400 (design-system/tokens/colors.ts) - acento de marca, no de estado
+// Acento primario del tema (theme.css) — cambia solo con light/dark.
+const TREND_COLOR = "rgb(var(--ds-primary))";
 
 function formatHour(timeMs: number, multiDay: boolean) {
   const d = new Date(timeMs);
@@ -71,36 +72,35 @@ export function TrendChart({ earthquakes, selectedEarthquakeId, className }: Tre
             </linearGradient>
           </defs>
           <CartesianGrid
-            stroke="var(--ds-glass-border)"
+            stroke="rgb(var(--ds-outline-variant))"
             strokeDasharray="3 3"
             vertical={false}
           />
           <XAxis
             dataKey="timeLabel"
-            tick={{ fontSize: 10, fill: "var(--ds-text-secondary)" }}
-            axisLine={{ stroke: "var(--ds-glass-border-strong)" }}
+            tick={{ fontSize: 10, fill: "rgb(var(--ds-text-secondary))" }}
+            axisLine={{ stroke: "rgb(var(--ds-outline-variant))" }}
             tickLine={false}
           />
           <YAxis
             domain={[0, maxMag + 1]}
-            tick={{ fontSize: 10, fill: "var(--ds-text-secondary)" }}
-            axisLine={{ stroke: "var(--ds-glass-border-strong)" }}
+            tick={{ fontSize: 10, fill: "rgb(var(--ds-text-secondary))" }}
+            axisLine={{ stroke: "rgb(var(--ds-outline-variant))" }}
             tickLine={false}
             width={28}
           />
           <Tooltip
-            cursor={{ stroke: "var(--ds-glass-border-strong)", strokeWidth: 1 }}
+            cursor={{ stroke: "rgb(var(--ds-outline))", strokeWidth: 1 }}
             contentStyle={{
-              background: "var(--ds-glass-bg-strong)",
-              backdropFilter: `blur(var(--ds-glass-blur-sm)) saturate(var(--ds-glass-saturate))`,
-              border: "1px solid var(--ds-glass-border-strong)",
+              background: "rgb(var(--ds-surface-container-high))",
+              border: "1px solid rgb(var(--ds-outline-variant))",
               borderRadius: "var(--ds-radius-control)",
-              boxShadow: "var(--ds-shadow-glass-sm)",
-              color: "var(--ds-text-primary)",
+              boxShadow: "var(--ds-shadow-2)",
+              color: "rgb(var(--ds-text-primary))",
               fontSize: 12,
             }}
-            labelStyle={{ color: "var(--ds-text-secondary)" }}
-            itemStyle={{ color: "var(--ds-text-primary)" }}
+            labelStyle={{ color: "rgb(var(--ds-text-secondary))" }}
+            itemStyle={{ color: "rgb(var(--ds-text-primary))" }}
             formatter={(value) => [Number(value).toFixed(1), t("magnitude")]}
             labelFormatter={(label) => `${t("time")}: ${label}`}
           />
@@ -111,7 +111,7 @@ export function TrendChart({ earthquakes, selectedEarthquakeId, className }: Tre
             strokeWidth={2}
             fill="url(#trend-area-fill)"
             dot={{ r: 3, fill: TREND_COLOR, strokeWidth: 0 }}
-            activeDot={{ r: 5, fill: TREND_COLOR, stroke: "var(--ds-glass-bg-strong)", strokeWidth: 2 }}
+            activeDot={{ r: 5, fill: TREND_COLOR, stroke: "rgb(var(--ds-surface))", strokeWidth: 2 }}
           />
         </AreaChart>
       </ResponsiveContainer>

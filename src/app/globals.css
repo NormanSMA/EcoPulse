@@ -1,96 +1,348 @@
+@import 'maplibre-gl/dist/maplibre-gl.css';
+@import '../design-system/theme/theme.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-@import 'maplibre-gl/dist/maplibre-gl.css';
-@import '../design-system/theme/theme.css';
+@layer base {
+  html,
+  body {
+    height: 100%;
+  }
 
-:root {
-  /* Alias legacy: mismo nombre que antes, ahora resuelven vía theme.css. */
-  --background: var(--ds-bg-canvas);
-  --foreground: var(--ds-text-primary);
+  body {
+    font-family: var(--ds-font-sans);
+    font-optical-sizing: auto;
+    color: rgb(var(--ds-text-primary));
+    background: rgb(var(--ds-canvas));
+    overflow: hidden;
+    -webkit-tap-highlight-color: transparent;
+    transition: background-color var(--ds-duration-theme) var(--ds-ease),
+      color var(--ds-duration-theme) var(--ds-ease);
+  }
+
+  :focus-visible {
+    outline: 2px solid rgb(var(--ds-primary));
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background: rgb(var(--ds-primary) / 0.3);
+  }
+
+  /* Scrollbar fino y neutro dentro de paneles. */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(var(--ds-outline) / 0.6) transparent;
+  }
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgb(var(--ds-outline) / 0.6);
+    border-radius: 999px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  select option {
+    background: rgb(var(--ds-surface-container-high));
+    color: rgb(var(--ds-text-primary));
+  }
 }
 
-body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Escenario del mapa: los controles nativos de MapLibre/Cesium se     */
+/* desplazan con las variables que setea page.tsx para no quedar       */
+/* debajo de los paneles flotantes (--ep-inset-*).                      */
+/* ------------------------------------------------------------------ */
+
+.ep-map-stage {
+  --ep-inset-top: 16px;
+  --ep-inset-right: 16px;
+  --ep-inset-bottom: 16px;
+  --ep-inset-left: 16px;
+}
+
+.ep-map-stage .maplibregl-ctrl-top-right {
+  top: var(--ep-inset-top);
+  right: var(--ep-inset-right);
+  transition: right 300ms var(--ds-ease);
+}
+.ep-map-stage .maplibregl-ctrl-bottom-left {
+  bottom: var(--ep-inset-bottom);
+  left: var(--ep-inset-left);
+}
+.ep-map-stage .maplibregl-ctrl-top-right .maplibregl-ctrl,
+.ep-map-stage .maplibregl-ctrl-bottom-left .maplibregl-ctrl {
+  margin: 0;
+}
+
+/* Grupo de zoom/brújula: columna pill, como los controles de Weather Lab. */
+.ep-map-stage .maplibregl-ctrl-group {
+  background: var(--ds-panel-strong);
+  backdrop-filter: blur(var(--ds-panel-blur));
+  -webkit-backdrop-filter: blur(var(--ds-panel-blur));
+  border: 1px solid rgb(var(--ds-outline-variant));
+  border-radius: var(--ds-radius-pill);
+  box-shadow: var(--ds-shadow-2);
   overflow: hidden;
-  transition: background-color 200ms ease, color 200ms ease;
+}
+.ep-map-stage .maplibregl-ctrl-group button {
+  width: 40px;
+  height: 40px;
+  background-color: transparent;
+}
+.ep-map-stage .maplibregl-ctrl-group button + button {
+  border-top: 1px solid rgb(var(--ds-outline-variant));
+}
+.ep-map-stage .maplibregl-ctrl-group button:not(:disabled):hover {
+  background-color: var(--ds-state-hover);
+}
+.ep-map-stage .maplibregl-ctrl-group button:not(:disabled):active {
+  background-color: var(--ds-state-press);
+}
+.ep-map-stage .maplibregl-ctrl-group .maplibregl-ctrl-icon {
+  background-color: rgb(var(--ds-text-primary));
+  background-image: none !important;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+}
+.ep-map-stage .maplibregl-ctrl-zoom-in .maplibregl-ctrl-icon {
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6z'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6z'/%3E%3C/svg%3E");
+  -webkit-mask-size: 20px;
+  mask-size: 20px;
+}
+.ep-map-stage .maplibregl-ctrl-zoom-out .maplibregl-ctrl-icon {
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M5 11h14v2H5z'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M5 11h14v2H5z'/%3E%3C/svg%3E");
+  -webkit-mask-size: 20px;
+  mask-size: 20px;
+}
+.ep-map-stage .maplibregl-ctrl-compass .maplibregl-ctrl-icon {
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 3l4 9h-8z'/%3E%3Cpath d='M12 21l-4-9h8z' opacity='.4'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 3l4 9h-8z'/%3E%3Cpath d='M12 21l-4-9h8z' opacity='.4'/%3E%3C/svg%3E");
+  -webkit-mask-size: 22px;
+  mask-size: 22px;
 }
 
-/* Popups de MapLibre: vidrio esmerilado + tema, en línea con
-   design-system/theme/theme.css (Fase 3.4). El contenido interno de los
-   popups se inyecta como HTML crudo vía setHTML() en MapContainer.tsx, así
-   que también usa las variables --ds-text-* directamente (clases
-   arbitrarias text-[var(--ds-text-primary)] etc.) en vez de las utilidades
-   dark: de Tailwind, que no aplican a HTML fuera del árbol de React. */
-.maplibregl-popup-content {
-  background: var(--ds-glass-bg-strong) !important;
-  backdrop-filter: blur(var(--ds-glass-blur)) saturate(var(--ds-glass-saturate));
-  -webkit-backdrop-filter: blur(var(--ds-glass-blur)) saturate(var(--ds-glass-saturate));
-  color: var(--ds-text-primary) !important;
-  border-radius: var(--ds-radius-panel) !important;
-  border: 1px solid var(--ds-glass-border-strong) !important;
-  box-shadow: var(--ds-shadow-glass-md) !important;
-  padding: 1rem !important;
+/* Atribución compacta: pill discreta. */
+.ep-map-stage .maplibregl-ctrl-attrib {
+  background: var(--ds-panel-strong);
+  color: rgb(var(--ds-text-secondary));
+  border-radius: var(--ds-radius-pill);
+  font-size: 11px;
+}
+.ep-map-stage .maplibregl-ctrl-attrib a {
+  color: rgb(var(--ds-text-secondary));
+}
+.ep-map-stage .maplibregl-ctrl-attrib-button {
+  background-color: transparent;
+  filter: var(--ep-attrib-filter, invert(1));
+}
+:root[data-theme="light"] .ep-map-stage {
+  --ep-attrib-filter: none;
 }
 
-.maplibregl-popup-anchor-top .maplibregl-popup-tip {
-  border-bottom-color: var(--ds-glass-bg-strong) !important;
-}
-.maplibregl-popup-anchor-bottom .maplibregl-popup-tip {
-  border-top-color: var(--ds-glass-bg-strong) !important;
-}
-
-.maplibregl-popup-close-button {
-  color: var(--ds-text-secondary) !important;
-}
-.maplibregl-popup-close-button:hover {
-  color: var(--ds-text-primary) !important;
-  background: transparent !important;
+/* Créditos de Cesium Ion (obligatorios por términos de uso, no se ocultan). */
+.ep-map-stage .cesium-widget-credits {
+  bottom: var(--ep-inset-bottom) !important;
+  left: var(--ep-inset-left) !important;
+  padding: 2px 10px;
+  border-radius: var(--ds-radius-pill);
+  background: var(--ds-panel-strong);
+  color: rgb(var(--ds-text-secondary));
 }
 
-/* Popup flotante del globo 3D (Cesium): mismo tratamiento vidrio que los
-   popups de MapLibre en 2D (arriba) — Cesium's infoBox nativo está
-   desactivado a propósito (no encaja con el lenguaje visual glass de la
-   app), así que este panel es DOM propio posicionado a mano en cada frame
-   (ver GlobeContainer.tsx, postRender + worldToWindowCoordinates). */
+/* ------------------------------------------------------------------ */
+/* Popups (2D MapLibre + 3D Cesium). El HTML interno lo genera          */
+/* src/lib/popupHtml.ts con clases .ep-popup__*; el acento de cada capa  */
+/* llega por la variable --ep-accent (hex de tokens/colors.ts).          */
+/* ------------------------------------------------------------------ */
+
+.maplibregl-popup-content,
+.cesium-glass-popup {
+  background: var(--ds-panel-strong) !important;
+  backdrop-filter: blur(var(--ds-panel-blur));
+  -webkit-backdrop-filter: blur(var(--ds-panel-blur));
+  color: rgb(var(--ds-text-primary)) !important;
+  border-radius: 20px !important;
+  border: 1px solid rgb(var(--ds-outline-variant)) !important;
+  box-shadow: var(--ds-shadow-3) !important;
+  padding: 14px 16px !important;
+  font-family: var(--ds-font-sans);
+}
+.maplibregl-popup {
+  max-width: min(300px, calc(100vw - 32px)) !important;
+}
+
+.maplibregl-popup-anchor-top .maplibregl-popup-tip,
+.maplibregl-popup-anchor-top-left .maplibregl-popup-tip,
+.maplibregl-popup-anchor-top-right .maplibregl-popup-tip {
+  border-bottom-color: rgb(var(--ds-outline-variant)) !important;
+}
+.maplibregl-popup-anchor-bottom .maplibregl-popup-tip,
+.maplibregl-popup-anchor-bottom-left .maplibregl-popup-tip,
+.maplibregl-popup-anchor-bottom-right .maplibregl-popup-tip {
+  border-top-color: rgb(var(--ds-outline-variant)) !important;
+}
+.maplibregl-popup-anchor-left .maplibregl-popup-tip {
+  border-right-color: rgb(var(--ds-outline-variant)) !important;
+}
+.maplibregl-popup-anchor-right .maplibregl-popup-tip {
+  border-left-color: rgb(var(--ds-outline-variant)) !important;
+}
+
+.maplibregl-popup-close-button,
+.cesium-glass-popup-close {
+  top: 8px !important;
+  right: 8px !important;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+  color: rgb(var(--ds-text-secondary)) !important;
+  transition: background-color 150ms var(--ds-ease);
+}
+.maplibregl-popup-close-button:hover,
+.cesium-glass-popup-close:hover {
+  color: rgb(var(--ds-text-primary)) !important;
+  background: var(--ds-state-hover) !important;
+}
+
+/* Popup flotante del globo 3D (infoBox nativo de Cesium desactivado): DOM
+   propio posicionado en cada frame (GlobeContainer.tsx, postRender). */
 .cesium-glass-popup {
   position: absolute;
   top: 0;
   left: 0;
   z-index: 20;
   transform: translate(-50%, calc(-100% - 14px));
-  background: var(--ds-glass-bg-strong);
-  backdrop-filter: blur(var(--ds-glass-blur)) saturate(var(--ds-glass-saturate));
-  -webkit-backdrop-filter: blur(var(--ds-glass-blur)) saturate(var(--ds-glass-saturate));
-  color: var(--ds-text-primary);
-  border-radius: var(--ds-radius-panel);
-  border: 1px solid var(--ds-glass-border-strong);
-  box-shadow: var(--ds-shadow-glass-md);
-  padding: 1rem;
-  padding-right: 1.75rem;
   min-width: 12rem;
-  max-width: 18rem;
+  max-width: min(300px, calc(100vw - 32px));
   pointer-events: auto;
+}
+.cesium-glass-popup .cesium-glass-popup-close {
+  position: absolute;
 }
 .cesium-glass-popup.cesium-glass-popup-flip {
   transform: translate(-50%, 14px);
 }
 
-.cesium-glass-popup-close {
-  position: absolute;
-  top: 0.375rem;
-  right: 0.5rem;
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  font-size: 1rem;
-  line-height: 1;
-  color: var(--ds-text-secondary);
-  padding: 0.125rem;
+.ep-popup {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 13rem;
+  padding-right: 20px;
+  font-size: 13px;
+  line-height: 18px;
 }
-.cesium-glass-popup-close:hover {
-  color: var(--ds-text-primary);
+.ep-popup__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ep-popup__dot {
+  width: 10px;
+  height: 10px;
+  flex-shrink: 0;
+  border-radius: 3px;
+  background: var(--ep-accent);
+}
+.ep-popup__title {
+  font-size: 15px;
+  line-height: 20px;
+  font-weight: 500;
+  color: rgb(var(--ds-text-primary));
+}
+.ep-popup__tag {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  height: 22px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid rgb(var(--ds-outline-variant));
+  font-size: 11px;
+  font-weight: 500;
+  color: rgb(var(--ds-text-secondary));
+  white-space: nowrap;
+}
+.ep-popup__tag--accent {
+  border-color: color-mix(in srgb, var(--ep-accent) 55%, transparent);
+  background: color-mix(in srgb, var(--ep-accent) 16%, transparent);
+  color: rgb(var(--ds-text-primary));
+}
+.ep-popup__subtitle {
+  font-weight: 500;
+  color: rgb(var(--ds-text-primary));
+}
+.ep-popup__stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
+  gap: 8px;
+  margin: 2px 0;
+}
+.ep-popup__stat {
+  display: flex;
+  flex-direction: column;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: rgb(var(--ds-surface-container-high));
+}
+.ep-popup__stat-label {
+  font-size: 11px;
+  color: rgb(var(--ds-text-secondary));
+}
+.ep-popup__stat-value {
+  font-size: 15px;
+  font-weight: 500;
+  color: rgb(var(--ds-text-primary));
+  font-variant-numeric: tabular-nums;
+}
+.ep-popup__meta {
+  font-size: 12px;
+  color: rgb(var(--ds-text-secondary));
+}
+.ep-popup__note {
+  margin-top: 2px;
+  padding-top: 6px;
+  border-top: 1px solid rgb(var(--ds-outline-variant));
+  font-size: 11px;
+  color: rgb(var(--ds-text-muted));
+}
+.ep-popup__link {
+  align-self: flex-start;
+  font-size: 12px;
+  font-weight: 500;
+  color: rgb(var(--ds-primary));
+  text-decoration: none;
+}
+.ep-popup__link:hover {
+  text-decoration: underline;
 }

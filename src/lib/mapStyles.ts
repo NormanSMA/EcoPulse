@@ -38,10 +38,5 @@ export const BASEMAP_STYLES: Record<Basemap, string | StyleSpecification> = {
   satellite: ESRI_SATELLITE_STYLE,
 };
 
-export const BASEMAP_LABELS: Record<Basemap, string> = {
-  dark: "Oscuro",
-  light: "Claro",
-  satellite: "Satélite",
-};
-
+// Etiquetas visibles: messages/*.json -> basemap.{dark,light,satellite}.
 export const BASEMAP_ORDER: Basemap[] = ["dark", "light", "satellite"];

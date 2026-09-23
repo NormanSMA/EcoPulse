@@ -2,11 +2,11 @@
   "app": {
     "title": "EcoPulse",
     "tagline": "Global Earthquake & Air Quality Monitor",
-    "liveMonitor": "Live Monitor"
+    "liveMonitor": "Live"
   },
   "metrics": {
     "earthquakes24h": "Earthquakes 24h",
-    "maxMagnitude": "Max Magnitude"
+    "maxMagnitude": "Max magnitude"
   },
   "status": {
     "live": "Live",
@@ -15,8 +15,9 @@
     "unknown": "No data"
   },
   "search": {
-    "placeholder": "Search earthquakes by place...",
-    "shortcutHint": "Ctrl+K"
+    "placeholder": "Search earthquakes by place",
+    "shortcutHint": "Ctrl+K",
+    "toggle": "Toggle search"
   },
   "theme": {
     "toLight": "Switch to light theme",
@@ -24,23 +25,30 @@
   },
   "language": {
     "es": "Spanish",
-    "en": "English"
+    "en": "English",
+    "toggle": "Change language"
   },
   "layers": {
-    "title": "Active Layers",
-    "earthquakes": "Recent Earthquakes (USGS)",
-    "airQuality": "Air Quality (PM2.5)",
-    "fires": "Wildfires (NASA FIRMS)",
-    "weather": "Weather (Open-Meteo)",
-    "disasters": "Global Disasters (GDACS)",
+    "title": "Layers",
+    "earthquakes": "Recent earthquakes",
+    "airQuality": "Air quality (PM2.5)",
+    "fires": "Active wildfires",
+    "weather": "Weather",
+    "disasters": "Global disasters",
     "iss": "Space Station (ISS)",
-    "volcanoes": "Volcanoes (Smithsonian GVP)",
-    "airQualityModel": "Modeled Air Quality (Open-Meteo)",
-    "hint": "Click any circle to see magnitude or particle details in real time."
+    "volcanoes": "Volcanoes",
+    "airQualityModel": "Modeled air (PM2.5)",
+    "hint": "Tap any marker on the map to see its details in real time.",
+    "groups": {
+      "geo": "Geophysics",
+      "atmosphere": "Atmosphere",
+      "hazards": "Hazards",
+      "space": "Space"
+    }
   },
   "nearby": {
-    "title": "Earthquakes Near Me",
-    "radiusLabel": "Radius:",
+    "title": "Earthquakes near me",
+    "radiusLabel": "Radius",
     "locating": "Locating...",
     "loading": "Searching...",
     "useLocation": "Use my location",
@@ -50,10 +58,11 @@
   },
   "timeControl": {
     "live": "Live",
-    "playback": "Playback"
+    "playback": "Playback",
+    "window": "Time window"
   },
   "events": {
-    "title": "Recent Events",
+    "title": "Recent events",
     "empty": "No recent events",
     "emptyDescription": "Enable a layer to see events here.",
     "kinds": {
@@ -65,7 +74,39 @@
       "selectPrompt": "Select an earthquake to see its trend",
       "noAftershocks": "No aftershocks recorded in the last 24h",
       "magnitude": "Magnitude",
-      "time": "Time"
+      "time": "Time",
+      "title": "Aftershock trend"
+    }
+  },
+  "mapMode": {
+    "label": "Map view"
+  },
+  "basemap": {
+    "title": "Base map",
+    "dark": "Dark",
+    "light": "Light",
+    "satellite": "Satellite",
+    "unavailable3d": "Base map (2D only)"
+  },
+  "panel": {
+    "controls": "Controls",
+    "close": "Close",
+    "legend": "Legend"
+  },
+  "legend": {
+    "magnitude": "Earthquake magnitude",
+    "aqi": "Air quality (PM2.5)",
+    "alert": "GDACS alert level",
+    "aqiLevels": {
+      "good": "Good",
+      "moderate": "Moderate",
+      "unhealthy": "Unhealthy",
+      "hazardous": "Hazardous"
+    },
+    "alertLevels": {
+      "Green": "Green",
+      "Orange": "Orange",
+      "Red": "Red"
     }
   }
 }

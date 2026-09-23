@@ -13,21 +13,16 @@ export interface EmptyStateProps {
 
 export function EmptyState({ icon, title, description, action, className }: EmptyStateProps) {
   return (
-    <div
-      className={cn(
-        "flex flex-col items-center justify-center text-center gap-2 py-8 px-4 text-ds-text-secondary",
-        className
-      )}
-    >
+    <div className={cn("flex flex-col items-center justify-center gap-2 px-4 py-8 text-center", className)}>
       {icon && (
-        <div className="h-10 w-10 rounded-full bg-ds-surface-elevated flex items-center justify-center text-ds-text-muted mb-1">
-          <MorphIcon icon={icon} size={20} reducedMotion="user" />
+        <div className="mb-1 grid h-12 w-12 place-items-center rounded-ds-full bg-ds-surface-high text-ds-text-secondary">
+          <MorphIcon icon={icon} size={22} reducedMotion="user" />
         </div>
       )}
-      <p className="text-sm font-semibold text-ds-text-primary">{title}</p>
-      {description && <p className="text-xs text-ds-text-secondary max-w-xs">{description}</p>}
+      <p className="text-sm font-medium text-ds-text-primary">{title}</p>
+      {description && <p className="max-w-xs text-xs text-ds-text-secondary">{description}</p>}
       {action && (
-        <Button variant="secondary" size="sm" onClick={action.onClick} className="mt-2">
+        <Button variant="tonal" size="sm" onClick={action.onClick} className="mt-2">
           {action.label}
         </Button>
       )}

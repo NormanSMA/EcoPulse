@@ -1,3 +1,5 @@
+// Radios del DS 4.0: chips/botones en pill (como Weather Lab), filas de lista
+// en 12px, paneles flotantes en 24px, sheets/tarjeta de timeline en 28px.
 export const radius = {
   none: "0px",
   sm: "4px",

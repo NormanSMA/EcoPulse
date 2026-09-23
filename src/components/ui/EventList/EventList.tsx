@@ -7,11 +7,13 @@ import { EmptyState } from "@/components/ui/EmptyState";
 export interface EventListItem {
   id: string;
   icon: IconNode;
-  iconClassName?: string;
+  /** Color de la capa (hex de tokens/colors.ts → layers). */
+  color: string;
   title: string;
   description: string;
   timestamp: string;
   status: SimpleStatus;
+  selected?: boolean;
   onClick?: () => void;
 }
 
@@ -24,42 +26,54 @@ export interface EventListProps {
 }
 
 /**
- * Lista de eventos recientes (sismos, incendios, desastres...) al estilo
- * Vexto: estado, timestamp y descripción por fila. Presentacional — recibe
- * los items ya combinados y ordenados por quien la use (ver page.tsx).
+ * Lista de eventos recientes (sismos, incendios, desastres…) con estilo de
+ * lista Material 3: avatar tonal del color de la capa, título, texto de
+ * apoyo y metadatos. Presentacional — recibe los items ya ordenados.
  */
 export function EventList({ items, emptyIcon, emptyTitle, emptyDescription, className }: EventListProps) {
   if (items.length === 0) {
-    return <EmptyState icon={emptyIcon} title={emptyTitle} description={emptyDescription} />;
+    return <EmptyState icon={emptyIcon} title={emptyTitle} description={emptyDescription} className={className} />;
   }
 
   return (
-    <ul className={cn("flex flex-col gap-1.5 overflow-y-auto", className)}>
-      {items.map((item) => (
-        <li
-          key={item.id}
-          onClick={item.onClick}
-          className={cn(
-            "flex items-start gap-2.5 p-2.5 rounded-ds-lg bg-ds-surface-elevated/60 hover:bg-ds-surface-elevated transition-colors",
-            item.onClick && "cursor-pointer"
-          )}
-        >
-          <MorphIcon
-            icon={item.icon}
-            size={16}
-            reducedMotion="user"
-            className={cn("shrink-0 mt-0.5", item.iconClassName ?? "text-ds-text-muted")}
-          />
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center justify-between gap-2">
-              <p className="text-xs font-semibold text-ds-text-primary truncate">{item.title}</p>
-              <StatusBadge status={item.status} size="sm" />
-            </div>
-            <p className="text-[11px] text-ds-text-secondary truncate">{item.description}</p>
-            <p className="text-[10px] text-ds-text-muted mt-0.5">{item.timestamp}</p>
-          </div>
-        </li>
-      ))}
+    <ul className={cn("flex flex-col gap-0.5 overflow-y-auto overscroll-contain", className)}>
+      {items.map((item) => {
+        const content = (
+          <>
+            <span
+              className="grid h-10 w-10 shrink-0 place-items-center rounded-ds-full"
+              style={{ color: item.color, backgroundColor: `${item.color}24` }}
+            >
+              <MorphIcon icon={item.icon} size={18} reducedMotion="user" />
+            </span>
+            <span className="flex min-w-0 flex-1 flex-col">
+              <span className="truncate text-sm font-medium text-ds-text-primary">{item.title}</span>
+              <span className="truncate text-xs text-ds-text-secondary">{item.description}</span>
+              <span className="mt-1 flex items-center gap-2">
+                <StatusBadge status={item.status} size="sm" />
+                <span className="truncate text-[11px] tabular-nums text-ds-text-muted">{item.timestamp}</span>
+              </span>
+            </span>
+          </>
+        );
+
+        const rowClass = cn(
+          "flex w-full items-start gap-3 rounded-ds-control px-3 py-2.5 text-left transition-colors duration-ds-fast",
+          item.selected ? "bg-ds-secondary-container/60" : item.onClick && "hover:bg-ds-hover"
+        );
+
+        return (
+          <li key={item.id}>
+            {item.onClick ? (
+              <button type="button" onClick={item.onClick} aria-pressed={item.selected} className={rowClass}>
+                {content}
+              </button>
+            ) : (
+              <div className={rowClass}>{content}</div>
+            )}
+          </li>
+        );
+      })}
     </ul>
   );
 }

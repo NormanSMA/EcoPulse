@@ -1,151 +1,125 @@
 /*
- * Variables CSS del sistema de temas (Fase 3.4 — Glassmorphism/Neumorphism).
- * Los valores deben mantenerse sincronizados a mano con
- * `design-system/tokens/colors.ts` (`colors.themes.dark` / `colors.themes.light`)
- * — CSS no puede importar los tokens de TypeScript directamente.
+ * Design System 4.0 — variables de tema (Google DeepMind / Weather Lab).
  *
- * Lenguaje visual: superficies de vidrio esmerilado (fondo translúcido +
- * backdrop-blur + sombra en capas) como base, con acentos neumórficos
- * (sombra doble luz/sombra) en controles interactivos (botones, toggles,
- * sliders) para que se sientan táctiles.
+ * Los colores van en formato de canales RGB ("168 199 250") para que
+ * Tailwind pueda aplicar opacidad: `rgb(var(--ds-primary) / <alpha-value>)`.
+ * En CSS/SVG plano se consumen como `rgb(var(--ds-primary))`.
+ * Deben mantenerse sincronizados a mano con `tokens/colors.ts` (`themes`).
  *
- * Dark es el default (sin atributo) para no cambiar el comportamiento
- * actual de la app para nadie que no haya elegido explícitamente "light".
- * `useTheme()` alterna `data-theme` en <html> y persiste en localStorage.
+ * Lenguaje visual: superficies sólidas grafito (sin glass/neumorfismo),
+ * paneles flotantes sobre el mapa con leve translucidez, elevación Material
+ * (sombras suaves), state layers (hover 8% / press 12%) y acento azul.
+ *
+ * Dark es el default (sin atributo). `useTheme()` alterna `data-theme`.
  */
 
-:root {
-  /* ---- Superficies base (alias, sobreescritas por [data-theme]) ---- */
-  --ds-bg-canvas: #090d16;
-  --ds-bg-surface: rgba(15, 23, 42, 0.55);
-  --ds-bg-surface-elevated: rgba(30, 41, 59, 0.65);
-  --ds-text-primary: #f1f5f9;
-  --ds-text-secondary: #94a3b8;
-  --ds-text-muted: #64748b;
-  --ds-border-subtle: rgba(148, 163, 184, 0.14);
-  --ds-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
+:root,
+:root[data-theme="dark"] {
+  color-scheme: dark;
 
-  /* ---- Fondo ambiental detrás del mapa/globo (glow difuso) ---- */
-  --ds-ambient-a: rgba(99, 102, 241, 0.16);
-  --ds-ambient-b: rgba(16, 185, 129, 0.10);
-  --ds-ambient-c: rgba(14, 165, 233, 0.10);
+  --ds-canvas: 18 19 23;
+  --ds-surface: 24 25 29;
+  --ds-surface-container: 31 32 36;
+  --ds-surface-container-high: 40 42 46;
+  --ds-surface-container-highest: 47 48 52;
 
-  /* ---- Vidrio (glassmorphism) ---- */
-  --ds-glass-bg: rgba(15, 23, 42, 0.55);
-  --ds-glass-bg-elevated: rgba(30, 41, 59, 0.62);
-  --ds-glass-bg-strong: rgba(15, 23, 42, 0.78);
-  --ds-glass-border: rgba(255, 255, 255, 0.08);
-  --ds-glass-border-strong: rgba(255, 255, 255, 0.14);
-  --ds-glass-highlight: rgba(255, 255, 255, 0.06);
-  --ds-glass-blur: 20px;
-  --ds-glass-blur-sm: 10px;
-  --ds-glass-saturate: 160%;
+  --ds-text-primary: 248 249 252;
+  --ds-text-secondary: 178 187 197;
+  --ds-text-muted: 128 134 142;
 
-  /* Sombras en capas: ambiente difuso + contacto + resalte interior */
-  --ds-shadow-glass-sm:
-    0 1px 1px rgba(0, 0, 0, 0.18),
-    0 6px 16px -8px rgba(0, 0, 0, 0.45),
-    inset 0 1px 0 rgba(255, 255, 255, 0.05);
-  --ds-shadow-glass-md:
-    0 2px 4px rgba(0, 0, 0, 0.2),
-    0 16px 40px -12px rgba(0, 0, 0, 0.55),
-    inset 0 1px 0 rgba(255, 255, 255, 0.06);
-  --ds-shadow-glass-lg:
-    0 4px 8px rgba(0, 0, 0, 0.25),
-    0 28px 64px -16px rgba(0, 0, 0, 0.6),
-    inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  --ds-outline: 94 98 104;
+  --ds-outline-variant: 53 55 60;
 
-  /* ---- Neumorfismo (controles: botones, toggles, sliders) ---- */
-  --ds-neu-base: rgba(30, 41, 59, 0.9);
-  --ds-neu-light: rgba(255, 255, 255, 0.06);
-  --ds-neu-dark: rgba(0, 0, 0, 0.55);
-  --ds-shadow-neu-raised: 4px 4px 10px var(--ds-neu-dark), -4px -4px 10px var(--ds-neu-light);
-  --ds-shadow-neu-pressed: inset 3px 3px 7px var(--ds-neu-dark), inset -3px -3px 7px var(--ds-neu-light);
-  --ds-shadow-neu-flat: 2px 2px 6px var(--ds-neu-dark), -2px -2px 6px var(--ds-neu-light);
+  --ds-primary: 168 199 250;
+  --ds-on-primary: 6 46 111;
+  --ds-primary-container: 8 66 160;
+  --ds-on-primary-container: 211 227 253;
+  --ds-secondary-container: 0 74 119;
+  --ds-on-secondary-container: 194 231 255;
+  --ds-highlight: 240 210 60;
 
-  /* ---- Radios (más grandes/suaves para el lenguaje glass) ---- */
-  --ds-radius-control: 14px;
+  --ds-error: 242 184 181;
+  --ds-success: 109 213 140;
+  --ds-warning: 253 214 99;
+
+  /* Estado de frescura de datos (StatusBadge, timeline). */
+  --ds-status-live: 109 213 140;
+  --ds-status-recent: 168 199 250;
+  --ds-status-stale: 253 214 99;
+  --ds-status-unknown: 128 134 142;
+
+  /* Paneles flotantes sobre el mapa: casi opacos, blur leve. */
+  --ds-panel: rgb(24 25 29 / 0.9);
+  --ds-panel-strong: rgb(24 25 29 / 0.96);
+  --ds-panel-blur: 16px;
+  --ds-scrim: rgb(0 0 0 / 0.5);
+
+  /* State layers Material (color del contenido con opacidad). */
+  --ds-state-hover: rgb(248 249 252 / 0.08);
+  --ds-state-press: rgb(248 249 252 / 0.12);
+
+  /* Elevación. */
+  --ds-shadow-1: 0 1px 2px rgb(0 0 0 / 0.3), 0 1px 3px 1px rgb(0 0 0 / 0.15);
+  --ds-shadow-2: 0 1px 2px rgb(0 0 0 / 0.3), 0 2px 6px 2px rgb(0 0 0 / 0.15);
+  --ds-shadow-3: 0 4px 8px 3px rgb(0 0 0 / 0.15), 0 1px 3px rgb(0 0 0 / 0.3);
+
+  /* Radios. */
+  --ds-radius-control: 12px;
   --ds-radius-panel: 24px;
+  --ds-radius-sheet: 28px;
   --ds-radius-pill: 999px;
 
-  /* ---- Motion: hover/press/theme-switch ---- */
-  --ds-ease-glass: cubic-bezier(0.22, 1, 0.36, 1);
-  --ds-duration-press: 120ms;
-  --ds-duration-theme: 260ms;
+  /* Motion. */
+  --ds-ease: cubic-bezier(0.2, 0, 0, 1);
+  --ds-ease-emphasized: cubic-bezier(0.05, 0.7, 0.1, 1);
+  --ds-duration-theme: 200ms;
+
+  /* Tipografía. */
+  --ds-font-sans: "Google Sans Flex", "Google Sans Text", "Google Sans", Roboto, Arial, Helvetica, sans-serif;
+  --ds-font-mono: "Google Sans Code", "Roboto Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
 :root[data-theme="light"] {
-  --ds-bg-canvas: #eef2f9;
-  --ds-bg-surface: rgba(255, 255, 255, 0.6);
-  --ds-bg-surface-elevated: rgba(255, 255, 255, 0.75);
-  --ds-text-primary: #0f172a;
-  --ds-text-secondary: #475569;
-  --ds-text-muted: #64748b;
-  --ds-border-subtle: rgba(15, 23, 42, 0.08);
-  --ds-shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06);
+  color-scheme: light;
 
-  --ds-ambient-a: rgba(99, 102, 241, 0.14);
-  --ds-ambient-b: rgba(16, 185, 129, 0.10);
-  --ds-ambient-c: rgba(14, 165, 233, 0.12);
+  --ds-canvas: 248 250 253;
+  --ds-surface: 255 255 255;
+  --ds-surface-container: 240 244 249;
+  --ds-surface-container-high: 233 238 246;
+  --ds-surface-container-highest: 221 227 234;
 
-  --ds-glass-bg: rgba(255, 255, 255, 0.55);
-  --ds-glass-bg-elevated: rgba(255, 255, 255, 0.72);
-  --ds-glass-bg-strong: rgba(255, 255, 255, 0.85);
-  --ds-glass-border: rgba(15, 23, 42, 0.06);
-  --ds-glass-border-strong: rgba(15, 23, 42, 0.1);
-  --ds-glass-highlight: rgba(255, 255, 255, 0.6);
-  --ds-glass-blur: 20px;
-  --ds-glass-blur-sm: 10px;
-  --ds-glass-saturate: 180%;
+  --ds-text-primary: 31 31 31;
+  --ds-text-secondary: 68 71 70;
+  --ds-text-muted: 116 119 117;
 
-  --ds-shadow-glass-sm:
-    0 1px 1px rgba(15, 23, 42, 0.03),
-    0 6px 16px -8px rgba(15, 23, 42, 0.14),
-    inset 0 1px 0 rgba(255, 255, 255, 0.7);
-  --ds-shadow-glass-md:
-    0 2px 4px rgba(15, 23, 42, 0.04),
-    0 16px 36px -12px rgba(15, 23, 42, 0.18),
-    inset 0 1px 0 rgba(255, 255, 255, 0.8);
-  --ds-shadow-glass-lg:
-    0 4px 8px rgba(15, 23, 42, 0.05),
-    0 24px 56px -16px rgba(15, 23, 42, 0.2),
-    inset 0 1px 0 rgba(255, 255, 255, 0.85);
+  --ds-outline: 116 119 117;
+  --ds-outline-variant: 196 199 197;
 
-  --ds-neu-base: #eef2f9;
-  --ds-neu-light: rgba(255, 255, 255, 0.9);
-  --ds-neu-dark: rgba(163, 177, 198, 0.55);
-  --ds-shadow-neu-raised: 5px 5px 12px var(--ds-neu-dark), -5px -5px 12px var(--ds-neu-light);
-  --ds-shadow-neu-pressed: inset 3px 3px 7px var(--ds-neu-dark), inset -3px -3px 7px var(--ds-neu-light);
-  --ds-shadow-neu-flat: 2px 2px 6px var(--ds-neu-dark), -2px -2px 6px var(--ds-neu-light);
-}
+  --ds-primary: 11 87 208;
+  --ds-on-primary: 255 255 255;
+  --ds-primary-container: 211 227 253;
+  --ds-on-primary-container: 4 30 73;
+  --ds-secondary-container: 194 231 255;
+  --ds-on-secondary-container: 0 29 53;
+  --ds-highlight: 143 78 6;
 
-:root[data-theme="dark"] {
-  --ds-bg-canvas: #090d16;
-  --ds-bg-surface: rgba(15, 23, 42, 0.55);
-  --ds-bg-surface-elevated: rgba(30, 41, 59, 0.65);
-  --ds-text-primary: #f1f5f9;
-  --ds-text-secondary: #94a3b8;
-  --ds-text-muted: #64748b;
-  --ds-border-subtle: rgba(148, 163, 184, 0.14);
-  --ds-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
-}
+  --ds-error: 179 38 30;
+  --ds-success: 20 108 46;
+  --ds-warning: 143 78 6;
 
-/* Fondo ambiental fijo detrás del canvas del mapa/globo: 3 glows difusos,
-   suaves para no competir con el mapa como elemento hero. */
-.ds-ambient-backdrop {
-  pointer-events: none;
-  position: fixed;
-  inset: 0;
-  z-index: 0;
-  background:
-    radial-gradient(circle at 15% 20%, var(--ds-ambient-a), transparent 45%),
-    radial-gradient(circle at 85% 15%, var(--ds-ambient-c), transparent 40%),
-    radial-gradient(circle at 50% 90%, var(--ds-ambient-b), transparent 50%);
-  transition: background-color var(--ds-duration-theme) ease;
-}
+  --ds-status-live: 20 108 46;
+  --ds-status-recent: 11 87 208;
+  --ds-status-stale: 143 78 6;
+  --ds-status-unknown: 116 119 117;
 
-* {
-  transition-property: background-color, border-color, box-shadow, color;
-  transition-duration: var(--ds-duration-theme);
-  transition-timing-function: var(--ds-ease-glass);
+  --ds-panel: rgb(255 255 255 / 0.92);
+  --ds-panel-strong: rgb(255 255 255 / 0.97);
+  --ds-scrim: rgb(0 0 0 / 0.32);
+
+  --ds-state-hover: rgb(31 31 31 / 0.08);
+  --ds-state-press: rgb(31 31 31 / 0.12);
+
+  --ds-shadow-1: 0 1px 2px rgb(60 64 67 / 0.3), 0 1px 3px 1px rgb(60 64 67 / 0.15);
+  --ds-shadow-2: 0 1px 2px rgb(60 64 67 / 0.3), 0 2px 6px 2px rgb(60 64 67 / 0.15);
+  --ds-shadow-3: 0 4px 8px 3px rgb(60 64 67 / 0.15), 0 1px 3px rgb(60 64 67 / 0.3);
 }

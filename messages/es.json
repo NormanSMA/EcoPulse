@@ -2,11 +2,11 @@
   "app": {
     "title": "EcoPulse",
     "tagline": "Plataforma Global de Sismos y Calidad del Aire",
-    "liveMonitor": "Live Monitor"
+    "liveMonitor": "En vivo"
   },
   "metrics": {
     "earthquakes24h": "Sismos 24h",
-    "maxMagnitude": "Mayor Magnitud"
+    "maxMagnitude": "Magnitud máx."
   },
   "status": {
     "live": "Live",
@@ -15,8 +15,9 @@
     "unknown": "Sin datos"
   },
   "search": {
-    "placeholder": "Buscar sismos por lugar...",
-    "shortcutHint": "Ctrl+K"
+    "placeholder": "Buscar sismos por lugar",
+    "shortcutHint": "Ctrl+K",
+    "toggle": "Mostrar búsqueda"
   },
   "theme": {
     "toLight": "Cambiar a tema claro",
@@ -24,23 +25,30 @@
   },
   "language": {
     "es": "Español",
-    "en": "Inglés"
+    "en": "Inglés",
+    "toggle": "Cambiar idioma"
   },
   "layers": {
-    "title": "Capas Activas",
-    "earthquakes": "Sismos Recientes (USGS)",
-    "airQuality": "Calidad del Aire (PM2.5)",
-    "fires": "Incendios (NASA FIRMS)",
-    "weather": "Clima (Open-Meteo)",
-    "disasters": "Desastres Globales (GDACS)",
+    "title": "Capas",
+    "earthquakes": "Sismos recientes",
+    "airQuality": "Calidad del aire (PM2.5)",
+    "fires": "Incendios activos",
+    "weather": "Clima",
+    "disasters": "Desastres globales",
     "iss": "Estación Espacial (ISS)",
-    "volcanoes": "Volcanes (Smithsonian GVP)",
-    "airQualityModel": "Aire Modelado (Open-Meteo)",
-    "hint": "Haz clic sobre cualquier círculo para ver detalles de magnitud o partículas en tiempo real."
+    "volcanoes": "Volcanes",
+    "airQualityModel": "Aire modelado (PM2.5)",
+    "hint": "Toca cualquier marcador del mapa para ver sus detalles en tiempo real.",
+    "groups": {
+      "geo": "Geofísica",
+      "atmosphere": "Atmósfera",
+      "hazards": "Riesgos",
+      "space": "Espacio"
+    }
   },
   "nearby": {
-    "title": "Sismos Cerca de Mí",
-    "radiusLabel": "Radio:",
+    "title": "Sismos cerca de mí",
+    "radiusLabel": "Radio",
     "locating": "Ubicando...",
     "loading": "Buscando...",
     "useLocation": "Usar mi ubicación",
@@ -49,11 +57,12 @@
     "resultsFound": "sismo(s) encontrados:"
   },
   "timeControl": {
-    "live": "Live",
-    "playback": "Reproducir"
+    "live": "En vivo",
+    "playback": "Reproducir",
+    "window": "Ventana temporal"
   },
   "events": {
-    "title": "Eventos Recientes",
+    "title": "Eventos recientes",
     "empty": "Sin eventos recientes",
     "emptyDescription": "Activa alguna capa para ver eventos aquí.",
     "kinds": {
@@ -65,7 +74,39 @@
       "selectPrompt": "Selecciona un sismo para ver su tendencia",
       "noAftershocks": "No hay réplicas registradas en las últimas 24h",
       "magnitude": "Magnitud",
-      "time": "Hora"
+      "time": "Hora",
+      "title": "Tendencia de réplicas"
+    }
+  },
+  "mapMode": {
+    "label": "Vista del mapa"
+  },
+  "basemap": {
+    "title": "Mapa base",
+    "dark": "Oscuro",
+    "light": "Claro",
+    "satellite": "Satélite",
+    "unavailable3d": "Mapa base (solo en 2D)"
+  },
+  "panel": {
+    "controls": "Controles",
+    "close": "Cerrar",
+    "legend": "Leyenda"
+  },
+  "legend": {
+    "magnitude": "Magnitud sísmica",
+    "aqi": "Calidad del aire (PM2.5)",
+    "alert": "Nivel de alerta GDACS",
+    "aqiLevels": {
+      "good": "Buena",
+      "moderate": "Moderada",
+      "unhealthy": "Dañina",
+      "hazardous": "Peligrosa"
+    },
+    "alertLevels": {
+      "Green": "Verde",
+      "Orange": "Naranja",
+      "Red": "Roja"
     }
   }
 }

@@ -16,6 +16,17 @@ import {
 import { getAQICategory } from "@/lib/openaq";
 import { dedupeByKey } from "@/lib/ingest";
 import { DEFAULT_MAP_VIEW, type MapView } from "@/lib/mapView";
+import { themes, layers, marker, magnitudeColor, alertColor, aqiColor } from "@/design-system/tokens";
+import {
+  earthquakePopup,
+  airQualityPopup,
+  firePopup,
+  weatherPopup,
+  disasterPopup,
+  issPopup,
+  volcanoPopup,
+  airQualityModelPopup,
+} from "@/lib/popupHtml";
 
 interface GlobeContainerProps {
   earthquakes: EarthquakeGeoJSON;
@@ -101,13 +112,6 @@ function computeOrbitRing(lat: number, lon: number, altitudeM: number): Cesium.C
   return points;
 }
 
-const AQI_COLORS: Record<string, string> = {
-  good: "#10b981",
-  moderate: "#f59e0b",
-  unhealthy: "#f97316",
-  hazardous: "#ef4444",
-};
-
 export default function GlobeContainer({
   earthquakes,
   airQuality,
@@ -170,150 +174,56 @@ export default function GlobeContainer({
       const targetId = entityId.slice(3);
       const f = earthquakesRef.current.features.find((ft) => String(ft.id) === targetId);
       if (!f) return null;
-      const { mag, place, time, updated } = f.properties;
       const depth = f.geometry.coordinates[2] ?? 0;
-      const dateStr = new Date(Number(time)).toLocaleString();
-      const updatedStr = new Date(Number(updated)).toLocaleString();
-      return `<div class="space-y-1.5 p-1 text-xs">
-        <div class="flex items-center justify-between gap-2">
-          <span class="font-bold text-rose-400 text-sm">Sismo M ${mag ?? "N/D"}</span>
-          <span class="text-[10px] bg-rose-500/20 text-rose-300 px-1.5 py-0.5 rounded">USGS</span>
-        </div>
-        <div class="text-[var(--ds-text-primary)] font-medium leading-snug">${place}</div>
-        <div class="text-[var(--ds-text-muted)] text-[10px]">Profundidad: ${depth} km</div>
-        <div class="text-[var(--ds-text-muted)] text-[10px]">Ocurrió: ${dateStr}</div>
-        <div class="text-[var(--ds-text-muted)] text-[10px]">Última actualización: ${updatedStr}</div>
-      </div>`;
+      return earthquakePopup(f.properties, depth);
     }
 
     if (entityId.startsWith("fire-")) {
       const targetId = entityId.slice(5);
       const f = firesRef.current.features.find((ft) => String(ft.id) === targetId);
       if (!f) return null;
-      const { frp, confidence, satellite, acquiredAt } = f.properties;
-      const dateStr = new Date(acquiredAt).toLocaleString();
-      return `<div class="space-y-1.5 p-1 text-xs">
-        <div class="flex items-center justify-between gap-2">
-          <span class="font-bold text-orange-400 text-sm">🔥 Incendio activo</span>
-          <span class="text-[10px] bg-orange-500/20 text-orange-300 px-1.5 py-0.5 rounded">${satellite}</span>
-        </div>
-        <div class="text-[var(--ds-text-secondary)]">FRP: <span class="font-bold text-[var(--ds-text-primary)]">${frp} MW</span></div>
-        <div class="text-[var(--ds-text-muted)] text-[10px]">Confianza: ${confidence}</div>
-        <div class="text-[var(--ds-text-muted)] text-[10px]">Última actualización: ${dateStr}</div>
-        <div class="text-[var(--ds-text-muted)] text-[10px]">Fuente: NASA FIRMS</div>
-      </div>`;
+      return firePopup(f.properties);
     }
 
     if (entityId.startsWith("aqm-")) {
       const targetId = entityId.slice(4);
       const f = airQualityModelRef.current.features.find((ft) => String(ft.id) === targetId);
       if (!f) return null;
-      const { city, pm25, category, updated } = f.properties;
-      const updatedStr = new Date(updated).toLocaleString();
-      return `<div class="space-y-1.5 p-1 text-xs">
-        <div class="flex items-center justify-between gap-2">
-          <span class="font-bold text-cyan-400 text-sm">Aire (modelo)</span>
-          <span class="text-[10px] uppercase font-bold text-cyan-300 bg-cyan-500/20 px-1.5 py-0.5 rounded">${category}</span>
-        </div>
-        <div class="text-[var(--ds-text-primary)] font-medium">${city}</div>
-        <div class="text-[var(--ds-text-secondary)]">PM2.5: <span class="font-bold text-[var(--ds-text-primary)]">${pm25} µg/m³</span></div>
-        <div class="text-[var(--ds-text-muted)] text-[10px]">Última actualización: ${updatedStr}</div>
-        <div class="text-[var(--ds-text-muted)] text-[10px]">Estimado por Open-Meteo, no observado directamente</div>
-      </div>`;
+      return airQualityModelPopup(f.properties, f.properties.category);
     }
 
     if (entityId.startsWith("aq-")) {
       const targetId = entityId.slice(3);
       const f = airQualityRef.current.features.find((ft) => String(ft.id) === targetId);
       if (!f) return null;
-      const { station, pm25, category, updated } = f.properties;
-      const updatedStr = new Date(updated).toLocaleString();
-      return `<div class="space-y-1.5 p-1 text-xs">
-        <div class="flex items-center justify-between gap-2">
-          <span class="font-bold text-emerald-400 text-sm">Calidad del Aire</span>
-          <span class="text-[10px] uppercase font-bold text-emerald-300 bg-emerald-500/20 px-1.5 py-0.5 rounded">${category}</span>
-        </div>
-        <div class="text-[var(--ds-text-primary)] font-medium">${station}</div>
-        <div class="text-[var(--ds-text-secondary)]">PM2.5: <span class="font-bold text-[var(--ds-text-primary)]">${pm25} µg/m³</span></div>
-        <div class="text-[var(--ds-text-muted)] text-[10px]">Última actualización: ${updatedStr}</div>
-        <div class="text-[var(--ds-text-muted)] text-[10px]">Fuente: OpenAQ</div>
-      </div>`;
+      return airQualityPopup(f.properties);
     }
 
     if (entityId.startsWith("weather-")) {
       const targetId = entityId.slice(8);
       const f = weatherRef.current.features.find((ft) => String(ft.id) === targetId);
       if (!f) return null;
-      const { city, temperature, humidity, windSpeed, weatherDescription, updated } = f.properties;
-      const updatedStr = new Date(updated).toLocaleString();
-      return `<div class="space-y-1.5 p-1 text-xs">
-        <div class="flex items-center justify-between gap-2">
-          <span class="font-bold text-sky-400 text-sm">${city}</span>
-          <span class="text-[10px] bg-sky-500/20 text-sky-300 px-1.5 py-0.5 rounded">${weatherDescription}</span>
-        </div>
-        <div class="text-[var(--ds-text-secondary)]">Temperatura: <span class="font-bold text-[var(--ds-text-primary)]">${temperature}°C</span></div>
-        <div class="text-[var(--ds-text-muted)] text-[10px]">Humedad: ${humidity}% · Viento: ${windSpeed} km/h</div>
-        <div class="text-[var(--ds-text-muted)] text-[10px]">Última actualización: ${updatedStr}</div>
-        <div class="text-[var(--ds-text-muted)] text-[10px]">Fuente: Open-Meteo</div>
-      </div>`;
+      return weatherPopup(f.properties);
     }
 
     if (entityId.startsWith("disaster-")) {
       const targetId = entityId.slice(9);
       const f = disastersRef.current.features.find((ft) => String(ft.id) === targetId);
       if (!f) return null;
-      const { name, eventTypeLabel, country, alertLevel, fromDate, toDate, reportUrl } = f.properties;
-      const fromStr = fromDate ? new Date(fromDate).toLocaleString() : "N/D";
-      const toStr = toDate ? new Date(toDate).toLocaleString() : "en curso";
-      return `<div class="space-y-1.5 p-1 text-xs">
-        <div class="flex items-center justify-between gap-2">
-          <span class="font-bold text-amber-400 text-sm">${eventTypeLabel}</span>
-          <span class="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded ${alertLevel === "Red" ? "bg-red-500/20 text-red-300" : "bg-amber-500/20 text-amber-300"}">${alertLevel}</span>
-        </div>
-        <div class="text-[var(--ds-text-primary)] font-medium leading-snug">${name}</div>
-        <div class="text-[var(--ds-text-muted)] text-[10px]">${country}</div>
-        <div class="text-[var(--ds-text-muted)] text-[10px]">Desde: ${fromStr} · Hasta: ${toStr}</div>
-        <a href="${reportUrl}" target="_blank" rel="noopener noreferrer" class="text-amber-400 text-[10px] underline">Ver reporte GDACS</a>
-      </div>`;
+      return disasterPopup(f.properties);
     }
 
     if (entityId.startsWith("volcano-")) {
       const targetId = entityId.slice(8);
       const f = volcanoesRef.current.features.find((ft) => String(ft.id) === targetId);
       if (!f) return null;
-      const { name, country, volcanoType, lastEruptionYear, elevationM } = f.properties;
-      const eruptionText =
-        lastEruptionYear === null
-          ? "Sin fecha documentada"
-          : lastEruptionYear < 0
-            ? `${Math.abs(lastEruptionYear)} a.C.`
-            : `${lastEruptionYear} d.C.`;
-      return `<div class="space-y-1.5 p-1 text-xs">
-        <div class="flex items-center justify-between gap-2">
-          <span class="font-bold text-amber-600 text-sm">🌋 ${name}</span>
-          <span class="text-[10px] bg-amber-700/20 text-amber-600 px-1.5 py-0.5 rounded">${volcanoType}</span>
-        </div>
-        <div class="text-[var(--ds-text-primary)] font-medium">${country}</div>
-        <div class="text-[var(--ds-text-muted)] text-[10px]">Última erupción conocida: ${eruptionText}</div>
-        <div class="text-[var(--ds-text-muted)] text-[10px]">Elevación: ${elevationM ?? "N/D"} m</div>
-        <div class="text-[var(--ds-text-muted)] text-[10px] italic pt-0.5 border-t [border-color:var(--ds-glass-border)]">Catálogo histórico (GVP) — no es monitoreo en tiempo real</div>
-      </div>`;
+      return volcanoPopup(f.properties);
     }
 
     if (entityId === "iss") {
       const f = issRef.current.features[0];
       if (!f) return null;
-      const { altitudeKm, velocityKmS, timestamp } = f.properties;
-      const dateStr = new Date(timestamp).toLocaleString();
-      return `<div class="space-y-1.5 p-1 text-xs">
-        <div class="flex items-center justify-between gap-2">
-          <span class="font-bold text-[var(--ds-text-primary)] text-sm">🛰️ Estación Espacial Internacional</span>
-        </div>
-        <div class="text-[var(--ds-text-secondary)]">Altitud: <span class="font-bold text-[var(--ds-text-primary)]">${altitudeKm.toFixed(1)} km</span></div>
-        <div class="text-[var(--ds-text-secondary)]">Velocidad: <span class="font-bold text-[var(--ds-text-primary)]">${velocityKmS.toFixed(2)} km/s</span></div>
-        <div class="text-[var(--ds-text-muted)] text-[10px]">Última actualización: ${dateStr}</div>
-        <div class="text-[var(--ds-text-muted)] text-[10px]">Fuente: NASA (trayectoria OEM)</div>
-      </div>`;
+      return issPopup(f.properties);
     }
 
     return null;
@@ -342,6 +252,7 @@ export default function GlobeContainer({
       homeButton: false,
       sceneModePicker: false,
       navigationHelpButton: false,
+      fullscreenButton: false,
       infoBox: false,
       selectionIndicator: false,
       timeline: false,
@@ -545,8 +456,8 @@ export default function GlobeContainer({
     if (!viewer) return;
     viewer.scene.backgroundColor =
       theme === "dark"
-        ? Cesium.Color.fromCssColorString("#0b0e14")
-        : Cesium.Color.fromCssColorString("#f8fafc");
+        ? Cesium.Color.fromCssColorString(themes.dark.canvas)
+        : Cesium.Color.fromCssColorString(themes.light.canvas);
   }, [theme]);
 
   // 3. Renderizado de las 8 capas como entidades. Se limpian y re-crean en
@@ -568,9 +479,9 @@ export default function GlobeContainer({
           position: Cesium.Cartesian3.fromDegrees(lon, lat, 0),
           point: {
             pixelSize: isSelected ? 16 : 6 + mag * 2,
-            color: Cesium.Color.fromCssColorString(isSelected ? "#6366f1" : "#10b981").withAlpha(0.85),
-            outlineColor: Cesium.Color.WHITE,
-            outlineWidth: isSelected ? 2 : 1,
+            color: Cesium.Color.fromCssColorString(magnitudeColor(mag)).withAlpha(0.9),
+            outlineColor: Cesium.Color.fromCssColorString(isSelected ? marker.selected : marker.stroke),
+            outlineWidth: isSelected ? 3 : 1,
             heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
           },
           description: `M ${mag} — ${f.properties.place} (${depth ?? 0} km)`,
@@ -589,7 +500,9 @@ export default function GlobeContainer({
           position: Cesium.Cartesian3.fromDegrees(lon, lat, 0),
           point: {
             pixelSize: 4 + Math.min(f.properties.frp, 40) / 4,
-            color: Cesium.Color.fromCssColorString("#f97316").withAlpha(0.85),
+            color: Cesium.Color.fromCssColorString(layers.fires).withAlpha(0.85),
+            outlineColor: Cesium.Color.fromCssColorString(marker.fireStroke),
+            outlineWidth: 1,
             heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
           },
         });
@@ -604,8 +517,8 @@ export default function GlobeContainer({
           position: Cesium.Cartesian3.fromDegrees(lon, lat, 0),
           point: {
             pixelSize: 10,
-            color: Cesium.Color.fromCssColorString(AQI_COLORS[f.properties.category]).withAlpha(0.85),
-            outlineColor: Cesium.Color.WHITE,
+            color: Cesium.Color.fromCssColorString(aqiColor(f.properties.category)).withAlpha(0.85),
+            outlineColor: Cesium.Color.fromCssColorString(marker.stroke),
             outlineWidth: 1,
             heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
           },
@@ -623,7 +536,7 @@ export default function GlobeContainer({
           point: {
             pixelSize: 8,
             color: Cesium.Color.TRANSPARENT,
-            outlineColor: Cesium.Color.fromCssColorString(AQI_COLORS[category]),
+            outlineColor: Cesium.Color.fromCssColorString(aqiColor(category)),
             outlineWidth: 2,
             heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
           },
@@ -637,14 +550,14 @@ export default function GlobeContainer({
         viewer.entities.add({
           id: `weather-${f.id}`,
           position: Cesium.Cartesian3.fromDegrees(lon, lat, 0),
-          point: { pixelSize: 5, color: Cesium.Color.fromCssColorString("#38bdf8"), heightReference: Cesium.HeightReference.CLAMP_TO_GROUND },
+          point: { pixelSize: 5, color: Cesium.Color.fromCssColorString(layers.weather), heightReference: Cesium.HeightReference.CLAMP_TO_GROUND },
           label: {
             text: `${Math.round(f.properties.temperature)}°C`,
-            font: "11px sans-serif",
-            fillColor: Cesium.Color.WHITE,
+            font: "500 11px 'Google Sans Flex', Roboto, sans-serif",
+            fillColor: Cesium.Color.fromCssColorString(marker.weatherText),
             style: Cesium.LabelStyle.FILL_AND_OUTLINE,
             outlineWidth: 2,
-            outlineColor: Cesium.Color.BLACK,
+            outlineColor: Cesium.Color.fromCssColorString(marker.halo),
             pixelOffset: new Cesium.Cartesian2(0, -16),
             heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
           },
@@ -655,7 +568,7 @@ export default function GlobeContainer({
     if (showDisasters) {
       disasters.features.forEach((f) => {
         const [lon, lat] = f.geometry.coordinates;
-        const color = f.properties.alertLevel === "Red" ? "#ef4444" : f.properties.alertLevel === "Orange" ? "#f59e0b" : "#10b981";
+        const color = alertColor(f.properties.alertLevel);
         viewer.entities.add({
           id: `disaster-${f.id}`,
           position: Cesium.Cartesian3.fromDegrees(lon, lat, 0),
@@ -670,7 +583,7 @@ export default function GlobeContainer({
         viewer.entities.add({
           id: `volcano-${f.id}`,
           position: Cesium.Cartesian3.fromDegrees(lon, lat, 0),
-          point: { pixelSize: 6, color: Cesium.Color.fromCssColorString("#a16207").withAlpha(0.85), heightReference: Cesium.HeightReference.CLAMP_TO_GROUND },
+          point: { pixelSize: 6, color: Cesium.Color.fromCssColorString(layers.volcanoes).withAlpha(0.85), outlineColor: Cesium.Color.fromCssColorString(marker.volcanoStroke), outlineWidth: 1, heightReference: Cesium.HeightReference.CLAMP_TO_GROUND },
         });
       });
     }
@@ -683,17 +596,18 @@ export default function GlobeContainer({
       viewer.entities.add({
         id: "iss",
         position: Cesium.Cartesian3.fromDegrees(lon, lat, altitudeM),
-        point: { pixelSize: 10, color: Cesium.Color.fromCssColorString("#f472b6"), outlineColor: Cesium.Color.WHITE, outlineWidth: 1 },
+        point: { pixelSize: 10, color: Cesium.Color.fromCssColorString(marker.issFill), outlineColor: Cesium.Color.fromCssColorString(marker.issStroke), outlineWidth: 2 },
         label: {
           text: "ISS",
-          font: "12px sans-serif",
-          fillColor: Cesium.Color.WHITE,
-          outlineColor: Cesium.Color.BLACK,
+          font: "500 12px 'Google Sans Flex', Roboto, sans-serif",
+          fillColor: Cesium.Color.fromCssColorString(marker.labelText),
+          outlineColor: Cesium.Color.fromCssColorString(marker.halo),
           outlineWidth: 2,
           style: Cesium.LabelStyle.FILL_AND_OUTLINE,
-          pixelOffset: new Cesium.Cartesian2(0, -18),
+          pixelOffset: new Cesium.Cartesian2(0, -20),
+          backgroundPadding: new Cesium.Cartesian2(8, 4),
           showBackground: true,
-          backgroundColor: Cesium.Color.BLACK.withAlpha(0.6),
+          backgroundColor: Cesium.Color.fromCssColorString(themes.dark.surface).withAlpha(0.85),
         },
       });
 
@@ -702,7 +616,7 @@ export default function GlobeContainer({
         polyline: {
           positions: computeOrbitRing(lat, lon, altitudeM),
           width: 1,
-          material: Cesium.Color.fromCssColorString("#f472b6").withAlpha(0.35),
+          material: Cesium.Color.fromCssColorString(marker.issStroke).withAlpha(0.4),
         },
       });
     }

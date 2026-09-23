@@ -2,31 +2,35 @@ import { forwardRef, type ButtonHTMLAttributes } from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/design-system/utils/cn";
 
+// Botones Material 3 en pill (DS 4.0). El "state layer" de hover/press se
+// pinta con un ::before del color del contenido, como en Weather Lab, para
+// que funcione igual sobre cualquier fondo (filled, tonal o transparente).
+const stateLayer =
+  "before:absolute before:inset-0 before:rounded-[inherit] before:bg-current before:opacity-0 " +
+  "before:transition-opacity before:duration-ds-fast hover:before:opacity-[0.08] active:before:opacity-[0.12]";
+
 const buttonVariants = cva(
-  "relative inline-flex items-center justify-center gap-2 rounded-ds-control font-semibold select-none " +
-    "transition-[transform,box-shadow,background-color,color] duration-ds-fast ease-ds-standard " +
-    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent " +
-    "active:scale-[0.97] disabled:opacity-40 disabled:pointer-events-none disabled:active:scale-100",
+  "relative isolate inline-flex items-center justify-center gap-2 rounded-ds-full font-medium select-none whitespace-nowrap " +
+    "transition-[background-color,color,box-shadow] duration-ds-fast ease-ds-standard " +
+    "disabled:opacity-40 disabled:pointer-events-none " +
+    stateLayer,
   {
     variants: {
       variant: {
-        primary:
-          "bg-gradient-to-b from-brand-400 to-brand-600 text-white shadow-[0_2px_2px_rgba(0,0,0,0.15),0_8px_20px_-6px_rgba(99,102,241,0.55)] hover:brightness-110 active:shadow-[inset_0_2px_6px_rgba(0,0,0,0.35)]",
-        secondary:
-          "text-ds-text-primary [background:var(--ds-neu-base)] shadow-[var(--ds-shadow-neu-raised)] hover:brightness-105 active:shadow-[var(--ds-shadow-neu-pressed)]",
-        quiet:
-          "text-ds-text-secondary hover:text-ds-text-primary hover:[background:var(--ds-glass-highlight)] active:shadow-[var(--ds-shadow-neu-pressed)]",
-        danger:
-          "bg-gradient-to-b from-rose-400 to-rose-600 text-white shadow-[0_2px_2px_rgba(0,0,0,0.15),0_8px_20px_-6px_rgba(244,63,94,0.5)] hover:brightness-110 active:shadow-[inset_0_2px_6px_rgba(0,0,0,0.35)]",
+        filled: "bg-ds-primary text-ds-primary-on hover:shadow-ds-1",
+        tonal: "bg-ds-secondary-container text-ds-secondary-on-container",
+        outlined: "border border-ds-outline text-ds-primary",
+        text: "text-ds-primary",
+        elevated: "bg-ds-panel-strong backdrop-blur-ds-panel text-ds-text-primary shadow-ds-2 border border-ds-outline-variant",
       },
       size: {
-        sm: "px-3 py-1.5 text-xs",
-        md: "px-4 py-2 text-sm",
-        lg: "px-6 py-3 text-base",
+        sm: "h-8 px-3 text-[13px]",
+        md: "h-10 px-5 text-sm",
+        lg: "h-12 px-6 text-base",
       },
     },
     defaultVariants: {
-      variant: "primary",
+      variant: "filled",
       size: "md",
     },
   }
@@ -39,17 +43,18 @@ export interface ButtonProps
 }
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ variant, size, loading, disabled, className, children, ...props }, ref) => {
+  ({ variant, size, loading, disabled, className, children, type = "button", ...props }, ref) => {
     return (
       <button
         ref={ref}
+        type={type}
         className={cn(buttonVariants({ variant, size }), loading && "cursor-wait", className)}
         disabled={disabled || loading}
         aria-busy={loading}
         {...props}
       >
         {loading && (
-          <span className="h-3.5 w-3.5 rounded-full border-2 border-current border-t-transparent animate-spin" />
+          <span className="h-4 w-4 rounded-full border-2 border-current border-t-transparent animate-spin" />
         )}
         {children}
       </button>
@@ -58,3 +63,59 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
 );
 
 Button.displayName = "Button";
+
+const iconButtonVariants = cva(
+  "relative isolate inline-flex shrink-0 items-center justify-center rounded-ds-full select-none " +
+    "transition-[background-color,color] duration-ds-fast ease-ds-standard " +
+    "disabled:opacity-40 disabled:pointer-events-none " +
+    stateLayer,
+  {
+    variants: {
+      variant: {
+        standard: "text-ds-text-secondary hover:text-ds-text-primary",
+        filled: "bg-ds-primary text-ds-primary-on",
+        tonal: "bg-ds-secondary-container text-ds-secondary-on-container",
+        elevated: "bg-ds-panel-strong backdrop-blur-ds-panel text-ds-text-primary shadow-ds-2 border border-ds-outline-variant",
+      },
+      size: {
+        sm: "h-8 w-8",
+        md: "h-10 w-10",
+        lg: "h-12 w-12",
+      },
+      selected: {
+        true: "",
+        false: "",
+      },
+    },
+    compoundVariants: [
+      { variant: "standard", selected: true, className: "bg-ds-secondary-container text-ds-secondary-on-container hover:text-ds-secondary-on-container" },
+    ],
+    defaultVariants: {
+      variant: "standard",
+      size: "md",
+      selected: false,
+    },
+  }
+);
+
+export interface IconButtonProps
+  extends ButtonHTMLAttributes<HTMLButtonElement>,
+    VariantProps<typeof iconButtonVariants> {
+  "aria-label": string;
+}
+
+export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(
+  ({ variant, size, selected, className, children, type = "button", ...props }, ref) => (
+    <button
+      ref={ref}
+      type={type}
+      title={props["aria-label"]}
+      className={cn(iconButtonVariants({ variant, size, selected }), className)}
+      {...props}
+    >
+      {children}
+    </button>
+  )
+);
+
+IconButton.displayName = "IconButton";

@@ -1,65 +1,114 @@
-import type { IconNode } from "lucide";
+import { Check, Minus } from "lucide";
 import { MorphIcon } from "morphicons/react";
 import { cn } from "@/design-system/utils/cn";
 
-export interface LayerToggleProps {
-  label: string;
-  icon?: IconNode;
-  dotColorClassName?: string;
+/** Switch Material 3 (track 52×32, handle que crece al activarse). */
+export function Switch({
+  checked,
+  onChange,
+  label,
+  disabled,
+  className,
+}: {
   checked: boolean;
   onChange: (checked: boolean) => void;
-  loading?: boolean;
+  label: string;
+  disabled?: boolean;
+  className?: string;
+}) {
+  const on = checked;
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={label}
+      disabled={disabled}
+      onClick={() => onChange(!checked)}
+      className={cn(
+        "group relative inline-flex h-8 w-[52px] shrink-0 items-center rounded-ds-full border-2 transition-colors duration-ds-base ease-ds-standard",
+        "disabled:opacity-40 disabled:pointer-events-none",
+        on ? "bg-ds-primary border-ds-primary" : "bg-ds-surface-highest border-ds-outline",
+        className
+      )}
+    >
+      <span
+        className={cn(
+          "absolute rounded-ds-full transition-all duration-ds-base ease-ds-out",
+          "before:absolute before:-inset-2 before:rounded-full before:bg-current before:opacity-0 group-hover:before:opacity-[0.08]",
+          on
+            ? "left-[22px] h-6 w-6 bg-ds-primary-on text-ds-primary"
+            : "left-[6px] h-4 w-4 bg-ds-outline text-ds-text-primary"
+        )}
+      />
+    </button>
+  );
+}
+
+/** Checkbox Material 3 (18px, esquina 2px, check sobre primary). */
+export function Checkbox({ checked, mixed }: { checked: boolean; mixed?: boolean }) {
+  const on = checked || !!mixed;
+  return (
+    <span
+      aria-hidden="true"
+      className={cn(
+        "grid h-[18px] w-[18px] shrink-0 place-items-center rounded-[3px] border-2 transition-colors duration-ds-fast",
+        on ? "bg-ds-primary border-ds-primary text-ds-primary-on" : "border-ds-text-secondary"
+      )}
+    >
+      {on && <MorphIcon icon={mixed ? Minus : Check} size={14} strokeWidth={3} reducedMotion="user" />}
+    </span>
+  );
+}
+
+export interface LayerToggleProps {
+  label: string;
+  /** Color identitario de la capa (tokens/colors.ts → layers). */
+  swatch?: string;
+  /** Swatch como anillo (capas "contorno", p.ej. aire modelado). */
+  swatchRing?: boolean;
+  /** Etiqueta de fuente (USGS, OpenAQ…), estilo "Operational" de Weather Lab. */
+  tag?: string;
+  checked: boolean;
+  onChange: (checked: boolean) => void;
   disabled?: boolean;
   className?: string;
 }
 
-export function LayerToggle({
-  label,
-  icon,
-  dotColorClassName,
-  checked,
-  onChange,
-  loading,
-  disabled,
-  className,
-}: LayerToggleProps) {
+/**
+ * Fila de capa: swatch cuadrado + nombre + tag de fuente + checkbox, igual
+ * que la lista de modelos del panel "Controls" de Weather Lab. Toda la fila
+ * es el área táctil (≥ 44px de alto).
+ */
+export function LayerToggle({ label, swatch, swatchRing, tag, checked, onChange, disabled, className }: LayerToggleProps) {
   return (
     <label
       className={cn(
-        "flex items-center justify-between gap-3 p-2.5 rounded-ds-control cursor-pointer",
-        "transition-[box-shadow,background-color] duration-ds-fast ease-ds-standard",
-        "[background:var(--ds-glass-highlight)] hover:[background:var(--ds-glass-bg-elevated)]",
-        (disabled || loading) && "opacity-50 cursor-not-allowed",
+        "relative flex min-h-11 cursor-pointer items-center gap-3 rounded-ds-control px-3 py-2",
+        "transition-colors duration-ds-fast hover:bg-ds-hover has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-ds-primary",
+        disabled && "opacity-40 cursor-not-allowed",
         className
       )}
     >
-      <div className="flex items-center gap-2 min-w-0">
-        {icon && <MorphIcon icon={icon} size={16} reducedMotion="user" className="text-ds-text-muted shrink-0" />}
-        {dotColorClassName && (
-          <span className={cn("h-2.5 w-2.5 rounded-full shrink-0", dotColorClassName)} />
-        )}
-        <span className="text-ds-text-primary text-xs truncate">{label}</span>
-      </div>
-      <span
-        className={cn(
-          "relative inline-flex h-5 w-9 shrink-0 items-center rounded-ds-full transition-[box-shadow] duration-ds-base",
-          checked
-            ? "shadow-[var(--ds-shadow-neu-pressed)] bg-gradient-to-r from-brand-400 to-brand-600"
-            : "shadow-[var(--ds-shadow-neu-flat)] [background:var(--ds-neu-base)]"
-        )}
-      >
+      {swatch && (
         <span
-          className={cn(
-            "inline-block h-3.5 w-3.5 rounded-full bg-white shadow-[0_1px_3px_rgba(0,0,0,0.4)] transition-transform duration-ds-base ease-ds-standard",
-            checked ? "translate-x-[18px]" : "translate-x-1"
-          )}
+          aria-hidden="true"
+          className={cn("h-4 w-4 shrink-0 rounded-[4px]", swatchRing && "border-[3px] bg-transparent")}
+          style={swatchRing ? { borderColor: swatch } : { backgroundColor: swatch }}
         />
-      </span>
+      )}
+      <span className="min-w-0 flex-1 truncate text-sm text-ds-text-primary">{label}</span>
+      {tag && (
+        <span className="inline-flex h-6 shrink-0 items-center rounded-ds-full border border-ds-outline-variant px-2 text-[11px] font-medium text-ds-text-secondary">
+          {tag}
+        </span>
+      )}
+      <Checkbox checked={checked} />
       <input
         type="checkbox"
         checked={checked}
         onChange={(e) => onChange(e.target.checked)}
-        disabled={disabled || loading}
+        disabled={disabled}
         className="sr-only"
       />
     </label>

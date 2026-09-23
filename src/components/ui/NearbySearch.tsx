@@ -2,9 +2,11 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
-import { MapPin, Loader2, AlertTriangle } from "lucide";
+import { LocateFixed, AlertTriangle, Check } from "lucide";
 import { MorphIcon } from "morphicons/react";
-import { Card } from "@/components/ui/Card";
+import { Button } from "@/components/ui/Button";
+import { magnitudeColor } from "@/design-system/tokens";
+import { cn } from "@/design-system/utils/cn";
 import { supabase } from "@/lib/supabaseClient";
 import { NearbyEarthquakeRow } from "@/lib/types";
 
@@ -56,59 +58,70 @@ export default function NearbySearch() {
     );
   }
 
+  const busy = status === "locating" || status === "loading";
+
   return (
-    <Card className="space-y-3">
-      <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-ds-text-secondary pb-2 border-b [border-color:var(--ds-glass-border)]">
-        <MorphIcon icon={MapPin} size={16} reducedMotion="user" className="text-indigo-400" />
-        <span>{t("title")}</span>
-      </div>
-
-      <div className="flex items-center gap-2 text-xs">
-        <span className="text-ds-text-secondary">{t("radiusLabel")}</span>
-        <select
-          value={radiusKm}
-          onChange={(e) => setRadiusKm(Number(e.target.value))}
-          className="[background:var(--ds-glass-bg-elevated)] border [border-color:var(--ds-glass-border)] rounded-ds-control px-2 py-1 text-ds-text-primary flex-1 shadow-[var(--ds-shadow-neu-flat)]"
-        >
-          {RADIUS_OPTIONS_KM.map((km) => (
-            <option key={km} value={km}>
+    <div className="flex flex-col gap-3 px-3">
+      <div role="radiogroup" aria-label={t("radiusLabel")} className="flex flex-wrap items-center gap-2">
+        <span className="mr-1 text-xs text-ds-text-secondary">{t("radiusLabel")}</span>
+        {RADIUS_OPTIONS_KM.map((km) => {
+          const active = km === radiusKm;
+          return (
+            <button
+              key={km}
+              type="button"
+              role="radio"
+              aria-checked={active}
+              onClick={() => setRadiusKm(km)}
+              className={cn(
+                "inline-flex h-8 items-center gap-1 rounded-ds-md border px-3 text-[13px] font-medium transition-colors duration-ds-fast",
+                active
+                  ? "border-transparent bg-ds-secondary-container text-ds-secondary-on-container"
+                  : "border-ds-outline-variant text-ds-text-secondary hover:bg-ds-hover"
+              )}
+            >
+              {active && <MorphIcon icon={Check} size={14} reducedMotion="user" />}
               {km} km
-            </option>
-          ))}
-        </select>
+            </button>
+          );
+        })}
       </div>
 
-      <button
-        onClick={handleSearch}
-        disabled={status === "locating" || status === "loading"}
-        className="w-full flex items-center justify-center gap-2 bg-brand-500 hover:bg-brand-600 disabled:opacity-50 text-white text-xs font-semibold py-2 rounded-ds-control shadow-[var(--ds-shadow-neu-raised)] active:shadow-[var(--ds-shadow-neu-pressed)] transition-[background-color,box-shadow] duration-ds-fast active:scale-[0.98]"
-      >
-        {(status === "locating" || status === "loading") && (
-          <MorphIcon icon={Loader2} size={14} reducedMotion="user" className="animate-spin" />
-        )}
+      <Button variant="tonal" onClick={handleSearch} loading={busy} className="w-full">
+        {!busy && <MorphIcon icon={LocateFixed} size={18} reducedMotion="user" />}
         {status === "locating" ? t("locating") : status === "loading" ? t("loading") : t("useLocation")}
-      </button>
+      </Button>
 
       {status === "error" && (
-        <div className="flex items-start gap-1.5 text-[11px] text-rose-400">
-          <MorphIcon icon={AlertTriangle} size={14} reducedMotion="user" className="shrink-0 mt-0.5" />
+        <div role="alert" className="flex items-start gap-2 rounded-ds-control bg-ds-error/10 px-3 py-2 text-xs text-ds-error">
+          <MorphIcon icon={AlertTriangle} size={16} reducedMotion="user" className="mt-px shrink-0" />
           <span>{errorMessage}</span>
         </div>
       )}
 
       {results.length > 0 && (
-        <div className="space-y-1.5 max-h-40 overflow-y-auto text-[11px]">
-          <p className="text-ds-text-secondary">
+        <div className="flex flex-col gap-1">
+          <p className="text-xs text-ds-text-secondary">
             {results.length} {t("resultsFound")}
           </p>
-          {results.map((eq) => (
-            <div key={eq.id} className="[background:var(--ds-glass-bg-elevated)] rounded-ds-control px-2 py-1.5 flex justify-between gap-2">
-              <span className="text-ds-text-primary truncate">{eq.place}</span>
-              <span className="text-amber-400 font-semibold shrink-0">M {eq.magnitude ?? "N/D"}</span>
-            </div>
-          ))}
+          <ul className="flex max-h-48 flex-col gap-0.5 overflow-y-auto overscroll-contain">
+            {results.map((eq) => (
+              <li key={eq.id} className="flex items-center justify-between gap-3 rounded-ds-control px-3 py-2 hover:bg-ds-hover">
+                <span className="truncate text-sm text-ds-text-primary">{eq.place}</span>
+                <span
+                  className="shrink-0 rounded-ds-full px-2 py-0.5 text-xs font-medium tabular-nums"
+                  style={{
+                    color: magnitudeColor(eq.magnitude ?? 0),
+                    backgroundColor: `${magnitudeColor(eq.magnitude ?? 0)}24`,
+                  }}
+                >
+                  M {eq.magnitude ?? "N/D"}
+                </span>
+              </li>
+            ))}
+          </ul>
         </div>
       )}
-    </Card>
+    </div>
   );
 }

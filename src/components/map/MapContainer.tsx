@@ -1,13 +1,21 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef } from "react";
 import maplibregl, { GeoJSONSource, Map as MapLibreMap } from "maplibre-gl";
 import { EarthquakeGeoJSON, AirQualityGeoJSON, FireGeoJSON, WeatherGeoJSON, DisasterGeoJSON, IssGeoJSON, VolcanoGeoJSON, AirQualityModelGeoJSON, EarthquakeProperties, AirQualityProperties, FireProperties, WeatherProperties, DisasterProperties, IssProperties, VolcanoProperties, AirQualityModelProperties } from "@/lib/types";
 import { DEFAULT_MAP_VIEW, type MapView } from "@/lib/mapView";
-import { BASEMAP_STYLES, BASEMAP_LABELS, BASEMAP_ORDER } from "@/lib/mapStyles";
-import { useBasemap, type Theme } from "@/design-system/hooks";
-import { MorphIcon } from "morphicons/react";
-import { Layers, Check } from "lucide";
+import { BASEMAP_STYLES, type Basemap } from "@/lib/mapStyles";
+import { layers, scales, marker } from "@/design-system/tokens";
+import {
+  earthquakePopup,
+  airQualityPopup,
+  firePopup,
+  weatherPopup,
+  disasterPopup,
+  issPopup,
+  volcanoPopup,
+  airQualityModelPopup,
+} from "@/lib/popupHtml";
 
 interface MapContainerProps {
   earthquakes: EarthquakeGeoJSON;
@@ -29,7 +37,7 @@ interface MapContainerProps {
   onSelectEarthquake?: (id: string) => void;
   onViewChange?: (view: MapView) => void;
   initialView?: MapView;
-  theme: Theme;
+  basemap: Basemap;
 }
 
 export default function MapContainer({
@@ -52,7 +60,7 @@ export default function MapContainer({
   onSelectEarthquake,
   onViewChange,
   initialView = DEFAULT_MAP_VIEW,
-  theme,
+  basemap,
 }: MapContainerProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
@@ -62,13 +70,13 @@ export default function MapContainer({
   const onViewChangeRef = useRef(onViewChange);
   onViewChangeRef.current = onViewChange;
 
-  const { basemap, setBasemap } = useBasemap(theme);
-  const [pickerOpen, setPickerOpen] = useState(false);
 
   // Refs con los datos/visibilidad más recientes: la función setupLayers()
   // se invoca tanto en el "load" inicial como después de cada cambio de
   // basemap (map.setStyle() borra todas las fuentes/capas de MapLibre), y
   // en ambos casos debe usar el estado más reciente, no el del montaje.
+  const basemapRef = useRef(basemap);
+  basemapRef.current = basemap;
   const earthquakesRef = useRef(earthquakes);
   earthquakesRef.current = earthquakes;
   const airQualityRef = useRef(airQuality);
@@ -107,6 +115,11 @@ export default function MapContainer({
   // de basemap), que borra sources/layers pero no destruye la instancia del
   // mapa. Lee siempre el estado más reciente vía los refs de arriba.
   function setupLayers(map: MapLibreMap) {
+    // Etiquetas de texto legibles según el basemap: halo oscuro sobre
+    // oscuro/satélite, halo blanco sobre el mapa claro.
+    const onLight = basemapRef.current === "light";
+    const labelHalo = onLight ? marker.haloOnLight : marker.halo;
+
     // Fuente y capa para Sismos (USGS)
     map.addSource("earthquakes-source", {
       type: "geojson",
@@ -134,14 +147,11 @@ export default function MapContainer({
           "interpolate",
           ["linear"],
           ["coalesce", ["get", "mag"], 1],
-          2, "#fde047",
-          4.5, "#fb923c",
-          6, "#f43f5e",
-          7.5, "#9333ea"
+          ...scales.magnitude.flatMap((s) => [s.stop, s.color]),
         ],
         "circle-opacity": 0.85,
         "circle-stroke-width": 2,
-        "circle-stroke-color": "#ffffff",
+        "circle-stroke-color": marker.stroke,
       },
     });
 
@@ -163,15 +173,15 @@ export default function MapContainer({
         "circle-color": [
           "match",
           ["get", "category"],
-          "good", "#10b981",
-          "moderate", "#f59e0b",
-          "unhealthy", "#f97316",
-          "hazardous", "#8b5cf6",
-          "#cbd5e1"
+          "good", scales.aqi.good,
+          "moderate", scales.aqi.moderate,
+          "unhealthy", scales.aqi.unhealthy,
+          "hazardous", scales.aqi.hazardous,
+          scales.aqi.unknown
         ],
         "circle-opacity": 0.85,
         "circle-stroke-width": 1.5,
-        "circle-stroke-color": "#0f172a",
+        "circle-stroke-color": marker.strokeDark,
       },
     });
 
@@ -198,10 +208,10 @@ export default function MapContainer({
           200, 14,
           500, 22
         ],
-        "circle-color": "#f97316",
+        "circle-color": layers.fires,
         "circle-opacity": 0.8,
         "circle-stroke-width": 1.5,
-        "circle-stroke-color": "#fde047",
+        "circle-stroke-color": marker.fireStroke,
       },
     });
 
@@ -242,8 +252,8 @@ export default function MapContainer({
         "text-allow-overlap": true,
       },
       paint: {
-        "text-color": "#7dd3fc",
-        "text-halo-color": "#0f172a",
+        "text-color": onLight ? marker.weatherTextOnLight : marker.weatherText,
+        "text-halo-color": labelHalo,
         "text-halo-width": 2,
       },
     });
@@ -267,13 +277,13 @@ export default function MapContainer({
         "circle-color": [
           "match",
           ["get", "alertLevel"],
-          "Red", "#dc2626",
-          "Orange", "#f59e0b",
-          "#22c55e"
+          "Red", scales.alert.Red,
+          "Orange", scales.alert.Orange,
+          scales.alert.Green
         ],
         "circle-opacity": 0.85,
         "circle-stroke-width": 2,
-        "circle-stroke-color": "#ffffff",
+        "circle-stroke-color": marker.stroke,
       },
     });
 
@@ -292,10 +302,10 @@ export default function MapContainer({
       },
       paint: {
         "circle-radius": 7,
-        "circle-color": "#e2e8f0",
+        "circle-color": marker.issFill,
         "circle-opacity": 0.95,
         "circle-stroke-width": 2,
-        "circle-stroke-color": "#38bdf8",
+        "circle-stroke-color": marker.issStroke,
       },
     });
 
@@ -313,8 +323,8 @@ export default function MapContainer({
         "text-allow-overlap": true,
       },
       paint: {
-        "text-color": "#e2e8f0",
-        "text-halo-color": "#0f172a",
+        "text-color": onLight ? marker.labelTextOnLight : marker.labelText,
+        "text-halo-color": labelHalo,
         "text-halo-width": 2,
       },
     });
@@ -352,10 +362,10 @@ export default function MapContainer({
       },
       paint: {
         "circle-radius": 5,
-        "circle-color": "#a16207",
+        "circle-color": layers.volcanoes,
         "circle-opacity": 0.75,
         "circle-stroke-width": 1.5,
-        "circle-stroke-color": "#fef3c7",
+        "circle-stroke-color": marker.volcanoStroke,
       },
     });
 
@@ -401,11 +411,11 @@ export default function MapContainer({
         "circle-stroke-color": [
           "match",
           ["get", "category"],
-          "good", "#10b981",
-          "moderate", "#f59e0b",
-          "unhealthy", "#f97316",
-          "hazardous", "#8b5cf6",
-          "#cbd5e1"
+          "good", scales.aqi.good,
+          "moderate", scales.aqi.moderate,
+          "unhealthy", scales.aqi.unhealthy,
+          "hazardous", scales.aqi.hazardous,
+          scales.aqi.unknown
         ],
       },
     });
@@ -417,25 +427,12 @@ export default function MapContainer({
       if (feature.geometry.type !== "Point") return;
       const coordinates = feature.geometry.coordinates.slice();
       const { mag, place, time, updated } = feature.properties as EarthquakeProperties;
-      const dateStr = new Date(Number(time)).toLocaleString();
-      const updatedStr = new Date(Number(updated)).toLocaleString();
 
       if (feature.id != null) onSelectEarthquakeRef.current?.(String(feature.id));
 
       new maplibregl.Popup({ closeButton: true, focusAfterOpen: false })
         .setLngLat([coordinates[0], coordinates[1]])
-        .setHTML(
-          `<div class="space-y-1.5 p-1 text-xs">
-            <div class="flex items-center justify-between gap-2">
-              <span class="font-bold text-rose-400 text-sm">Sismo M ${mag ?? 'N/D'}</span>
-              <span class="text-[10px] bg-rose-500/20 text-rose-300 px-1.5 py-0.5 rounded">USGS</span>
-            </div>
-            <div class="text-[var(--ds-text-primary)] font-medium leading-snug">${place}</div>
-            <div class="text-[var(--ds-text-muted)] text-[10px]">Profundidad: ${coordinates[2] ?? 0} km</div>
-            <div class="text-[var(--ds-text-muted)] text-[10px]">Ocurrió: ${dateStr}</div>
-            <div class="text-[var(--ds-text-muted)] text-[10px]">Última actualización: ${updatedStr}</div>
-          </div>`
-        )
+        .setHTML(earthquakePopup({ mag, place, time, updated }, coordinates[2] ?? 0))
         .addTo(map);
     });
 
@@ -446,22 +443,10 @@ export default function MapContainer({
       if (feature.geometry.type !== "Point") return;
       const coordinates = feature.geometry.coordinates.slice();
       const { station, pm25, category, updated } = feature.properties as AirQualityProperties;
-      const updatedStr = new Date(updated).toLocaleString();
 
       new maplibregl.Popup({ closeButton: true, focusAfterOpen: false })
         .setLngLat([coordinates[0], coordinates[1]])
-        .setHTML(
-          `<div class="space-y-1.5 p-1 text-xs">
-            <div class="flex items-center justify-between gap-2">
-              <span class="font-bold text-emerald-400 text-sm">Calidad del Aire</span>
-              <span class="text-[10px] uppercase font-bold text-emerald-300 bg-emerald-500/20 px-1.5 py-0.5 rounded">${category}</span>
-            </div>
-            <div class="text-[var(--ds-text-primary)] font-medium">${station}</div>
-            <div class="text-[var(--ds-text-secondary)]">PM2.5: <span class="font-bold text-[var(--ds-text-primary)]">${pm25} µg/m³</span></div>
-            <div class="text-[var(--ds-text-muted)] text-[10px]">Última actualización: ${updatedStr}</div>
-            <div class="text-[var(--ds-text-muted)] text-[10px]">Fuente: OpenAQ</div>
-          </div>`
-        )
+        .setHTML(airQualityPopup({ station, pm25, category, updated }))
         .addTo(map);
     });
 
@@ -472,22 +457,10 @@ export default function MapContainer({
       if (feature.geometry.type !== "Point") return;
       const coordinates = feature.geometry.coordinates.slice();
       const { frp, confidence, satellite, acquiredAt } = feature.properties as FireProperties;
-      const dateStr = new Date(acquiredAt).toLocaleString();
 
       new maplibregl.Popup({ closeButton: true, focusAfterOpen: false })
         .setLngLat([coordinates[0], coordinates[1]])
-        .setHTML(
-          `<div class="space-y-1.5 p-1 text-xs">
-            <div class="flex items-center justify-between gap-2">
-              <span class="font-bold text-orange-400 text-sm">🔥 Incendio activo</span>
-              <span class="text-[10px] bg-orange-500/20 text-orange-300 px-1.5 py-0.5 rounded">${satellite}</span>
-            </div>
-            <div class="text-[var(--ds-text-secondary)]">FRP: <span class="font-bold text-[var(--ds-text-primary)]">${frp} MW</span></div>
-            <div class="text-[var(--ds-text-muted)] text-[10px]">Confianza: ${confidence}</div>
-            <div class="text-[var(--ds-text-muted)] text-[10px]">Última actualización: ${dateStr}</div>
-            <div class="text-[var(--ds-text-muted)] text-[10px]">Fuente: NASA FIRMS</div>
-          </div>`
-        )
+        .setHTML(firePopup({ frp, confidence, satellite, acquiredAt }))
         .addTo(map);
     });
 
@@ -499,22 +472,10 @@ export default function MapContainer({
       if (feature.geometry.type !== "Point") return;
       const coordinates = feature.geometry.coordinates.slice();
       const { city, temperature, humidity, windSpeed, weatherDescription, updated } = feature.properties as WeatherProperties;
-      const updatedStr = new Date(updated).toLocaleString();
 
       new maplibregl.Popup({ closeButton: true, focusAfterOpen: false })
         .setLngLat([coordinates[0], coordinates[1]])
-        .setHTML(
-          `<div class="space-y-1.5 p-1 text-xs">
-            <div class="flex items-center justify-between gap-2">
-              <span class="font-bold text-sky-400 text-sm">${city}</span>
-              <span class="text-[10px] bg-sky-500/20 text-sky-300 px-1.5 py-0.5 rounded">${weatherDescription}</span>
-            </div>
-            <div class="text-[var(--ds-text-secondary)]">Temperatura: <span class="font-bold text-[var(--ds-text-primary)]">${temperature}°C</span></div>
-            <div class="text-[var(--ds-text-muted)] text-[10px]">Humedad: ${humidity}% · Viento: ${windSpeed} km/h</div>
-            <div class="text-[var(--ds-text-muted)] text-[10px]">Última actualización: ${updatedStr}</div>
-            <div class="text-[var(--ds-text-muted)] text-[10px]">Fuente: Open-Meteo</div>
-          </div>`
-        )
+        .setHTML(weatherPopup({ city, temperature, humidity, windSpeed, weatherDescription, updated }))
         .addTo(map);
     });
 
@@ -525,23 +486,10 @@ export default function MapContainer({
       if (feature.geometry.type !== "Point") return;
       const coordinates = feature.geometry.coordinates.slice();
       const { name, eventTypeLabel, country, alertLevel, fromDate, toDate, reportUrl } = feature.properties as DisasterProperties;
-      const fromStr = fromDate ? new Date(fromDate).toLocaleString() : "N/D";
-      const toStr = toDate ? new Date(toDate).toLocaleString() : "en curso";
 
       new maplibregl.Popup({ closeButton: true, focusAfterOpen: false })
         .setLngLat([coordinates[0], coordinates[1]])
-        .setHTML(
-          `<div class="space-y-1.5 p-1 text-xs">
-            <div class="flex items-center justify-between gap-2">
-              <span class="font-bold text-amber-400 text-sm">${eventTypeLabel}</span>
-              <span class="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded ${alertLevel === 'Red' ? 'bg-red-500/20 text-red-300' : 'bg-amber-500/20 text-amber-300'}">${alertLevel}</span>
-            </div>
-            <div class="text-[var(--ds-text-primary)] font-medium leading-snug">${name}</div>
-            <div class="text-[var(--ds-text-muted)] text-[10px]">${country}</div>
-            <div class="text-[var(--ds-text-muted)] text-[10px]">Desde: ${fromStr} · Hasta: ${toStr}</div>
-            <a href="${reportUrl}" target="_blank" rel="noopener noreferrer" class="text-amber-400 text-[10px] underline">Ver reporte GDACS</a>
-          </div>`
-        )
+        .setHTML(disasterPopup({ name, eventTypeLabel, country, alertLevel, fromDate, toDate, reportUrl }))
         .addTo(map);
     });
 
@@ -552,21 +500,10 @@ export default function MapContainer({
       if (feature.geometry.type !== "Point") return;
       const coordinates = feature.geometry.coordinates.slice();
       const { altitudeKm, velocityKmS, timestamp } = feature.properties as IssProperties;
-      const dateStr = new Date(timestamp).toLocaleString();
 
       new maplibregl.Popup({ closeButton: true, focusAfterOpen: false })
         .setLngLat([coordinates[0], coordinates[1]])
-        .setHTML(
-          `<div class="space-y-1.5 p-1 text-xs">
-            <div class="flex items-center justify-between gap-2">
-              <span class="font-bold text-[var(--ds-text-primary)] text-sm">🛰️ Estación Espacial Internacional</span>
-            </div>
-            <div class="text-[var(--ds-text-secondary)]">Altitud: <span class="font-bold text-[var(--ds-text-primary)]">${altitudeKm.toFixed(1)} km</span></div>
-            <div class="text-[var(--ds-text-secondary)]">Velocidad: <span class="font-bold text-[var(--ds-text-primary)]">${velocityKmS.toFixed(2)} km/s</span></div>
-            <div class="text-[var(--ds-text-muted)] text-[10px]">Última actualización: ${dateStr}</div>
-            <div class="text-[var(--ds-text-muted)] text-[10px]">Fuente: NASA (trayectoria OEM)</div>
-          </div>`
-        )
+        .setHTML(issPopup({ altitudeKm, velocityKmS, timestamp }))
         .addTo(map);
     });
 
@@ -578,26 +515,10 @@ export default function MapContainer({
       if (feature.geometry.type !== "Point") return;
       const coordinates = feature.geometry.coordinates.slice();
       const { name, country, volcanoType, lastEruptionYear, elevationM } = feature.properties as VolcanoProperties;
-      const eruptionText = lastEruptionYear === null
-        ? "Sin fecha documentada"
-        : lastEruptionYear < 0
-          ? `${Math.abs(lastEruptionYear)} a.C.`
-          : `${lastEruptionYear} d.C.`;
 
       new maplibregl.Popup({ closeButton: true, focusAfterOpen: false })
         .setLngLat([coordinates[0], coordinates[1]])
-        .setHTML(
-          `<div class="space-y-1.5 p-1 text-xs">
-            <div class="flex items-center justify-between gap-2">
-              <span class="font-bold text-amber-600 text-sm">🌋 ${name}</span>
-              <span class="text-[10px] bg-amber-700/20 text-amber-600 px-1.5 py-0.5 rounded">${volcanoType}</span>
-            </div>
-            <div class="text-[var(--ds-text-primary)] font-medium">${country}</div>
-            <div class="text-[var(--ds-text-muted)] text-[10px]">Última erupción conocida: ${eruptionText}</div>
-            <div class="text-[var(--ds-text-muted)] text-[10px]">Elevación: ${elevationM ?? "N/D"} m</div>
-            <div class="text-[var(--ds-text-muted)] text-[10px] italic pt-0.5 border-t [border-color:var(--ds-glass-border)]">Catálogo histórico (GVP) — no es monitoreo en tiempo real</div>
-          </div>`
-        )
+        .setHTML(volcanoPopup({ name, country, volcanoType, lastEruptionYear, elevationM }))
         .addTo(map);
     });
 
@@ -609,22 +530,10 @@ export default function MapContainer({
       if (feature.geometry.type !== "Point") return;
       const coordinates = feature.geometry.coordinates.slice();
       const { city, pm25, category, updated } = feature.properties as AirQualityModelProperties;
-      const updatedStr = new Date(updated).toLocaleString();
 
       new maplibregl.Popup({ closeButton: true, focusAfterOpen: false })
         .setLngLat([coordinates[0], coordinates[1]])
-        .setHTML(
-          `<div class="space-y-1.5 p-1 text-xs">
-            <div class="flex items-center justify-between gap-2">
-              <span class="font-bold text-cyan-400 text-sm">Aire (modelo)</span>
-              <span class="text-[10px] uppercase font-bold text-cyan-300 bg-cyan-500/20 px-1.5 py-0.5 rounded">${category}</span>
-            </div>
-            <div class="text-[var(--ds-text-primary)] font-medium">${city}</div>
-            <div class="text-[var(--ds-text-secondary)]">PM2.5: <span class="font-bold text-[var(--ds-text-primary)]">${pm25} µg/m³</span></div>
-            <div class="text-[var(--ds-text-muted)] text-[10px]">Última actualización: ${updatedStr}</div>
-            <div class="text-[var(--ds-text-muted)] text-[10px]">Estimado por Open-Meteo, no observado directamente</div>
-          </div>`
-        )
+        .setHTML(airQualityModelPopup({ city, pm25, updated }, category))
         .addTo(map);
     });
 
@@ -663,9 +572,14 @@ export default function MapContainer({
       // solidos negros en vez de mostrar el blur real, especialmente en tema claro.
       canvasContextAttributes: { antialias: true, preserveDrawingBuffer: true },
       maxPitch: 60,
+      attributionControl: false,
     });
 
+    // Zoom/brújula arriba a la derecha y atribución compacta abajo a la
+    // izquierda; globals.css (.ep-map-stage) los estiliza y los desplaza con
+    // --ep-inset-* para que no queden bajo los paneles flotantes.
     map.addControl(new maplibregl.NavigationControl({ showCompass: true }), "top-right");
+    map.addControl(new maplibregl.AttributionControl({ compact: true }), "bottom-left");
 
     map.on("moveend", () => {
       const center = map.getCenter();
@@ -857,50 +771,8 @@ export default function MapContainer({
   }, [showAirQualityModel]);
 
   return (
-    <div className="w-full h-full relative bg-ds-canvas">
-      <div ref={mapContainerRef} className="w-full h-full" />
-
-      {/* Selector de basemap: vidrio, consistente con el toggle 2D/3D. Se
-          posiciona debajo de los controles de zoom/brújula (top-right) para
-          no colisionar, y por encima del botón 2D/3D que vive en page.tsx. */}
-      <div className="absolute top-44 right-4 z-10">
-        <button
-          onClick={() => setPickerOpen((o) => !o)}
-          aria-label="Cambiar mapa base"
-          aria-expanded={pickerOpen}
-          className="flex items-center gap-1.5 px-3 py-1.5 [background:var(--ds-glass-bg-strong)] [backdrop-filter:blur(var(--ds-glass-blur))_saturate(var(--ds-glass-saturate))] border [border-color:var(--ds-glass-border)] rounded-ds-control text-xs font-semibold text-ds-text-primary hover:[background:var(--ds-glass-bg-elevated)] transition-[background-color] duration-ds-fast active:scale-[0.97] shadow-[var(--ds-shadow-glass-sm)]"
-        >
-          <MorphIcon icon={Layers} size={14} reducedMotion="user" />
-          {BASEMAP_LABELS[basemap]}
-        </button>
-
-        {pickerOpen && (
-          <>
-            <button
-              aria-label="Cerrar selector de mapa base"
-              className="fixed inset-0 z-0 cursor-default"
-              onClick={() => setPickerOpen(false)}
-            />
-            <div className="absolute right-0 mt-2 min-w-[9rem] z-10 [background:var(--ds-glass-bg-strong)] [backdrop-filter:blur(var(--ds-glass-blur))_saturate(var(--ds-glass-saturate))] border [border-color:var(--ds-glass-border)] rounded-ds-control shadow-[var(--ds-shadow-glass-md)] p-1 flex flex-col gap-0.5">
-              {BASEMAP_ORDER.map((option) => (
-                <button
-                  key={option}
-                  onClick={() => {
-                    setBasemap(option);
-                    setPickerOpen(false);
-                  }}
-                  className="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-ds-lg text-xs font-medium text-ds-text-primary hover:[background:var(--ds-glass-bg-elevated)] transition-[background-color] duration-ds-fast text-left"
-                >
-                  <span>{BASEMAP_LABELS[option]}</span>
-                  {option === basemap && (
-                    <MorphIcon icon={Check} size={13} reducedMotion="user" className="text-brand-400" />
-                  )}
-                </button>
-              ))}
-            </div>
-          </>
-        )}
-      </div>
+    <div className="relative h-full w-full bg-ds-canvas">
+      <div ref={mapContainerRef} className="h-full w-full" />
     </div>
   );
 }
