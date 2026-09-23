@@ -38,6 +38,19 @@ interface MapContainerProps {
   onViewChange?: (view: MapView) => void;
   initialView?: MapView;
   basemap: Basemap;
+  /** Punto a centrar (p.ej. al tocar un evento de la lista); key fuerza re-vuelo. */
+  focus?: { lng: number; lat: number; key: number } | null;
+  selectedEarthquakeId?: string | null;
+}
+
+// MapLibre descarta los ids de feature que no son numéricos (los de USGS son
+// strings como "us7000abcd"), así que se copian a properties._id para poder
+// identificar el sismo al hacer click y filtrar el anillo de selección.
+function withQuakeIds(fc: EarthquakeGeoJSON): EarthquakeGeoJSON {
+  return {
+    ...fc,
+    features: fc.features.map((f) => ({ ...f, properties: { ...f.properties, _id: String(f.id) } })),
+  };
 }
 
 export default function MapContainer({
@@ -61,6 +74,8 @@ export default function MapContainer({
   onViewChange,
   initialView = DEFAULT_MAP_VIEW,
   basemap,
+  focus,
+  selectedEarthquakeId = null,
 }: MapContainerProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
@@ -79,6 +94,8 @@ export default function MapContainer({
   basemapRef.current = basemap;
   const earthquakesRef = useRef(earthquakes);
   earthquakesRef.current = earthquakes;
+  const selectedRef = useRef(selectedEarthquakeId);
+  selectedRef.current = selectedEarthquakeId;
   const airQualityRef = useRef(airQuality);
   airQualityRef.current = airQuality;
   const firesRef = useRef(fires);
@@ -123,7 +140,7 @@ export default function MapContainer({
     // Fuente y capa para Sismos (USGS)
     map.addSource("earthquakes-source", {
       type: "geojson",
-      data: earthquakesRef.current,
+      data: withQuakeIds(earthquakesRef.current),
     });
 
     map.addLayer({
@@ -152,6 +169,31 @@ export default function MapContainer({
         "circle-opacity": 0.85,
         "circle-stroke-width": 2,
         "circle-stroke-color": marker.stroke,
+      },
+    });
+
+    // Anillo del sismo seleccionado (desde el mapa o desde la lista).
+    map.addLayer({
+      id: "earthquakes-selected-layer",
+      type: "circle",
+      source: "earthquakes-source",
+      filter: ["==", ["get", "_id"], selectedRef.current ?? ""],
+      layout: {
+        visibility: showQuakesRef.current ? "visible" : "none",
+      },
+      paint: {
+        "circle-radius": [
+          "interpolate",
+          ["linear"],
+          ["coalesce", ["get", "mag"], 1],
+          2, 10,
+          5, 15,
+          7, 24,
+          9, 38
+        ],
+        "circle-color": "rgba(0,0,0,0)",
+        "circle-stroke-width": 3,
+        "circle-stroke-color": marker.selected,
       },
     });
 
@@ -428,7 +470,8 @@ export default function MapContainer({
       const coordinates = feature.geometry.coordinates.slice();
       const { mag, place, time, updated } = feature.properties as EarthquakeProperties;
 
-      if (feature.id != null) onSelectEarthquakeRef.current?.(String(feature.id));
+      const quakeId = (feature.properties as { _id?: string })._id;
+      if (quakeId) onSelectEarthquakeRef.current?.(quakeId);
 
       new maplibregl.Popup({ closeButton: true, focusAfterOpen: false })
         .setLngLat([coordinates[0], coordinates[1]])
@@ -629,12 +672,26 @@ export default function MapContainer({
     });
   }, [basemap]);
 
+  // 1c. Centrar en un evento seleccionado desde la lista.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !focus) return;
+    map.flyTo({ center: [focus.lng, focus.lat], zoom: Math.max(map.getZoom(), 5), duration: 1200, essential: true });
+  }, [focus]);
+
+  // 1d. Anillo de selección.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !isMapLoadedRef.current || !map.getLayer("earthquakes-selected-layer")) return;
+    map.setFilter("earthquakes-selected-layer", ["==", ["get", "_id"], selectedEarthquakeId ?? ""]);
+  }, [selectedEarthquakeId]);
+
   // 2. Actualización de datos de Sismos SIN recargar el mapa
   useEffect(() => {
     if (!mapRef.current || !isMapLoadedRef.current) return;
     const source = mapRef.current.getSource("earthquakes-source") as GeoJSONSource | undefined;
     if (source) {
-      source.setData(earthquakes);
+      source.setData(withQuakeIds(earthquakes));
     }
   }, [earthquakes]);
 
@@ -706,6 +763,7 @@ export default function MapContainer({
     if (!mapRef.current || !isMapLoadedRef.current) return;
     if (mapRef.current.getLayer("earthquakes-layer")) {
       mapRef.current.setLayoutProperty("earthquakes-layer", "visibility", showQuakes ? "visible" : "none");
+      mapRef.current.setLayoutProperty("earthquakes-selected-layer", "visibility", showQuakes ? "visible" : "none");
     }
   }, [showQuakes]);
 

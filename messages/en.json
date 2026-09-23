@@ -59,7 +59,8 @@
   "timeControl": {
     "live": "Live",
     "playback": "Playback",
-    "window": "Time window"
+    "window": "Time window",
+    "weekNote": "Earthquakes: last 7 days"
   },
   "events": {
     "title": "Recent events",
@@ -108,5 +109,38 @@
       "Orange": "Orange",
       "Red": "Red"
     }
+  },
+  "popup": {
+    "quake": "Earthquake M {mag}",
+    "magnitude": "Magnitude",
+    "depth": "Depth",
+    "occurred": "Occurred: {date}",
+    "updated": "Last updated: {date}",
+    "source": "Source: {source}",
+    "airQuality": "Air quality",
+    "airModel": "Air (model)",
+    "airModelNote": "Estimated by Open-Meteo, not directly observed",
+    "fire": "Active wildfire",
+    "frp": "FRP",
+    "confidence": "Confidence",
+    "temperature": "Temperature",
+    "humidity": "Humidity",
+    "wind": "Wind",
+    "alert": "{level} alert",
+    "range": "From: {from} · To: {to}",
+    "ongoing": "ongoing",
+    "gdacsReport": "View GDACS report",
+    "iss": "International Space Station",
+    "altitude": "Altitude",
+    "velocity": "Velocity",
+    "issSource": "NASA (OEM trajectory)",
+    "lastEruption": "Last eruption",
+    "elevation": "Elevation",
+    "noDate": "No documented date",
+    "bc": "{year} BCE",
+    "ad": "{year} CE",
+    "gvpNote": "Historical catalog (GVP) — not real-time monitoring",
+    "na": "N/A",
+    "close": "Close"
   }
 }

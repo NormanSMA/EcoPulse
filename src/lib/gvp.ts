@@ -44,7 +44,13 @@ export function toVolcanoFeature(raw: GvpRawFeature): VolcanoFeature | null {
 
 export async function fetchVolcanoes(signal?: AbortSignal): Promise<VolcanoGeoJSON> {
   try {
-    const res = await fetch(GVP_WFS_URL, { signal });
+    // El WFS del Smithsonian corta conexiones de vez en cuando (ECONNRESET):
+    // un reintento breve evita dejar la capa vacía por un fallo transitorio.
+    const res = await fetch(GVP_WFS_URL, { signal }).catch(async (err: unknown) => {
+      if (err instanceof DOMException && err.name === "AbortError") throw err;
+      await new Promise((r) => setTimeout(r, 1000));
+      return fetch(GVP_WFS_URL, { signal });
+    });
     if (!res.ok) {
       throw new Error(`Smithsonian GVP HTTP ${res.status}`);
     }

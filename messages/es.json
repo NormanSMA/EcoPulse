@@ -59,7 +59,8 @@
   "timeControl": {
     "live": "En vivo",
     "playback": "Reproducir",
-    "window": "Ventana temporal"
+    "window": "Ventana temporal",
+    "weekNote": "Sismos: últimos 7 días"
   },
   "events": {
     "title": "Eventos recientes",
@@ -108,5 +109,38 @@
       "Orange": "Naranja",
       "Red": "Roja"
     }
+  },
+  "popup": {
+    "quake": "Sismo M {mag}",
+    "magnitude": "Magnitud",
+    "depth": "Profundidad",
+    "occurred": "Ocurrió: {date}",
+    "updated": "Última actualización: {date}",
+    "source": "Fuente: {source}",
+    "airQuality": "Calidad del aire",
+    "airModel": "Aire (modelo)",
+    "airModelNote": "Estimado por Open-Meteo, no observado directamente",
+    "fire": "Incendio activo",
+    "frp": "FRP",
+    "confidence": "Confianza",
+    "temperature": "Temperatura",
+    "humidity": "Humedad",
+    "wind": "Viento",
+    "alert": "Alerta {level}",
+    "range": "Desde: {from} · Hasta: {to}",
+    "ongoing": "en curso",
+    "gdacsReport": "Ver reporte GDACS",
+    "iss": "Estación Espacial Internacional",
+    "altitude": "Altitud",
+    "velocity": "Velocidad",
+    "issSource": "NASA (trayectoria OEM)",
+    "lastEruption": "Última erupción",
+    "elevation": "Elevación",
+    "noDate": "Sin fecha documentada",
+    "bc": "{year} a.C.",
+    "ad": "{year} d.C.",
+    "gvpNote": "Catálogo histórico (GVP) — no es monitoreo en tiempo real",
+    "na": "N/D",
+    "close": "Cerrar"
   }
 }

@@ -26,6 +26,7 @@ import {
   issPopup,
   volcanoPopup,
   airQualityModelPopup,
+  popupCloseLabel,
 } from "@/lib/popupHtml";
 
 interface GlobeContainerProps {
@@ -50,6 +51,7 @@ interface GlobeContainerProps {
   onViewChange?: (view: MapView) => void;
   initialView?: MapView;
   theme: "light" | "dark";
+  focus?: { lng: number; lat: number; key: number } | null;
 }
 
 const EARTH_RADIUS_M = 6371000;
@@ -133,6 +135,7 @@ export default function GlobeContainer({
   selectedEarthquakeId,
   initialView = DEFAULT_MAP_VIEW,
   theme,
+  focus,
 }: GlobeContainerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<Cesium.Viewer | null>(null);
@@ -450,6 +453,13 @@ export default function GlobeContainer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // 1b. Centrar en un evento seleccionado desde la lista.
+  useEffect(() => {
+    const viewer = viewerRef.current;
+    if (!viewer || !focus) return;
+    viewer.camera.flyTo({ destination: Cesium.Cartesian3.fromDegrees(focus.lng, focus.lat, 2500000), duration: 1.5 });
+  }, [focus]);
+
   // 2. Color de fondo segun tema (no recrea el viewer).
   useEffect(() => {
     const viewer = viewerRef.current;
@@ -460,42 +470,97 @@ export default function GlobeContainer({
         : Cesium.Color.fromCssColorString(themes.light.canvas);
   }, [theme]);
 
-  // 3. Renderizado de las 8 capas como entidades. Se limpian y re-crean en
-  // cada cambio de datos/visibilidad — mismo enfoque que el ejemplo de
-  // referencia, simple y suficiente para el volumen de datos del proyecto.
-  useEffect(() => {
+  // 3. Renderizado por capa. Cada capa tiene su propio effect y solo
+  // re-crea SUS entidades cuando cambian sus datos o su visibilidad (antes
+  // un solo effect borraba y recreaba las 8 capas ante cualquier cambio —
+  // incluido el poll de la ISS cada 15 s o seleccionar un sismo).
+  const layerEntitiesRef = useRef<Record<string, Cesium.Entity[]>>({});
+  const selectedRef = useRef(selectedEarthquakeId);
+  selectedRef.current = selectedEarthquakeId;
+
+  // Cierra o refresca el popup abierto si su entidad desapareció o cambió
+  // (típicamente la ISS, que llega por poll en vivo).
+  function syncPopup(viewer: Cesium.Viewer) {
+    const info = popupInfoRef.current;
+    if (!info) return;
+    if (!viewer.entities.getById(info.entityId)) {
+      setPopupInfo(null);
+      return;
+    }
+    const refreshedHtml = buildPopupHtml(info.entityId);
+    if (refreshedHtml && refreshedHtml !== info.html) {
+      setPopupInfo({ entityId: info.entityId, html: refreshedHtml });
+    }
+  }
+
+  function replaceLayer(
+    key: string,
+    visible: boolean,
+    build: (add: (e: Cesium.Entity.ConstructorOptions) => void) => void
+  ) {
     const viewer = viewerRef.current;
     if (!viewer) return;
+    viewer.entities.suspendEvents();
+    (layerEntitiesRef.current[key] ?? []).forEach((e) => viewer.entities.remove(e));
+    const added: Cesium.Entity[] = [];
+    if (visible) build((opts) => added.push(viewer.entities.add(opts)));
+    layerEntitiesRef.current[key] = added;
+    viewer.entities.resumeEvents();
+    syncPopup(viewer);
+  }
 
-    viewer.entities.removeAll();
+  // Estilo del sismo seleccionado: se aplica solo a la entidad afectada.
+  function styleQuake(id: string | null, selected: boolean) {
+    const viewer = viewerRef.current;
+    if (!viewer || !id) return;
+    const entity = viewer.entities.getById(`eq-${id}`);
+    const f = earthquakesRef.current.features.find((ft) => String(ft.id) === id);
+    if (!entity?.point || !f) return;
+    const mag = f.properties.mag ?? 0;
+    entity.point.pixelSize = new Cesium.ConstantProperty(selected ? 16 : 6 + mag * 2);
+    entity.point.outlineColor = new Cesium.ConstantProperty(
+      Cesium.Color.fromCssColorString(selected ? marker.selected : marker.stroke)
+    );
+    entity.point.outlineWidth = new Cesium.ConstantProperty(selected ? 3 : 1);
+  }
 
-    if (showQuakes) {
+  const prevSelectedRef = useRef<string | null>(null);
+  useEffect(() => {
+    styleQuake(prevSelectedRef.current, false);
+    styleQuake(selectedEarthquakeId ?? null, true);
+    prevSelectedRef.current = selectedEarthquakeId ?? null;
+  }, [selectedEarthquakeId]);
+
+  useEffect(() => {
+    replaceLayer("quakes", showQuakes, (add) => {
       earthquakes.features.forEach((f) => {
         const [lon, lat, depth] = f.geometry.coordinates;
         const mag = f.properties.mag ?? 0;
-        const isSelected = String(f.id) === selectedEarthquakeId;
-        viewer.entities.add({
+        add({
           id: `eq-${f.id}`,
           position: Cesium.Cartesian3.fromDegrees(lon, lat, 0),
           point: {
-            pixelSize: isSelected ? 16 : 6 + mag * 2,
+            pixelSize: 6 + mag * 2,
             color: Cesium.Color.fromCssColorString(magnitudeColor(mag)).withAlpha(0.9),
-            outlineColor: Cesium.Color.fromCssColorString(isSelected ? marker.selected : marker.stroke),
-            outlineWidth: isSelected ? 3 : 1,
+            outlineColor: Cesium.Color.fromCssColorString(marker.stroke),
+            outlineWidth: 1,
             heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
           },
           description: `M ${mag} — ${f.properties.place} (${depth ?? 0} km)`,
         });
       });
-    }
+    });
+    styleQuake(selectedRef.current ?? null, true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [earthquakes, showQuakes]);
 
-    if (showFires) {
-      // FIRMS trae filas casi-duplicadas (mismo hallazgo que ya forzó
-      // dedupeByKey() en la ingesta 2D) — sin esto, viewer.entities.add()
-      // lanza DeveloperError por id repetido y crashea el globo entero.
+  useEffect(() => {
+    // FIRMS trae filas casi-duplicadas — sin dedupe, entities.add() lanza
+    // DeveloperError por id repetido y crashea el globo entero.
+    replaceLayer("fires", showFires, (add) => {
       dedupeByKey(fires.features, "id").forEach((f) => {
         const [lon, lat] = f.geometry.coordinates;
-        viewer.entities.add({
+        add({
           id: `fire-${f.id}`,
           position: Cesium.Cartesian3.fromDegrees(lon, lat, 0),
           point: {
@@ -507,12 +572,15 @@ export default function GlobeContainer({
           },
         });
       });
-    }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fires, showFires]);
 
-    if (showAirQuality) {
+  useEffect(() => {
+    replaceLayer("aq", showAirQuality, (add) => {
       airQuality.features.forEach((f) => {
         const [lon, lat] = f.geometry.coordinates;
-        viewer.entities.add({
+        add({
           id: `aq-${f.id}`,
           position: Cesium.Cartesian3.fromDegrees(lon, lat, 0),
           point: {
@@ -524,13 +592,16 @@ export default function GlobeContainer({
           },
         });
       });
-    }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [airQuality, showAirQuality]);
 
-    if (showAirQualityModel) {
+  useEffect(() => {
+    replaceLayer("aqm", showAirQualityModel, (add) => {
       airQualityModel.features.forEach((f) => {
         const [lon, lat] = f.geometry.coordinates;
         const category = getAQICategory(f.properties.pm25);
-        viewer.entities.add({
+        add({
           id: `aqm-${f.id}`,
           position: Cesium.Cartesian3.fromDegrees(lon, lat, 0),
           point: {
@@ -542,12 +613,15 @@ export default function GlobeContainer({
           },
         });
       });
-    }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [airQualityModel, showAirQualityModel]);
 
-    if (showWeather) {
+  useEffect(() => {
+    replaceLayer("weather", showWeather, (add) => {
       weather.features.forEach((f) => {
         const [lon, lat] = f.geometry.coordinates;
-        viewer.entities.add({
+        add({
           id: `weather-${f.id}`,
           position: Cesium.Cartesian3.fromDegrees(lon, lat, 0),
           point: { pixelSize: 5, color: Cesium.Color.fromCssColorString(layers.weather), heightReference: Cesium.HeightReference.CLAMP_TO_GROUND },
@@ -563,40 +637,62 @@ export default function GlobeContainer({
           },
         });
       });
-    }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [weather, showWeather]);
 
-    if (showDisasters) {
+  useEffect(() => {
+    replaceLayer("disasters", showDisasters, (add) => {
       disasters.features.forEach((f) => {
         const [lon, lat] = f.geometry.coordinates;
-        const color = alertColor(f.properties.alertLevel);
-        viewer.entities.add({
+        add({
           id: `disaster-${f.id}`,
           position: Cesium.Cartesian3.fromDegrees(lon, lat, 0),
-          point: { pixelSize: 10, color: Cesium.Color.fromCssColorString(color).withAlpha(0.85), heightReference: Cesium.HeightReference.CLAMP_TO_GROUND },
+          point: {
+            pixelSize: 10,
+            color: Cesium.Color.fromCssColorString(alertColor(f.properties.alertLevel)).withAlpha(0.85),
+            heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
+          },
         });
       });
-    }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [disasters, showDisasters]);
 
-    if (showVolcanoes) {
+  useEffect(() => {
+    replaceLayer("volcanoes", showVolcanoes, (add) => {
       volcanoes.features.forEach((f) => {
         const [lon, lat] = f.geometry.coordinates;
-        viewer.entities.add({
+        add({
           id: `volcano-${f.id}`,
           position: Cesium.Cartesian3.fromDegrees(lon, lat, 0),
-          point: { pixelSize: 6, color: Cesium.Color.fromCssColorString(layers.volcanoes).withAlpha(0.85), outlineColor: Cesium.Color.fromCssColorString(marker.volcanoStroke), outlineWidth: 1, heightReference: Cesium.HeightReference.CLAMP_TO_GROUND },
+          point: {
+            pixelSize: 6,
+            color: Cesium.Color.fromCssColorString(layers.volcanoes).withAlpha(0.85),
+            outlineColor: Cesium.Color.fromCssColorString(marker.volcanoStroke),
+            outlineWidth: 1,
+            heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
+          },
         });
       });
-    }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [volcanoes, showVolcanoes]);
 
-    if (showIss && iss.features[0]) {
-      const issFeature = iss.features[0];
+  useEffect(() => {
+    const issFeature = iss.features[0];
+    replaceLayer("iss", showIss && !!issFeature, (add) => {
       const [lon, lat] = issFeature.geometry.coordinates;
       const altitudeM = issFeature.properties.altitudeKm * 1000;
-
-      viewer.entities.add({
+      add({
         id: "iss",
         position: Cesium.Cartesian3.fromDegrees(lon, lat, altitudeM),
-        point: { pixelSize: 10, color: Cesium.Color.fromCssColorString(marker.issFill), outlineColor: Cesium.Color.fromCssColorString(marker.issStroke), outlineWidth: 2 },
+        point: {
+          pixelSize: 10,
+          color: Cesium.Color.fromCssColorString(marker.issFill),
+          outlineColor: Cesium.Color.fromCssColorString(marker.issStroke),
+          outlineWidth: 2,
+        },
         label: {
           text: "ISS",
           font: "500 12px 'Google Sans Flex', Roboto, sans-serif",
@@ -610,8 +706,7 @@ export default function GlobeContainer({
           backgroundColor: Cesium.Color.fromCssColorString(themes.dark.surface).withAlpha(0.85),
         },
       });
-
-      viewer.entities.add({
+      add({
         id: "iss-orbit",
         polyline: {
           positions: computeOrbitRing(lat, lon, altitudeM),
@@ -619,43 +714,9 @@ export default function GlobeContainer({
           material: Cesium.Color.fromCssColorString(marker.issStroke).withAlpha(0.4),
         },
       });
-    }
-
-    // Si el popup abierto pertenece a una entidad que ya no existe (capa
-    // ocultada, o su feature desapareció de los datos), se cierra. Si sigue
-    // existiendo pero sus datos cambiaron (típicamente la ISS, que llega por
-    // poll en vivo), se refresca el contenido para no mostrar valores viejos.
-    if (popupInfoRef.current) {
-      const currentId = popupInfoRef.current.entityId;
-      const stillExists = !!viewer.entities.getById(currentId);
-      if (!stillExists) {
-        setPopupInfo(null);
-      } else {
-        const refreshedHtml = buildPopupHtml(currentId);
-        if (refreshedHtml && refreshedHtml !== popupInfoRef.current.html) {
-          setPopupInfo({ entityId: currentId, html: refreshedHtml });
-        }
-      }
-    }
-  }, [
-    earthquakes,
-    airQuality,
-    fires,
-    weather,
-    disasters,
-    iss,
-    volcanoes,
-    airQualityModel,
-    showQuakes,
-    showAirQuality,
-    showFires,
-    showWeather,
-    showDisasters,
-    showIss,
-    showVolcanoes,
-    showAirQualityModel,
-    selectedEarthquakeId,
-  ]);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [iss, showIss]);
 
   return (
     <div className="relative w-full h-full">
@@ -664,7 +725,7 @@ export default function GlobeContainer({
         <div ref={popupElRef} className="cesium-glass-popup" style={{ display: "none" }}>
           <button
             type="button"
-            aria-label="Cerrar"
+            aria-label={popupCloseLabel()}
             className="cesium-glass-popup-close"
             onClick={() => setPopupInfo(null)}
           >

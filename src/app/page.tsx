@@ -22,6 +22,7 @@ import { TrendChart } from "@/components/ui/TrendChart";
 import { Legend } from "@/components/ui/Legend";
 import { EarthquakeGeoJSON, AirQualityGeoJSON, FireGeoJSON, WeatherGeoJSON, DisasterGeoJSON, IssGeoJSON, VolcanoGeoJSON, AirQualityModelGeoJSON } from "@/lib/types";
 import { fetchLiveEarthquakes } from "@/lib/usgs";
+import { setPopupLocale } from "@/lib/popupHtml";
 
 const MAP_LOADING = (
   <div className="flex h-full w-full flex-col items-center justify-center gap-4 bg-ds-canvas text-ds-text-secondary">
@@ -82,6 +83,17 @@ const INITIAL_AIR_QUALITY_MODEL: AirQualityModelGeoJSON = {
 };
 
 const ISS_REFRESH_MS = 15000;
+
+const HOUR_MS = 3_600_000;
+const WINDOW_MS: Record<TimeWindow, number | null> = {
+  live: null,
+  "1h": HOUR_MS,
+  "6h": 6 * HOUR_MS,
+  "24h": 24 * HOUR_MS,
+  "7d": 7 * 24 * HOUR_MS,
+};
+const PLAYBACK_DURATION_MS = 20_000;
+const PLAYBACK_TICK_MS = 100;
 
 const INITIAL_VISIBILITY: LayerVisibility = {
   earthquakes: true,
@@ -294,16 +306,91 @@ function HomePageContent() {
     };
   }, []);
 
-  // Búsqueda: filtra sismos por lugar. Solo UI/cliente sobre datos ya
-  // obtenidos — no toca la ingesta ni pega de nuevo a USGS.
+  // ---------- Ventana temporal y reproducción ----------
+  // "live" = todo lo disponible; 1h/6h/24h/7d filtran sismos, incendios y
+  // desastres por su marca de tiempo. El feed diario de USGS solo cubre 24 h,
+  // así que para 7d se pide aparte el feed semanal (una vez, bajo demanda).
+  // La reproducción recorre la ventana (24 h si es "live") en ~20 s, mostrando
+  // solo los eventos ocurridos hasta el cursor.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(id);
+  }, []);
+
+  const [weekQuakes, setWeekQuakes] = useState<EarthquakeGeoJSON | null>(null);
+  useEffect(() => {
+    if (timeWindow !== "7d" || weekQuakes) return;
+    const controller = new AbortController();
+    fetchLiveEarthquakes(controller.signal, "week")
+      .then(setWeekQuakes)
+      .catch((err: unknown) => {
+        if (!(err instanceof DOMException && err.name === "AbortError")) {
+          console.error("Error al obtener el feed semanal de USGS:", err);
+        }
+      });
+    return () => controller.abort();
+  }, [timeWindow, weekQuakes]);
+
+  const [playhead, setPlayhead] = useState<number | null>(null);
+  const windowMs = WINDOW_MS[timeWindow];
+  const span = windowMs ?? WINDOW_MS["24h"]!;
+
+  useEffect(() => {
+    if (!playing) return;
+    const step = (span * PLAYBACK_TICK_MS) / PLAYBACK_DURATION_MS;
+    setPlayhead((p) => p ?? Date.now() - span);
+    const id = setInterval(() => setPlayhead((p) => (p ?? Date.now() - span) + step), PLAYBACK_TICK_MS);
+    return () => clearInterval(id);
+  }, [playing, span]);
+
+  // Fin de la reproducción: vuelve al modo en vivo.
+  useEffect(() => {
+    if (playhead != null && playhead >= Date.now()) {
+      setPlaying(false);
+      setPlayhead(null);
+    }
+  }, [playhead]);
+
+  const changeWindow = useCallback((w: TimeWindow) => {
+    setTimeWindow(w);
+    setPlaying(false);
+    setPlayhead(null);
+  }, []);
+
+  const rangeStart = windowMs != null || playhead != null ? now - span : -Infinity;
+  const rangeEnd = playhead ?? Infinity;
+  const inRange = useCallback((ts: number) => ts >= rangeStart && ts <= rangeEnd, [rangeStart, rangeEnd]);
+  const playProgress = playhead != null ? (playhead - (now - span)) / span : null;
+
+  // ---------- Filtros (búsqueda + tiempo) ----------
+  // Solo UI/cliente sobre datos ya obtenidos — no toca la ingesta.
+  const baseEarthquakes = timeWindow === "7d" && weekQuakes ? weekQuakes : earthquakes;
+
   const filteredEarthquakes = useMemo<EarthquakeGeoJSON>(() => {
-    if (!searchQuery.trim()) return earthquakes;
     const q = searchQuery.trim().toLowerCase();
     return {
-      ...earthquakes,
-      features: earthquakes.features.filter((f) => f.properties.place?.toLowerCase().includes(q)),
+      ...baseEarthquakes,
+      features: baseEarthquakes.features.filter(
+        (f) => inRange(f.properties.time) && (!q || f.properties.place?.toLowerCase().includes(q))
+      ),
     };
-  }, [earthquakes, searchQuery]);
+  }, [baseEarthquakes, searchQuery, inRange]);
+
+  const filteredFires = useMemo<FireGeoJSON>(
+    () => ({ ...fires, features: fires.features.filter((f) => inRange(new Date(f.properties.acquiredAt).getTime())) }),
+    [fires, inRange]
+  );
+
+  const filteredDisasters = useMemo<DisasterGeoJSON>(
+    () => ({
+      ...disasters,
+      features: disasters.features.filter((f) =>
+        f.properties.fromDate ? inRange(new Date(f.properties.fromDate).getTime()) : rangeStart === -Infinity
+      ),
+    }),
+    [disasters, inRange, rangeStart]
+  );
 
   const maxMag = useMemo(() => {
     if (!filteredEarthquakes.features.length) return 0;
@@ -316,53 +403,83 @@ function HomePageContent() {
   const generatedAt = earthquakes.metadata.generated || null;
   const feedStatus = useFreshness(generatedAt);
 
-  // Lista combinada de sismos/incendios/desastres ordenada por recencia —
-  // presentacional, no agrega ninguna fuente nueva.
+  // Centrar el mapa/globo en un evento (desde la lista).
+  const [focus, setFocus] = useState<{ lng: number; lat: number; key: number } | null>(null);
+  const focusOn = useCallback((lng: number, lat: number) => {
+    setFocus({ lng, lat, key: Date.now() });
+    setMobileSheet(null);
+  }, []);
+  const changeMapMode = useCallback((mode: MapMode) => {
+    setFocus(null);
+    setMapMode(mode);
+  }, []);
+
+  // Idioma de los popups (HTML fuera del árbol de React).
+  useEffect(() => {
+    setPopupLocale(locale);
+  }, [locale]);
+
+  // Lista combinada de sismos/incendios/desastres ordenada por recencia.
+  // Respeta la visibilidad de capas y los filtros de búsqueda/tiempo.
   const eventItems = useMemo<EventListItem[]>(() => {
     type RankedItem = EventListItem & { ts: number };
 
-    const quakeItems: RankedItem[] = filteredEarthquakes.features.map((f) => ({
-      id: `eq-${f.id}`,
-      icon: Waves,
-      color: magnitudeColor(f.properties.mag ?? 0),
-      title: `M ${f.properties.mag?.toFixed(1) ?? "?"} — ${f.properties.place}`,
-      description: tKinds("earthquake"),
-      timestamp: new Date(f.properties.time).toLocaleString(locale),
-      status: getFreshness(f.properties.time),
-      selected: String(f.id) === selectedQuakeId,
-      onClick: () => setSelectedQuakeId(String(f.id)),
-      ts: f.properties.time,
-    }));
+    const quakeItems: RankedItem[] = !visibility.earthquakes
+      ? []
+      : filteredEarthquakes.features.map((f) => ({
+          id: `eq-${f.id}`,
+          icon: Waves,
+          color: magnitudeColor(f.properties.mag ?? 0),
+          title: `M ${f.properties.mag?.toFixed(1) ?? "?"} — ${f.properties.place}`,
+          description: tKinds("earthquake"),
+          timestamp: new Date(f.properties.time).toLocaleString(locale),
+          status: getFreshness(f.properties.time),
+          selected: String(f.id) === selectedQuakeId,
+          onClick: () => {
+            setSelectedQuakeId(String(f.id));
+            focusOn(f.geometry.coordinates[0], f.geometry.coordinates[1]);
+          },
+          ts: f.properties.time,
+        }));
 
-    const fireItems: RankedItem[] = fires.features.map((f) => {
-      const ts = new Date(f.properties.acquiredAt).getTime();
-      return {
-        id: `fire-${f.id}`,
-        icon: Flame,
-        color: layers.fires,
-        title: `${tKinds("fire")} · FRP ${f.properties.frp.toFixed(1)}`,
-        description: f.properties.satellite,
-        timestamp: new Date(f.properties.acquiredAt).toLocaleString(locale),
-        status: getFreshness(ts, { live: 180, recent: 720 }),
-        ts,
-      };
-    });
+    const fireItems: RankedItem[] = !visibility.fires
+      ? []
+      : filteredFires.features.map((f) => {
+          const ts = new Date(f.properties.acquiredAt).getTime();
+          return {
+            id: `fire-${f.id}`,
+            icon: Flame,
+            color: layers.fires,
+            title: `${tKinds("fire")} · FRP ${f.properties.frp.toFixed(1)}`,
+            description: f.properties.satellite,
+            timestamp: new Date(f.properties.acquiredAt).toLocaleString(locale),
+            status: getFreshness(ts, { live: 180, recent: 720 }),
+            onClick: () => focusOn(f.geometry.coordinates[0], f.geometry.coordinates[1]),
+            ts,
+          };
+        });
 
-    const disasterItems: RankedItem[] = disasters.features.map((f) => {
-      const ts = f.properties.fromDate ? new Date(f.properties.fromDate).getTime() : 0;
-      return {
-        id: `disaster-${f.id}`,
-        icon: AlertTriangle,
-        color: alertColor(f.properties.alertLevel),
-        title: `${f.properties.eventTypeLabel} — ${f.properties.name}`,
-        description: f.properties.country,
-        timestamp: f.properties.fromDate ? new Date(f.properties.fromDate).toLocaleString(locale) : "",
-        status: getFreshness(ts || null, { live: 1440, recent: 10080 }),
-        ts,
-      };
-    });
+    const disasterItems: RankedItem[] = !visibility.disasters
+      ? []
+      : filteredDisasters.features.map((f) => {
+          const ts = f.properties.fromDate ? new Date(f.properties.fromDate).getTime() : 0;
+          return {
+            id: `disaster-${f.id}`,
+            icon: AlertTriangle,
+            color: alertColor(f.properties.alertLevel),
+            title: `${f.properties.eventTypeLabel} — ${f.properties.name}`,
+            description: f.properties.country,
+            timestamp: f.properties.fromDate ? new Date(f.properties.fromDate).toLocaleString(locale) : "",
+            status: getFreshness(ts || null, { live: 1440, recent: 10080 }),
+            onClick: () => focusOn(f.geometry.coordinates[0], f.geometry.coordinates[1]),
+            ts,
+          };
+        });
 
+    // Dedupe por id: FIRMS puede traer filas casi duplicadas con el mismo id.
+    const seen = new Set<string>();
     return [...quakeItems, ...fireItems, ...disasterItems]
+      .filter((item) => (seen.has(item.id) ? false : (seen.add(item.id), true)))
       .sort((a, b) => b.ts - a.ts)
       .slice(0, 20)
       .map((item): EventListItem => {
@@ -370,14 +487,20 @@ function HomePageContent() {
         void _rank;
         return rest;
       });
-  }, [filteredEarthquakes, fires, disasters, tKinds, locale, selectedQuakeId]);
+  }, [filteredEarthquakes, filteredFires, filteredDisasters, visibility, tKinds, locale, selectedQuakeId, focusOn]);
+
+  // Total real (la lista solo muestra los 20 más recientes).
+  const eventTotal =
+    (visibility.earthquakes ? filteredEarthquakes.features.length : 0) +
+    (visibility.fires ? filteredFires.features.length : 0) +
+    (visibility.disasters ? filteredDisasters.features.length : 0);
 
   const mapProps = {
     earthquakes: filteredEarthquakes,
     airQuality,
-    fires,
+    fires: filteredFires,
     weather,
-    disasters,
+    disasters: filteredDisasters,
     iss,
     volcanoes,
     airQualityModel,
@@ -391,6 +514,7 @@ function HomePageContent() {
     showAirQualityModel: visibility.airQualityModel,
     onSelectEarthquake: setSelectedQuakeId,
     initialView: mapView,
+    focus,
   };
 
   const feedBadge = generatedAt != null ? <StatusBadge status={feedStatus} size="sm" /> : null;
@@ -428,7 +552,7 @@ function HomePageContent() {
         <MorphIcon icon={ChartSpline} size={18} reducedMotion="user" className="text-ds-text-secondary" />
         {t("trend.title")}
       </div>
-      <TrendChart earthquakes={earthquakes} selectedEarthquakeId={selectedQuakeId} className="h-40" />
+      <TrendChart earthquakes={baseEarthquakes} selectedEarthquakeId={selectedQuakeId} className="h-40" />
     </div>
   );
 
@@ -448,7 +572,7 @@ function HomePageContent() {
       <Header
         onSearchChange={setSearchQuery}
         mapMode={mapMode}
-        onMapModeChange={setMapMode}
+        onMapModeChange={changeMapMode}
         basemap={basemap}
         onBasemapChange={setBasemap}
         theme={theme}
@@ -465,7 +589,7 @@ function HomePageContent() {
       >
         <div className="absolute inset-0">
           {mapMode === "2d" ? (
-            <MapContainer {...mapProps} onViewChange={setMapView} basemap={basemap} />
+            <MapContainer {...mapProps} onViewChange={setMapView} basemap={basemap} selectedEarthquakeId={selectedQuakeId} />
           ) : (
             <GlobeContainer {...mapProps} selectedEarthquakeId={selectedQuakeId} theme={theme} />
           )}
@@ -523,7 +647,7 @@ function HomePageContent() {
             <MorphIcon icon={Inbox} size={20} reducedMotion="user" />
             {t("title")}
             <span className="grid h-6 min-w-6 place-items-center rounded-ds-full bg-ds-primary px-1.5 text-xs font-medium text-ds-primary-on">
-              {eventItems.length}
+              {eventTotal > 999 ? "999+" : eventTotal}
             </span>
           </Button>
         )}
@@ -539,7 +663,7 @@ function HomePageContent() {
               <MorphIcon icon={Inbox} size={18} reducedMotion="user" />
               {t("title")}
               <span className="grid h-5 min-w-5 place-items-center rounded-ds-full bg-ds-primary px-1 text-[11px] font-medium text-ds-primary-on">
-                {eventItems.length}
+                {eventTotal > 999 ? "999+" : eventTotal}
               </span>
             </Button>
           </div>
@@ -548,13 +672,16 @@ function HomePageContent() {
 
           <TimeControl
             window={timeWindow}
-            onWindowChange={setTimeWindow}
+            onWindowChange={changeWindow}
             playing={playing}
             onTogglePlayback={() => setPlaying((p) => !p)}
             liveLabel={tTime("live")}
             playbackLabel={tTime("playback")}
             windowLabel={tTime("window")}
             locale={locale}
+            playhead={playhead}
+            playProgress={playProgress}
+            note={timeWindow === "7d" ? tTime("weekNote") : undefined}
             className="pointer-events-auto w-full"
           />
 

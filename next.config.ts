@@ -1,6 +1,10 @@
 import type { NextConfig } from "next";
 import CopyWebpackPlugin from "copy-webpack-plugin";
 
+// 'unsafe-eval' es necesario también en producción: CesiumJS evalúa código
+// y compila WASM en runtime (verificado: sin él el globo 3D lanza EvalError y
+// WebAssembly.instantiate queda bloqueado). 'unsafe-inline' lo requieren los
+// scripts inline de hidratación de Next al no usar nonces.
 const cspHeader = `
     default-src 'self';
     script-src 'self' 'unsafe-eval' 'unsafe-inline';
@@ -24,6 +28,13 @@ const nextConfig: NextConfig = {
   // Cesium (Fase 3.3) necesita sus assets estáticos (Workers/Assets/Widgets)
   // servidos same-origin en /cesium/ — se copian de node_modules en cada build/dev.
   webpack: (config, { isServer }) => {
+    // @spz-loader/core (Gaussian splats, que EcoPulse no usa) lo importa
+    // Cesium de forma dinámica y trae un WASM embebido como string: el
+    // minificador lo convierte en un template literal con escapes octales
+    // inválidos y el chunk revienta con SyntaxError en producción (el globo
+    // 3D no cargaba). Se reemplaza por un módulo vacío.
+    config.resolve.alias = { ...config.resolve.alias, "@spz-loader/core": false };
+
     if (!isServer) {
       config.plugins.push(
         new CopyWebpackPlugin({

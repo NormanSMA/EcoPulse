@@ -16,18 +16,17 @@ export interface TimeControlProps {
   playbackLabel?: string;
   windowLabel?: string;
   locale?: string;
+  /** Instante del cursor durante la reproducción (ms). Sustituye al reloj. */
+  playhead?: number | null;
+  /** Progreso de la reproducción 0..1 (barra fina bajo la fecha). */
+  playProgress?: number | null;
+  /** Aviso corto (p.ej. "Sismos: últimos 7 días"). */
+  note?: string;
   className?: string;
 }
 
-function useUtcClock(locale?: string) {
-  const [now, setNow] = useState<Date | null>(null);
-  useEffect(() => {
-    setNow(new Date());
-    const id = setInterval(() => setNow(new Date()), 30_000);
-    return () => clearInterval(id);
-  }, []);
-  if (!now) return "";
-  return `${now.toLocaleString(locale, {
+function formatUtc(date: Date, locale?: string) {
+  return `${date.toLocaleString(locale, {
     weekday: "short",
     day: "numeric",
     month: "short",
@@ -37,11 +36,22 @@ function useUtcClock(locale?: string) {
   })} UTC`;
 }
 
+function useNow() {
+  const [now, setNow] = useState<Date | null>(null);
+  useEffect(() => {
+    setNow(new Date());
+    const id = setInterval(() => setNow(new Date()), 30_000);
+    return () => clearInterval(id);
+  }, []);
+  return now;
+}
+
 /**
  * Tarjeta de línea de tiempo inferior, al estilo del control de fecha de
  * Weather Lab: botón circular de reproducción, fecha actual en UTC y una
- * pista con paradas para la ventana temporal. Solo UI por ahora — el estado
- * de ventana/playback todavía no filtra las capas del mapa.
+ * pista con paradas para la ventana temporal. La ventana filtra sismos,
+ * incendios y desastres; la reproducción recorre esa ventana en el tiempo
+ * (lógica en page.tsx).
  */
 export function TimeControl({
   window: activeWindow,
@@ -52,9 +62,14 @@ export function TimeControl({
   playbackLabel = "Playback",
   windowLabel = "Time window",
   locale,
+  playhead,
+  playProgress,
+  note,
   className,
 }: TimeControlProps) {
-  const clock = useUtcClock(locale);
+  const now = useNow();
+  const shown = playhead != null ? new Date(playhead) : now;
+  const clock = shown ? formatUtc(shown, locale) : "";
   const activeIndex = WINDOWS.indexOf(activeWindow);
   const progress = (activeIndex / (WINDOWS.length - 1)) * 100;
 
@@ -72,7 +87,7 @@ export function TimeControl({
         aria-pressed={playing}
         className="relative isolate grid h-12 w-12 shrink-0 place-items-center rounded-ds-full border border-ds-outline text-ds-text-primary transition-colors duration-ds-fast before:absolute before:inset-0 before:rounded-full before:bg-current before:opacity-0 hover:before:opacity-[0.08] active:before:opacity-[0.12]"
       >
-        <MorphIcon icon={playing ? Pause : Play} size={20} reducedMotion="user" className={cn(!playing && "translate-x-px")} />
+        <MorphIcon key={playing ? "pause" : "play"} icon={playing ? Pause : Play} size={20} reducedMotion="user" className={cn(!playing && "translate-x-px")} />
       </button>
 
       <div className="flex min-w-0 flex-1 flex-col gap-2">
@@ -80,13 +95,22 @@ export function TimeControl({
           <span className="truncate text-sm font-medium tabular-nums text-ds-text-primary sm:text-base">
             {clock || " "}
           </span>
-          {activeWindow === "live" && (
+          {note && playhead == null && (
+            <span className="hidden shrink-0 text-xs text-ds-text-muted sm:inline">{note}</span>
+          )}
+          {activeWindow === "live" && playhead == null && (
             <span className="inline-flex shrink-0 items-center gap-1.5 text-xs font-medium text-ds-status-live">
               <span className="h-2 w-2 animate-pulse rounded-full bg-ds-status-live" />
               {liveLabel}
             </span>
           )}
         </div>
+
+        {playProgress != null && (
+          <div className="h-0.5 w-full overflow-hidden rounded-full bg-ds-surface-highest" aria-hidden="true">
+            <div className="h-full bg-ds-highlight" style={{ width: `${Math.min(100, playProgress * 100)}%` }} />
+          </div>
+        )}
 
         <div role="radiogroup" aria-label={windowLabel} className="relative">
           {/* Pista + progreso */}

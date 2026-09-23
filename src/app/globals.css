@@ -72,11 +72,15 @@
 /* debajo de los paneles flotantes (--ep-inset-*).                      */
 /* ------------------------------------------------------------------ */
 
-.ep-map-stage {
-  --ep-inset-top: 16px;
-  --ep-inset-right: 16px;
-  --ep-inset-bottom: 16px;
-  --ep-inset-left: 16px;
+/* En @layer components para que las utilidades responsivas de page.tsx
+   ([--ep-inset-bottom:172px] lg:[...]) puedan sobreescribir estos defaults. */
+@layer components {
+  .ep-map-stage {
+    --ep-inset-top: 16px;
+    --ep-inset-right: 16px;
+    --ep-inset-bottom: 16px;
+    --ep-inset-left: 16px;
+  }
 }
 
 .ep-map-stage .maplibregl-ctrl-top-right {
@@ -163,9 +167,13 @@
 }
 
 /* Créditos de Cesium Ion (obligatorios por términos de uso, no se ocultan). */
-.ep-map-stage .cesium-widget-credits {
+.ep-map-stage .cesium-viewer-bottom {
   bottom: var(--ep-inset-bottom) !important;
   left: var(--ep-inset-left) !important;
+  right: auto !important;
+}
+.ep-map-stage .cesium-widget-credits {
+  display: inline-block !important;
   padding: 2px 10px;
   border-radius: var(--ds-radius-pill);
   background: var(--ds-panel-strong);
