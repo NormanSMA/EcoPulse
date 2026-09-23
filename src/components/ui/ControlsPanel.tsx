@@ -12,7 +12,7 @@ export type LayerVisibility = Record<LayerKey, boolean>;
 
 interface LayerDef {
   key: LayerKey;
-  tag: string;
+  tag?: string;
   ring?: boolean;
 }
 
@@ -42,12 +42,16 @@ const GROUPS: { id: "geo" | "atmosphere" | "hazards" | "space"; icon: IconNode; 
     layers: [
       { key: "fires", tag: "FIRMS" },
       { key: "disasters", tag: "GDACS" },
+      { key: "cyclones", tag: "GDACS" },
     ],
   },
   {
     id: "space",
     icon: Satellite,
-    layers: [{ key: "iss", tag: "NASA" }],
+    layers: [
+      { key: "iss", tag: "NASA" },
+      { key: "dayNight" },
+    ],
   },
 ];
 
@@ -106,7 +110,7 @@ export default function ControlsPanel({ visibility, onChange, showLegend = true 
 
       {showLegend && (
         <Section title={tPanel("legend")} icon={Palette} defaultOpen={false}>
-          <Legend />
+          <Legend visibility={visibility} />
         </Section>
       )}
 

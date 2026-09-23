@@ -1,4 +1,4 @@
-import { IssFeature, IssGeoJSON } from "./types";
+import { IssFeature, IssGeoJSON, TrackPoint } from "./types";
 
 const ISS_OEM_URL = "https://nasa-public-data.s3.amazonaws.com/iss-coords/current/ISS_OEM/ISS.OEM_J2K_EPH.txt";
 const EARTH_RADIUS_KM = 6378.137;
@@ -53,16 +53,23 @@ export function interpolateStateVector(vectors: StateVector[], at: Date): StateV
   if (!after) return before;
   if (before === after) return before;
 
-  const total = after.timestamp.getTime() - before.timestamp.getTime();
-  const frac = total > 0 ? (at.getTime() - before.timestamp.getTime()) / total : 0;
-
-  const lerp = (a: number, b: number) => a + (b - a) * frac;
+  // Hermite cúbico con las velocidades del propio archivo OEM: los vectores
+  // vienen cada ~4 min (~1800 km de arco) y una interpolación lineal cortaría
+  // la curva de la órbita (error de decenas de km en posición y altitud).
+  const dtSec = (after.timestamp.getTime() - before.timestamp.getTime()) / 1000;
+  const u = dtSec > 0 ? (at.getTime() - before.timestamp.getTime()) / 1000 / dtSec : 0;
+  const h00 = 2 * u ** 3 - 3 * u ** 2 + 1;
+  const h10 = u ** 3 - 2 * u ** 2 + u;
+  const h01 = -2 * u ** 3 + 3 * u ** 2;
+  const h11 = u ** 3 - u ** 2;
+  const pos = (p0: number, v0: number, p1: number, v1: number) => h00 * p0 + h10 * dtSec * v0 + h01 * p1 + h11 * dtSec * v1;
+  const lerp = (a: number, b: number) => a + (b - a) * u;
 
   return {
     timestamp: at,
-    x: lerp(before.x, after.x),
-    y: lerp(before.y, after.y),
-    z: lerp(before.z, after.z),
+    x: pos(before.x, before.vx, after.x, after.vx),
+    y: pos(before.y, before.vy, after.y, after.vy),
+    z: pos(before.z, before.vz, after.z, after.vz),
     vx: lerp(before.vx, after.vx),
     vy: lerp(before.vy, after.vy),
     vz: lerp(before.vz, after.vz),
@@ -103,6 +110,32 @@ export function eciToGeodetic(x: number, y: number, z: number, at: Date): Geodet
   return { latitude, longitude, altitudeKm: radius - EARTH_RADIUS_KM };
 }
 
+const TRACK_PAST_MIN = 45;
+const TRACK_FUTURE_MIN = 90;
+
+/** Trayectoria real [lon, lat, altKm] muestreada cada minuto entre from y to. */
+export function computeTrack(vectors: StateVector[], from: Date, to: Date, stepMs = 60_000): TrackPoint[] {
+  const points: TrackPoint[] = [];
+  for (let t = from.getTime(); t <= to.getTime(); t += stepMs) {
+    const at = new Date(t);
+    const sv = interpolateStateVector(vectors, at);
+    if (!sv) continue;
+    const g = eciToGeodetic(sv.x, sv.y, sv.z, at);
+    points.push([g.longitude, g.latitude, g.altitudeKm]);
+  }
+  return points;
+}
+
+/** Rumbo inicial (grados desde el norte) entre dos puntos lon/lat. */
+export function bearingDeg(from: [number, number], to: [number, number]): number {
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const [lon1, lat1] = from.map(toRad);
+  const [lon2, lat2] = to.map(toRad);
+  const y = Math.sin(lon2 - lon1) * Math.cos(lat2);
+  const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(lon2 - lon1);
+  return ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
+}
+
 export async function fetchLiveIssPosition(signal?: AbortSignal): Promise<IssGeoJSON> {
   try {
     const res = await fetch(ISS_OEM_URL, { signal });
@@ -119,6 +152,9 @@ export async function fetchLiveIssPosition(signal?: AbortSignal): Promise<IssGeo
 
     const { latitude, longitude, altitudeKm } = eciToGeodetic(state.x, state.y, state.z, state.timestamp);
     const velocityKmS = Math.sqrt(state.vx ** 2 + state.vy ** 2 + state.vz ** 2);
+    const past = computeTrack(vectors, new Date(now.getTime() - TRACK_PAST_MIN * 60_000), now);
+    const future = computeTrack(vectors, now, new Date(now.getTime() + TRACK_FUTURE_MIN * 60_000));
+    const headingDeg = future.length > 1 ? bearingDeg([longitude, latitude], [future[1][0], future[1][1]]) : undefined;
 
     const feature: IssFeature = {
       type: "Feature",
@@ -127,6 +163,8 @@ export async function fetchLiveIssPosition(signal?: AbortSignal): Promise<IssGeo
         altitudeKm,
         velocityKmS,
         timestamp: state.timestamp.toISOString(),
+        headingDeg,
+        track: { past, future },
       },
       geometry: {
         type: "Point",

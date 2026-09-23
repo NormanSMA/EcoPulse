@@ -43,8 +43,10 @@
       "geo": "Geophysics",
       "atmosphere": "Atmosphere",
       "hazards": "Hazards",
-      "space": "Space"
-    }
+      "space": "Space and sun"
+    },
+    "cyclones": "Cyclone tracks",
+    "dayNight": "Day and night"
   },
   "nearby": {
     "title": "Earthquakes near me",
@@ -108,7 +110,12 @@
       "Green": "Green",
       "Orange": "Orange",
       "Red": "Red"
-    }
+    },
+    "storm": "Cyclones (Saffir-Simpson)",
+    "fires": "Fire intensity",
+    "low": "Low",
+    "high": "High",
+    "empty": "Turn on a layer to see its scale."
   },
   "popup": {
     "quake": "Earthquake M {mag}",
@@ -141,6 +148,13 @@
     "ad": "{year} CE",
     "gvpNote": "Historical catalog (GVP) — not real-time monitoring",
     "na": "N/A",
-    "close": "Close"
+    "close": "Close",
+    "cyclone": "Cyclone {name}",
+    "stormTD": "Tropical depression",
+    "stormTS": "Tropical storm",
+    "stormH": "Category {n} hurricane",
+    "cycloneNote": "Track and uncertainty cone: GDACS / JTWC",
+    "footprint": "Visible within",
+    "nextPass": "Track: 45 min back · 90 min ahead"
   }
 }

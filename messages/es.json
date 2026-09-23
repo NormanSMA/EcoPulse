@@ -43,8 +43,10 @@
       "geo": "Geofísica",
       "atmosphere": "Atmósfera",
       "hazards": "Riesgos",
-      "space": "Espacio"
-    }
+      "space": "Espacio y sol"
+    },
+    "cyclones": "Trayectorias de ciclones",
+    "dayNight": "Día y noche"
   },
   "nearby": {
     "title": "Sismos cerca de mí",
@@ -108,7 +110,12 @@
       "Green": "Verde",
       "Orange": "Naranja",
       "Red": "Roja"
-    }
+    },
+    "storm": "Ciclones (Saffir-Simpson)",
+    "fires": "Intensidad de incendios",
+    "low": "Baja",
+    "high": "Alta",
+    "empty": "Activa una capa para ver su escala."
   },
   "popup": {
     "quake": "Sismo M {mag}",
@@ -141,6 +148,13 @@
     "ad": "{year} d.C.",
     "gvpNote": "Catálogo histórico (GVP) — no es monitoreo en tiempo real",
     "na": "N/D",
-    "close": "Cerrar"
+    "close": "Cerrar",
+    "cyclone": "Ciclón {name}",
+    "stormTD": "Depresión tropical",
+    "stormTS": "Tormenta tropical",
+    "stormH": "Huracán categoría {n}",
+    "cycloneNote": "Trayectoria y cono de incertidumbre: GDACS / JTWC",
+    "footprint": "Visible a",
+    "nextPass": "Trayectoria: 45 min atrás · 90 min adelante"
   }
 }

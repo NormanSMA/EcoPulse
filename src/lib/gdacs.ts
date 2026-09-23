@@ -29,6 +29,7 @@ interface GdacsRawFeature {
     name: string;
     country: string;
     alertlevel: string;
+    iscurrent?: string | boolean;
     fromdate: string;
     todate: string;
     url: { report: string };
@@ -67,6 +68,17 @@ export function toDisasterFeature(raw: GdacsRawFeature): DisasterFeature | null 
   };
 }
 
+// La lista de GDACS incluye eventos cerrados hace meses (p.ej. ciclones de la
+// temporada anterior): solo se muestran los vigentes o cerrados hace poco.
+const RECENT_WINDOW_MS = 14 * 24 * 3_600_000;
+
+export function isRecentDisaster(raw: GdacsRawFeature, now: number = Date.now()): boolean {
+  const { iscurrent, todate } = raw.properties;
+  if (iscurrent === true || iscurrent === "true") return true;
+  const end = todate ? Date.parse(todate.endsWith("Z") ? todate : todate + "Z") : NaN;
+  return Number.isFinite(end) && now - end <= RECENT_WINDOW_MS;
+}
+
 export async function fetchLiveDisasters(signal?: AbortSignal): Promise<DisasterGeoJSON> {
   try {
     const res = await fetch(GDACS_URL, { headers: { Accept: "application/json" }, signal });
@@ -75,6 +87,7 @@ export async function fetchLiveDisasters(signal?: AbortSignal): Promise<Disaster
     }
     const data: GdacsResponse = await res.json();
     const features = data.features
+      .filter((raw) => isRecentDisaster(raw))
       .map(toDisasterFeature)
       .filter((f): f is DisasterFeature => f !== null);
 

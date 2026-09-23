@@ -20,7 +20,7 @@ import { EventList, type EventListItem } from "@/components/ui/EventList";
 import { TimeControl, type TimeWindow } from "@/components/ui/TimeControl";
 import { TrendChart } from "@/components/ui/TrendChart";
 import { Legend } from "@/components/ui/Legend";
-import { EarthquakeGeoJSON, AirQualityGeoJSON, FireGeoJSON, WeatherGeoJSON, DisasterGeoJSON, IssGeoJSON, VolcanoGeoJSON, AirQualityModelGeoJSON } from "@/lib/types";
+import { EarthquakeGeoJSON, AirQualityGeoJSON, FireGeoJSON, WeatherGeoJSON, DisasterGeoJSON, IssGeoJSON, VolcanoGeoJSON, AirQualityModelGeoJSON, CycloneGeoJSON } from "@/lib/types";
 import { fetchLiveEarthquakes } from "@/lib/usgs";
 import { setPopupLocale } from "@/lib/popupHtml";
 
@@ -95,16 +95,23 @@ const WINDOW_MS: Record<TimeWindow, number | null> = {
 const PLAYBACK_DURATION_MS = 20_000;
 const PLAYBACK_TICK_MS = 100;
 
+// Por defecto solo lo más relevante (sin sobrecargar el mapa): eventos en
+// curso, ciclones, ISS y día/noche. Aire, clima y el catálogo de volcanes
+// quedan a un toggle de distancia.
 const INITIAL_VISIBILITY: LayerVisibility = {
   earthquakes: true,
-  airQuality: true,
   fires: true,
-  weather: true,
   disasters: true,
+  cyclones: true,
   iss: true,
-  volcanoes: true,
+  dayNight: true,
+  airQuality: false,
   airQualityModel: false,
+  weather: false,
+  volcanoes: false,
 };
+
+const INITIAL_CYCLONES: CycloneGeoJSON = { type: "FeatureCollection", features: [] };
 
 /** Cabecera de panel flotante: título + cerrar (como "Controls ✕" de Weather Lab). */
 function PanelHeader({
@@ -150,6 +157,7 @@ function HomePageContent() {
   const [iss, setIss] = useState<IssGeoJSON>(INITIAL_ISS);
   const [volcanoes, setVolcanoes] = useState<VolcanoGeoJSON>(INITIAL_VOLCANOES);
   const [airQualityModel, setAirQualityModel] = useState<AirQualityModelGeoJSON>(INITIAL_AIR_QUALITY_MODEL);
+  const [cyclones, setCyclones] = useState<CycloneGeoJSON>(INITIAL_CYCLONES);
   const [visibility, setVisibility] = useState<LayerVisibility>(INITIAL_VISIBILITY);
   const [searchQuery, setSearchQuery] = useState("");
   const [timeWindow, setTimeWindow] = useState<TimeWindow>("live");
@@ -270,7 +278,20 @@ function HomePageContent() {
       }
     }
 
+    async function loadCyclones() {
+      try {
+        const res = await fetch("/api/cyclones", { signal: controller.signal });
+        if (!res.ok) throw new Error(`Cyclones HTTP ${res.status}`);
+        setCyclones((await res.json()) as CycloneGeoJSON);
+      } catch (err: unknown) {
+        if (!(err instanceof DOMException && err.name === "AbortError")) {
+          console.error("Error al sincronizar trayectorias de ciclones (GDACS):", err);
+        }
+      }
+    }
+
     loadData();
+    loadCyclones();
     loadAirQuality();
     loadFires();
     loadWeather();
@@ -382,14 +403,22 @@ function HomePageContent() {
     [fires, inRange]
   );
 
+  // Un ciclón con trayectoria visible no se repite como icono de desastre.
+  const trackedCyclones = useMemo(
+    () => new Set(visibility.cyclones ? cyclones.features.map((f) => f.properties.eventId) : []),
+    [cyclones, visibility.cyclones]
+  );
+
   const filteredDisasters = useMemo<DisasterGeoJSON>(
     () => ({
       ...disasters,
-      features: disasters.features.filter((f) =>
-        f.properties.fromDate ? inRange(new Date(f.properties.fromDate).getTime()) : rangeStart === -Infinity
+      features: disasters.features.filter(
+        (f) =>
+          !trackedCyclones.has(f.properties.eventId) &&
+          (f.properties.fromDate ? inRange(new Date(f.properties.fromDate).getTime()) : rangeStart === -Infinity)
       ),
     }),
-    [disasters, inRange, rangeStart]
+    [disasters, inRange, rangeStart, trackedCyclones]
   );
 
   const maxMag = useMemo(() => {
@@ -504,6 +533,7 @@ function HomePageContent() {
     iss,
     volcanoes,
     airQualityModel,
+    cyclones,
     showQuakes: visibility.earthquakes,
     showAirQuality: visibility.airQuality,
     showFires: visibility.fires,
@@ -512,6 +542,9 @@ function HomePageContent() {
     showIss: visibility.iss,
     showVolcanoes: visibility.volcanoes,
     showAirQualityModel: visibility.airQualityModel,
+    showCyclones: visibility.cyclones,
+    showDayNight: visibility.dayNight,
+    refTime: playhead ?? now,
     onSelectEarthquake: setSelectedQuakeId,
     initialView: mapView,
     focus,
@@ -686,7 +719,7 @@ function HomePageContent() {
           />
 
           <div className="hidden justify-self-end xl:block">
-            <Legend variant="floating" className="pointer-events-auto" />
+            <Legend variant="floating" visibility={visibility} className="pointer-events-auto" />
           </div>
         </div>
 

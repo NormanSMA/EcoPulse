@@ -139,10 +139,17 @@ export interface DisasterGeoJSON {
   features: DisasterFeature[];
 }
 
+/** Punto de trayectoria: [longitud, latitud, altitud km]. */
+export type TrackPoint = [number, number, number];
+
 export interface IssProperties {
   altitudeKm: number;
   velocityKmS: number;
   timestamp: string;
+  /** Rumbo sobre el terreno en grados (0 = norte). */
+  headingDeg?: number;
+  /** Trayectoria real desde las efemérides OEM: pasada y futura. */
+  track?: { past: TrackPoint[]; future: TrackPoint[] };
 }
 
 export interface IssFeature {
@@ -227,4 +234,30 @@ export interface SystemHealthResponse {
     usgsApi: "online" | "unreachable";
     supabase: "connected" | "disconnected" | "unconfigured";
   };
+}
+
+export type StormCategory = "TD" | "TS" | "H1" | "H2" | "H3" | "H4" | "H5";
+
+export interface CycloneProperties {
+  eventId: string;
+  name: string;
+  alertLevel: AlertLevel;
+  /** track = segmento de trayectoria, cone = cono de incertidumbre, position = posición actual. */
+  kind: "track" | "cone" | "position";
+  category?: string;
+  forecast?: boolean;
+}
+
+export interface CycloneFeature {
+  type: "Feature";
+  properties: CycloneProperties;
+  geometry:
+    | { type: "LineString"; coordinates: [number, number][] }
+    | { type: "Polygon"; coordinates: [number, number][][] }
+    | { type: "Point"; coordinates: [number, number] };
+}
+
+export interface CycloneGeoJSON {
+  type: "FeatureCollection";
+  features: CycloneFeature[];
 }

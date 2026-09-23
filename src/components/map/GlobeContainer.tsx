@@ -16,7 +16,7 @@ import {
 import { getAQICategory } from "@/lib/openaq";
 import { dedupeByKey } from "@/lib/ingest";
 import { DEFAULT_MAP_VIEW, type MapView } from "@/lib/mapView";
-import { themes, layers, marker, magnitudeColor, alertColor, aqiColor } from "@/design-system/tokens";
+import { themes, layers, marker, magnitudeColor, aqiColor, stormColor } from "@/design-system/tokens";
 import {
   earthquakePopup,
   airQualityPopup,
@@ -26,8 +26,11 @@ import {
   issPopup,
   volcanoPopup,
   airQualityModelPopup,
+  cyclonePopup,
   popupCloseLabel,
 } from "@/lib/popupHtml";
+import { getIcon } from "@/lib/mapIcons";
+import type { CycloneGeoJSON } from "@/lib/types";
 
 interface GlobeContainerProps {
   earthquakes: EarthquakeGeoJSON;
@@ -38,6 +41,7 @@ interface GlobeContainerProps {
   iss: IssGeoJSON;
   volcanoes: VolcanoGeoJSON;
   airQualityModel: AirQualityModelGeoJSON;
+  cyclones: CycloneGeoJSON;
   showQuakes: boolean;
   showAirQuality: boolean;
   showFires: boolean;
@@ -46,6 +50,10 @@ interface GlobeContainerProps {
   showIss: boolean;
   showVolcanoes: boolean;
   showAirQualityModel: boolean;
+  showCyclones: boolean;
+  showDayNight: boolean;
+  /** Instante de referencia (ahora o cursor de reproducción). */
+  refTime: number;
   onSelectEarthquake?: (id: string) => void;
   selectedEarthquakeId?: string | null;
   onViewChange?: (view: MapView) => void;
@@ -54,7 +62,6 @@ interface GlobeContainerProps {
   focus?: { lng: number; lat: number; key: number } | null;
 }
 
-const EARTH_RADIUS_M = 6371000;
 // Formula de conversión zoom (estilo slippy-map) -> altitud de cámara,
 // aproximación estándar usada en demos de sincronización MapLibre/Mapbox <->
 // Cesium (no es exacta porque depende del FOV/tamaño de pantalla, pero es
@@ -63,55 +70,26 @@ function zoomToAltitude(lat: number, zoom: number): number {
   return (591657527.591555 * Math.cos((lat * Math.PI) / 180)) / Math.pow(2, zoom);
 }
 
-// Inclinación orbital real de la ISS (grados) — constante pública conocida.
-const ISS_INCLINATION_DEG = 51.6431;
+const HOUR_MS = 3_600_000;
+// Los iconos de lib/mapIcons se dibujan a densidad 2x: Cesium los muestra a
+// píxeles nativos, así que se escalan a la mitad y se achican con la distancia.
+const ICON_SCALE = 0.5;
+const ICON_BY_DISTANCE = new Cesium.NearFarScalar(1.5e6, 1, 2.5e7, 0.6);
+// Los billboards "pegados al terreno" se dibujaban a través del globo (se
+// veían iconos del otro lado de la Tierra): van a altura fija y Cesium los
+// ocluye con el elipsoide como al resto de entidades.
+const BILLBOARD_HEIGHT_M = 3000;
 
-// Dibuja un círculo máximo que pasa por la posición actual de la ISS con la
-// inclinación orbital real. Es una aproximación GEOMÉTRICA de la órbita, no
-// una propagación física: /api/iss solo expone la posición actual (lat/lon/
-// altitud), no un vector de velocidad direccional, así que no hay forma de
-// saber en qué sentido avanza la ISS sobre este círculo. Sirve para mostrar
-// "el anillo orbital real" visualmente, no para predecir la trayectoria.
-function computeOrbitRing(lat: number, lon: number, altitudeM: number): Cesium.Cartesian3[] {
-  const toRad = (d: number) => (d * Math.PI) / 180;
-  const r = EARTH_RADIUS_M + altitudeM;
-
-  const P = new Cesium.Cartesian3(
-    Math.cos(toRad(lat)) * Math.cos(toRad(lon)),
-    Math.cos(toRad(lat)) * Math.sin(toRad(lon)),
-    Math.sin(toRad(lat))
-  );
-  const pole = new Cesium.Cartesian3(0, 0, 1);
-
-  const poleDotP = Cesium.Cartesian3.dot(pole, P);
-  const Q = Cesium.Cartesian3.normalize(
-    Cesium.Cartesian3.subtract(pole, Cesium.Cartesian3.multiplyByScalar(P, poleDotP, new Cesium.Cartesian3()), new Cesium.Cartesian3()),
-    new Cesium.Cartesian3()
-  );
-  const R = Cesium.Cartesian3.normalize(Cesium.Cartesian3.cross(P, pole, new Cesium.Cartesian3()), new Cesium.Cartesian3());
-
-  const qDotPole = Cesium.Cartesian3.dot(Q, pole);
-  const sinInclination = Math.sin(toRad(ISS_INCLINATION_DEG));
-  const b = qDotPole !== 0 ? sinInclination / qDotPole : 0;
-  const c = Math.sqrt(Math.max(0, 1 - b * b));
-
-  const N = Cesium.Cartesian3.normalize(
-    Cesium.Cartesian3.add(Cesium.Cartesian3.multiplyByScalar(Q, b, new Cesium.Cartesian3()), Cesium.Cartesian3.multiplyByScalar(R, c, new Cesium.Cartesian3()), new Cesium.Cartesian3()),
-    new Cesium.Cartesian3()
-  );
-  const NxP = Cesium.Cartesian3.cross(N, P, new Cesium.Cartesian3());
-
-  const points: Cesium.Cartesian3[] = [];
-  for (let deg = 0; deg <= 360; deg += 4) {
-    const theta = toRad(deg);
-    const dir = Cesium.Cartesian3.add(
-      Cesium.Cartesian3.multiplyByScalar(P, Math.cos(theta), new Cesium.Cartesian3()),
-      Cesium.Cartesian3.multiplyByScalar(NxP, Math.sin(theta), new Cesium.Cartesian3()),
-      new Cesium.Cartesian3()
-    );
-    points.push(Cesium.Cartesian3.multiplyByScalar(dir, r, new Cesium.Cartesian3()));
+/** Opacidad por antigüedad, misma curva que el mapa 2D. */
+function ageAlpha(refTime: number, t: number): number {
+  const h = Math.max(0, (refTime - t) / HOUR_MS);
+  const stops: [number, number][] = [[0, 0.95], [6, 0.8], [24, 0.5], [72, 0.3]];
+  for (let i = 1; i < stops.length; i++) {
+    const [h1, a1] = stops[i];
+    const [h0, a0] = stops[i - 1];
+    if (h <= h1) return a0 + ((a1 - a0) * (h - h0)) / (h1 - h0);
   }
-  return points;
+  return 0.3;
 }
 
 export default function GlobeContainer({
@@ -131,6 +109,10 @@ export default function GlobeContainer({
   showIss,
   showVolcanoes,
   showAirQualityModel,
+  cyclones,
+  showCyclones,
+  showDayNight,
+  refTime,
   onSelectEarthquake,
   selectedEarthquakeId,
   initialView = DEFAULT_MAP_VIEW,
@@ -147,6 +129,8 @@ export default function GlobeContainer({
   // leer siempre el estado más reciente (mismo patrón que MapContainer.tsx).
   const earthquakesRef = useRef(earthquakes);
   earthquakesRef.current = earthquakes;
+  const cyclonesRef = useRef(cyclones);
+  cyclonesRef.current = cyclones;
   const airQualityRef = useRef(airQuality);
   airQualityRef.current = airQuality;
   const firesRef = useRef(fires);
@@ -223,6 +207,12 @@ export default function GlobeContainer({
       return volcanoPopup(f.properties);
     }
 
+    if (entityId.startsWith("cyc-pos-")) {
+      const eventId = entityId.slice(8);
+      const f = cyclonesRef.current.features.find((ft) => ft.properties.kind === "position" && ft.properties.eventId === eventId);
+      return f ? cyclonePopup(f.properties) : null;
+    }
+
     if (entityId === "iss") {
       const f = issRef.current.features[0];
       if (!f) return null;
@@ -260,7 +250,7 @@ export default function GlobeContainer({
       selectionIndicator: false,
       timeline: false,
       animation: false,
-      shouldAnimate: true,
+      shouldAnimate: false,
       // preserveDrawingBuffer: true evita que Chromium capture un buffer en
       // blanco/negro al hacer el snapshot para backdrop-filter (blur) de los
       // paneles glass que flotan sobre el canvas WebGL del globo. Mismo fix
@@ -376,7 +366,7 @@ export default function GlobeContainer({
         onSelectEarthquakeRef.current?.(id.slice(3));
       }
 
-      if (id === "iss-orbit") {
+      if (id.startsWith("iss-track") || id.startsWith("cyc-geo-")) {
         // El anillo orbital de la ISS no tiene datos propios que mostrar —
         // se ignora el click para no abrir/cerrar el popup accidentalmente.
         return;
@@ -541,7 +531,7 @@ export default function GlobeContainer({
           position: Cesium.Cartesian3.fromDegrees(lon, lat, 0),
           point: {
             pixelSize: 6 + mag * 2,
-            color: Cesium.Color.fromCssColorString(magnitudeColor(mag)).withAlpha(0.9),
+            color: Cesium.Color.fromCssColorString(magnitudeColor(mag)).withAlpha(ageAlpha(refTime, f.properties.time)),
             outlineColor: Cesium.Color.fromCssColorString(marker.stroke),
             outlineWidth: 1,
             heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
@@ -563,11 +553,12 @@ export default function GlobeContainer({
         add({
           id: `fire-${f.id}`,
           position: Cesium.Cartesian3.fromDegrees(lon, lat, 0),
+          // Puntos finos y translúcidos: a escala global se leen como una
+          // mancha de calor (equivalente al heatmap del 2D) y se definen al acercarse.
           point: {
-            pixelSize: 4 + Math.min(f.properties.frp, 40) / 4,
-            color: Cesium.Color.fromCssColorString(layers.fires).withAlpha(0.85),
-            outlineColor: Cesium.Color.fromCssColorString(marker.fireStroke),
-            outlineWidth: 1,
+            pixelSize: 3 + Math.min(f.properties.frp, 60) / 15,
+            color: Cesium.Color.fromCssColorString(layers.fires).withAlpha(0.7),
+            scaleByDistance: new Cesium.NearFarScalar(5e5, 1.8, 2e7, 0.7),
             heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
           },
         });
@@ -647,10 +638,11 @@ export default function GlobeContainer({
         const [lon, lat] = f.geometry.coordinates;
         add({
           id: `disaster-${f.id}`,
-          position: Cesium.Cartesian3.fromDegrees(lon, lat, 0),
-          point: {
-            pixelSize: 10,
-            color: Cesium.Color.fromCssColorString(alertColor(f.properties.alertLevel)).withAlpha(0.85),
+          position: Cesium.Cartesian3.fromDegrees(lon, lat, BILLBOARD_HEIGHT_M),
+          billboard: {
+            scale: ICON_SCALE,
+            scaleByDistance: ICON_BY_DISTANCE,
+            image: getIcon(`ep-disaster-${f.properties.eventType}-${f.properties.alertLevel}`) ?? "",
             heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
           },
         });
@@ -665,13 +657,11 @@ export default function GlobeContainer({
         const [lon, lat] = f.geometry.coordinates;
         add({
           id: `volcano-${f.id}`,
-          position: Cesium.Cartesian3.fromDegrees(lon, lat, 0),
-          point: {
-            pixelSize: 6,
-            color: Cesium.Color.fromCssColorString(layers.volcanoes).withAlpha(0.85),
-            outlineColor: Cesium.Color.fromCssColorString(marker.volcanoStroke),
-            outlineWidth: 1,
-            heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
+          position: Cesium.Cartesian3.fromDegrees(lon, lat, BILLBOARD_HEIGHT_M),
+          billboard: {
+            scale: ICON_SCALE,
+            scaleByDistance: ICON_BY_DISTANCE,
+            image: getIcon("ep-volcano") ?? "",
           },
         });
       });
@@ -687,36 +677,122 @@ export default function GlobeContainer({
       add({
         id: "iss",
         position: Cesium.Cartesian3.fromDegrees(lon, lat, altitudeM),
-        point: {
-          pixelSize: 10,
-          color: Cesium.Color.fromCssColorString(marker.issFill),
-          outlineColor: Cesium.Color.fromCssColorString(marker.issStroke),
-          outlineWidth: 2,
-        },
+        billboard: {
+            scale: ICON_SCALE,
+            scaleByDistance: ICON_BY_DISTANCE, image: getIcon("ep-iss") ?? "" },
         label: {
           text: "ISS",
-          font: "500 12px 'Google Sans Flex', Roboto, sans-serif",
+          font: "600 12px 'Google Sans Flex', Roboto, sans-serif",
           fillColor: Cesium.Color.fromCssColorString(marker.labelText),
           outlineColor: Cesium.Color.fromCssColorString(marker.halo),
-          outlineWidth: 2,
+          outlineWidth: 3,
           style: Cesium.LabelStyle.FILL_AND_OUTLINE,
-          pixelOffset: new Cesium.Cartesian2(0, -20),
-          backgroundPadding: new Cesium.Cartesian2(8, 4),
-          showBackground: true,
-          backgroundColor: Cesium.Color.fromCssColorString(themes.dark.surface).withAlpha(0.85),
+          pixelOffset: new Cesium.Cartesian2(0, 30),
         },
       });
-      add({
-        id: "iss-orbit",
-        polyline: {
-          positions: computeOrbitRing(lat, lon, altitudeM),
-          width: 1,
-          material: Cesium.Color.fromCssColorString(marker.issStroke).withAlpha(0.4),
-        },
-      });
+      // Trayectoria real (efemérides NASA) a la altitud orbital: pasada
+      // continua, futura punteada — igual que en 2D.
+      const track = issFeature.properties.track;
+      if (track) {
+        const toPositions = (pts: typeof track.past) =>
+          Cesium.Cartesian3.fromDegreesArrayHeights(pts.flatMap(([x, y, altKm]) => [x, y, altKm * 1000]));
+        add({
+          id: "iss-track-past",
+          polyline: {
+            positions: toPositions(track.past),
+            width: 2,
+            arcType: Cesium.ArcType.NONE,
+            material: Cesium.Color.fromCssColorString(marker.issStroke).withAlpha(0.85),
+          },
+        });
+        add({
+          id: "iss-track-future",
+          polyline: {
+            positions: toPositions(track.future),
+            width: 2,
+            arcType: Cesium.ArcType.NONE,
+            material: new Cesium.PolylineDashMaterialProperty({
+              color: Cesium.Color.fromCssColorString(marker.issStroke).withAlpha(0.6),
+              dashLength: 12,
+            }),
+          },
+        });
+      }
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [iss, showIss]);
+
+  useEffect(() => {
+    replaceLayer("cyclones", showCyclones, (add) => {
+      cyclones.features.forEach((f, i) => {
+        const p = f.properties;
+        if (f.geometry.type === "Polygon" && p.kind === "cone") {
+          add({
+            id: `cyc-geo-cone-${p.eventId}-${i}`,
+            polygon: {
+              hierarchy: Cesium.Cartesian3.fromDegreesArray(f.geometry.coordinates[0].flat()),
+              material: Cesium.Color.fromCssColorString(marker.cone).withAlpha(0.12),
+              classificationType: Cesium.ClassificationType.TERRAIN,
+            },
+          });
+        } else if (f.geometry.type === "LineString" && p.kind === "track") {
+          const color = Cesium.Color.fromCssColorString(stormColor(p.category ?? "TS"));
+          add({
+            id: `cyc-geo-track-${p.eventId}-${i}`,
+            polyline: {
+              positions: Cesium.Cartesian3.fromDegreesArray(f.geometry.coordinates.flat()),
+              width: p.forecast ? 2.5 : 4,
+              clampToGround: true,
+              material: p.forecast ? new Cesium.PolylineDashMaterialProperty({ color, dashLength: 10 }) : color,
+            },
+          });
+        } else if (f.geometry.type === "Point" && p.kind === "position") {
+          const [lon, lat] = f.geometry.coordinates;
+          add({
+            id: `cyc-pos-${p.eventId}`,
+            position: Cesium.Cartesian3.fromDegrees(lon, lat, BILLBOARD_HEIGHT_M),
+            billboard: {
+            scale: ICON_SCALE,
+            scaleByDistance: ICON_BY_DISTANCE,
+              image: getIcon(`ep-cyclone-${p.category ?? "TS"}`) ?? getIcon("ep-cyclone-TS") ?? "",
+              heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
+            },
+            label: {
+              text: p.name,
+              font: "600 12px 'Google Sans Flex', Roboto, sans-serif",
+              fillColor: Cesium.Color.fromCssColorString(marker.labelText),
+              outlineColor: Cesium.Color.fromCssColorString(marker.halo),
+              outlineWidth: 3,
+              style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+              pixelOffset: new Cesium.Cartesian2(0, 30),
+            },
+          });
+        }
+      });
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cyclones, showCyclones]);
+
+  // Tiempo de referencia: el reloj de Cesium (iluminación día/noche) y la
+  // antigüedad de los sismos siguen al cursor de reproducción.
+  useEffect(() => {
+    const viewer = viewerRef.current;
+    if (!viewer) return;
+    viewer.clock.currentTime = Cesium.JulianDate.fromDate(new Date(refTime));
+    for (const entity of layerEntitiesRef.current.quakes ?? []) {
+      const f = earthquakesRef.current.features.find((ft) => `eq-${ft.id}` === entity.id);
+      if (!f || !entity.point) continue;
+      const color = Cesium.Color.fromCssColorString(magnitudeColor(f.properties.mag ?? 0)).withAlpha(ageAlpha(refTime, f.properties.time));
+      entity.point.color = new Cesium.ConstantProperty(color);
+    }
+    viewer.scene.requestRender();
+  }, [refTime]);
+
+  useEffect(() => {
+    const viewer = viewerRef.current;
+    if (!viewer) return;
+    viewer.scene.globe.enableLighting = showDayNight;
+  }, [showDayNight]);
 
   return (
     <div className="relative w-full h-full">

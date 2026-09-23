@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { toDisasterFeature, fetchLiveDisasters } from "./gdacs";
+import { toDisasterFeature, fetchLiveDisasters, isRecentDisaster } from "./gdacs";
 
 const floodRaw = {
   geometry: { type: "Point", coordinates: [116.0, 28.0] as [number, number] },
@@ -54,6 +54,8 @@ describe("fetchLiveDisasters", () => {
   afterEach(() => vi.unstubAllGlobals());
 
   it("filtra solo los tipos incluidos de una respuesta real de GDACS", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-10T00:00:00Z"));
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue({
@@ -65,11 +67,25 @@ describe("fetchLiveDisasters", () => {
     const result = await fetchLiveDisasters();
     expect(result.features).toHaveLength(1);
     expect(result.features[0].properties.eventType).toBe("FL");
+    vi.useRealTimers();
   });
 
   it("devuelve vacio si la respuesta HTTP no es ok", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 500 }));
     const result = await fetchLiveDisasters();
     expect(result.features).toEqual([]);
+  });
+});
+
+describe("isRecentDisaster", () => {
+  const now = Date.parse("2026-09-23T00:00:00Z");
+  it("descarta eventos cerrados hace más de 14 días", () => {
+    expect(isRecentDisaster(floodRaw, now)).toBe(false);
+  });
+  it("acepta eventos cerrados hace poco", () => {
+    expect(isRecentDisaster({ ...floodRaw, properties: { ...floodRaw.properties, todate: "2026-09-20T00:00:00" } }, now)).toBe(true);
+  });
+  it("acepta siempre los que GDACS marca como actuales", () => {
+    expect(isRecentDisaster({ ...floodRaw, properties: { ...floodRaw.properties, iscurrent: "true" } }, now)).toBe(true);
   });
 });

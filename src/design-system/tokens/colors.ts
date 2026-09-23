@@ -74,6 +74,7 @@ const palette = {
   greyLight: "#e8eaed",
   white: "#ffffff",
   ink: "#121317",
+  teal: "#24c1e0",
 } as const;
 
 // Color identitario de cada capa (swatch del panel, icono de la lista de
@@ -87,6 +88,9 @@ export const layers = {
   disasters: palette.yellow,
   iss: palette.blueLight,
   volcanoes: palette.brown,
+  cyclones: palette.teal,
+  // Swatch del toggle (la sombra nocturna usa marker.night).
+  dayNight: palette.grey,
 } as const;
 
 export type LayerKey = keyof typeof layers;
@@ -108,6 +112,17 @@ export const scales = {
     hazardous: palette.purple,
     unknown: palette.grey,
   },
+  // Categoría de ciclón (escala Saffir-Simpson): depresión y tormenta en
+  // fríos, huracanes H1–H5 de amarillo a púrpura, igual que la magnitud.
+  storm: [
+    { key: "TD", color: palette.blueLight },
+    { key: "TS", color: palette.teal },
+    { key: "H1", color: palette.yellow },
+    { key: "H2", color: palette.orange },
+    { key: "H3", color: palette.red },
+    { key: "H4", color: "#d93a8a" },
+    { key: "H5", color: palette.purple },
+  ],
   // Nivel de alerta GDACS.
   alert: {
     Red: palette.red,
@@ -132,7 +147,21 @@ export const marker = {
   weatherTextOnLight: palette.blueDark,
   labelTextOnLight: palette.ink,
   haloOnLight: palette.white,
+  // Sombra nocturna (línea día/noche) y cono de incertidumbre de ciclones.
+  night: palette.ink,
+  cone: palette.white,
 } as const;
+
+/** Hex (#rrggbb) → rgba() con opacidad, para expresiones de MapLibre/CSS. */
+export function withAlpha(hex: string, alpha: number): string {
+  const n = parseInt(hex.slice(1), 16);
+  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`;
+}
+
+export function stormColor(category: string): string {
+  const key = category.toUpperCase().replace(/^CAT/, "H");
+  return scales.storm.find((s) => s.key === key)?.color ?? scales.storm[1].color;
+}
 
 export function magnitudeColor(mag: number): string {
   let color: string = scales.magnitude[0].color;

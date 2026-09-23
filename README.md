@@ -26,7 +26,9 @@ La idea es sencilla: los datos ambientales públicos existen, pero están disper
 
 ### Qué puedes hacer
 
-- **Explorar 8 capas de datos en vivo** sobre un mapa 2D (MapLibre) o un globo 3D con terreno real (CesiumJS).
+- **Explorar 10 capas de datos en vivo** sobre un mapa 2D (MapLibre) o un globo 3D con terreno real (CesiumJS), con iconos propios por tipo de evento, agrupación de sismos, mapa de calor de incendios y marcadores que se desvanecen con la antigüedad.
+- **Seguir ciclones tropicales** con su trayectoria observada, pronóstico y cono de incertidumbre (GDACS / JTWC).
+- **Ver la ISS en su órbita real**: trayectoria pasada y futura calculada desde las efemérides de NASA, y la zona desde la que es visible. Incluye la línea día/noche.
 - **Consultar cada evento** en un popup con magnitud, profundidad, PM2.5, potencia radiativa (FRP), nivel de alerta, etc.
 - **Seguir la actividad reciente** en una lista unificada de sismos, incendios y desastres ordenada por recencia, con indicador de frescura del dato. Al tocar un evento, el mapa vuela hasta él.
 - **Viajar en el tiempo**: filtra por ventana (1 h, 6 h, 24 h, 7 días) y reproduce la actividad como una animación a lo largo de la ventana.
@@ -46,7 +48,9 @@ La idea es sencilla: los datos ambientales públicos existen, pero están disper
 | Clima | [Open-Meteo](https://open-meteo.com/) | Horaria |
 | Desastres globales | [GDACS](https://www.gdacs.org/) (inundaciones, ciclones, sequías, erupciones) | Por evento |
 | Volcanes | [Smithsonian GVP](https://volcano.si.edu/) | Catálogo histórico |
-| Estación Espacial (ISS) | NASA (efemérides OEM) | Cada 15 s |
+| Trayectorias de ciclones | [GDACS](https://www.gdacs.org/) (avisos JTWC) | Por aviso |
+| Estación Espacial (ISS) | NASA (efemérides OEM, interpolación de Hermite) | Cada 15 s |
+| Día / noche | Cálculo solar en el cliente | Continuo |
 
 ## Arquitectura
 

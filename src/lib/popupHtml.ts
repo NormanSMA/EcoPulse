@@ -8,7 +8,8 @@ import type {
   VolcanoProperties,
   AirQualityModelProperties,
 } from "@/lib/types";
-import { layers, magnitudeColor, alertColor, aqiColor } from "@/design-system/tokens";
+import { layers, magnitudeColor, alertColor, aqiColor, stormColor } from "@/design-system/tokens";
+import { footprintRadiusKm } from "@/lib/geoShapes";
 import es from "../../messages/es.json";
 import en from "../../messages/en.json";
 
@@ -200,7 +201,11 @@ export function issPopup(p: Pick<IssProperties, "altitudeKm" | "velocityKmS" | "
       { label: t("altitude"), value: `${p.altitudeKm.toFixed(1)} km` },
       { label: t("velocity"), value: `${p.velocityKmS.toFixed(2)} km/s` },
     ],
-    meta: [t("updated", { date: fmt(p.timestamp) })],
+    meta: [
+      t("updated", { date: fmt(p.timestamp) }),
+      `${t("footprint")} ~${Math.round(footprintRadiusKm(p.altitudeKm)).toLocaleString(currentLocale)} km`,
+      t("nextPass"),
+    ],
     note: t("source", { source: t("issSource") }),
   });
 }
@@ -224,6 +229,24 @@ export function volcanoPopup(
       { label: t("elevation"), value: `${p.elevationM ?? t("na")} m` },
     ],
     note: t("gvpNote"),
+  });
+}
+
+export function stormLabel(category: string | undefined): string {
+  const c = (category ?? "TS").toUpperCase();
+  if (c === "TD") return t("stormTD");
+  const h = /^(?:H|CAT)(\d)$/.exec(c);
+  return h ? t("stormH", { n: h[1] }) : t("stormTS");
+}
+
+export function cyclonePopup(p: { name: string; category?: string; alertLevel: string }): string {
+  return card({
+    accent: stormColor(p.category ?? "TS"),
+    title: t("cyclone", { name: p.name }),
+    tag: stormLabel(p.category),
+    tagAccent: true,
+    meta: [t("alert", { level: alertLabel(p.alertLevel) })],
+    note: t("cycloneNote"),
   });
 }
 

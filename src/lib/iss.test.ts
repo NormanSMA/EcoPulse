@@ -65,10 +65,16 @@ describe("eciToGeodetic", () => {
 describe("interpolateStateVector", () => {
   const vectors = parseOemFile(SAMPLE_OEM);
 
-  it("interpola linealmente en el punto medio entre dos muestras", () => {
+  it("interpola sobre la órbita (Hermite) sin cortar la cuerda en el punto medio", () => {
     const at = new Date("2026-09-04T12:02:00.000Z"); // punto medio exacto
     const result = interpolateStateVector(vectors, at) as StateVector;
-    expect(result.x).toBeCloseTo((-304.795682412414 + -1423.488290590500) / 2, 5);
+    const r = (v: { x: number; y: number; z: number }) => Math.hypot(v.x, v.y, v.z);
+    const [a, b] = vectors;
+    const linearMid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, z: (a.z + b.z) / 2 };
+    // La órbita es casi circular: el radio interpolado debe quedar a <2 km
+    // del de las muestras, mientras que la interpolación lineal se hunde.
+    expect(Math.abs(r(result) - r(a))).toBeLessThan(2);
+    expect(r(a) - r(linearMid)).toBeGreaterThan(10);
   });
 
   it("devuelve la muestra exacta si el timestamp coincide", () => {

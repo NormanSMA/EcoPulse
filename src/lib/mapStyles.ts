@@ -12,6 +12,9 @@ const OPENFREEMAP_LIGHT_STYLE = "https://tiles.openfreemap.org/styles/liberty";
 // requiere key. Se construye como StyleSpecification propio de MapLibre.
 const ESRI_SATELLITE_STYLE: StyleSpecification = {
   version: 8,
+  // Sin glyphs, las capas de texto (temperaturas, ISS, ciclones, conteo de
+  // clusters) fallaban en silencio sobre el mapa satelital.
+  glyphs: "https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf",
   sources: {
     "esri-world-imagery": {
       type: "raster",
