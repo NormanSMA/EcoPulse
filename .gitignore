@@ -22,9 +22,10 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# local env files
-.env*.local
+# local env files (solo se versiona la plantilla)
 .env
+.env.*
+!.env.example
 
 # vercel
 .vercel
@@ -39,3 +40,10 @@ next-env.d.ts
 
 # assets estaticos de Cesium copiados de node_modules por next.config.ts (webpack)
 /public/cesium/
+
+# editores / SO / herramientas locales
+.vscode/
+.idea/
+.claude/
+Thumbs.db
+*.log
