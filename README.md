@@ -28,7 +28,8 @@ La idea es sencilla: los datos ambientales públicos existen, pero están disper
 
 - **Explorar 8 capas de datos en vivo** sobre un mapa 2D (MapLibre) o un globo 3D con terreno real (CesiumJS).
 - **Consultar cada evento** en un popup con magnitud, profundidad, PM2.5, potencia radiativa (FRP), nivel de alerta, etc.
-- **Seguir la actividad reciente** en una lista unificada de sismos, incendios y desastres ordenada por recencia, con indicador de frescura del dato.
+- **Seguir la actividad reciente** en una lista unificada de sismos, incendios y desastres ordenada por recencia, con indicador de frescura del dato. Al tocar un evento, el mapa vuela hasta él.
+- **Viajar en el tiempo**: filtra por ventana (1 h, 6 h, 24 h, 7 días) y reproduce la actividad como una animación a lo largo de la ventana.
 - **Analizar réplicas**: al seleccionar un sismo, un gráfico muestra la actividad sísmica en la misma zona.
 - **Buscar sismos cercanos** a tu ubicación con una consulta geoespacial (PostGIS) en un radio de 50 a 500 km.
 - **Recibir alertas en Discord** cuando ocurre un sismo fuerte o la calidad del aire llega a un nivel peligroso.
