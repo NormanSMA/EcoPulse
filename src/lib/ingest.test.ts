@@ -264,7 +264,12 @@ describe("dedupeByKey", () => {
 describe("isIngestAuthorized", () => {
   it("permite la llamada si no hay secreto configurado", () => {
     const request = new Request("http://localhost/api/ingest");
-    expect(isIngestAuthorized(request, undefined)).toBe(true);
+    expect(isIngestAuthorized(request, undefined, false)).toBe(true);
+  });
+
+  it("rechaza en producción si no hay secreto configurado", () => {
+    const request = new Request("http://localhost/api/ingest");
+    expect(isIngestAuthorized(request, undefined, true)).toBe(false);
   });
 
   it("rechaza si el header Authorization no coincide con el secreto", () => {

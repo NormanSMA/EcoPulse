@@ -101,19 +101,21 @@ function PanelHeader({
   meta,
   onClose,
   closeLabel,
+  autoFocusClose,
 }: {
   title: string;
   icon: IconNode;
   meta?: ReactNode;
   onClose: () => void;
   closeLabel: string;
+  autoFocusClose?: boolean;
 }) {
   return (
     <div className="flex h-16 shrink-0 items-center gap-3 border-b border-ds-outline-variant pl-5 pr-3">
       <MorphIcon icon={icon} size={20} reducedMotion="user" className="shrink-0 text-ds-text-secondary" />
       <h2 className="min-w-0 flex-1 truncate text-lg font-medium text-ds-text-primary">{title}</h2>
       {meta}
-      <IconButton aria-label={closeLabel} onClick={onClose}>
+      <IconButton aria-label={closeLabel} onClick={onClose} autoFocus={autoFocusClose}>
         <MorphIcon icon={X} size={20} reducedMotion="user" />
       </IconButton>
     </div>
@@ -581,6 +583,7 @@ function HomePageContent() {
                 title={mobileSheet === "layers" ? tPanel("controls") : t("title")}
                 icon={mobileSheet === "layers" ? SlidersHorizontal : Inbox}
                 meta={mobileSheet === "events" ? feedBadge : undefined}
+                autoFocusClose
                 onClose={() => setMobileSheet(null)}
                 closeLabel={tPanel("close")}
               />

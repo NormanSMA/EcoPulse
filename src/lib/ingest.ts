@@ -110,7 +110,13 @@ export function dedupeByKey<T, K extends keyof T>(rows: T[], key: K): T[] {
   return Array.from(seen.values());
 }
 
-export function isIngestAuthorized(request: Request, secret: string | undefined): boolean {
-  if (!secret) return true;
+export function isIngestAuthorized(
+  request: Request,
+  secret: string | undefined,
+  isProduction: boolean = process.env.NODE_ENV === "production"
+): boolean {
+  // Sin secreto solo se permite en desarrollo: en producción un
+  // INGEST_SECRET olvidado dejaría /api/ingest (service role) abierto.
+  if (!secret) return !isProduction;
   return request.headers.get("authorization") === `Bearer ${secret}`;
 }

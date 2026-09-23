@@ -128,6 +128,7 @@ export default function Header({
   const tMap = useTranslations("mapMode");
   const { locale, setLocale } = useLocale();
   const [searchOpen, setSearchOpen] = useState(false);
+  const [hasQuery, setHasQuery] = useState(false);
 
   function toggleLocale() {
     const next: Locale = locale === "es" ? "en" : "es";
@@ -159,7 +160,11 @@ export default function Header({
           searchOpen ? "block" : "hidden"
         )}
       >
-        <SearchInput placeholder={tSearch("placeholder")} shortcutHint={tSearch("shortcutHint")} onChange={onSearchChange} />
+        <SearchInput placeholder={tSearch("placeholder")} shortcutHint={tSearch("shortcutHint")} onChange={(v) => {
+            setHasQuery(v.trim() !== "");
+            onSearchChange(v);
+          }}
+        />
       </div>
 
       <div className="ml-auto flex shrink-0 items-center gap-1 sm:gap-2 md:ml-0">
@@ -170,6 +175,11 @@ export default function Header({
           className="md:hidden"
         >
           <MorphIcon icon={searchOpen ? X : Search} size={20} reducedMotion="user" />
+          {/* Filtro activo con la búsqueda plegada: sin esto la lista/mapa
+              quedan filtrados sin ninguna pista visual en móvil. */}
+          {!searchOpen && hasQuery && (
+            <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-ds-primary" aria-hidden="true" />
+          )}
         </IconButton>
 
         <ModeToggle mode={mapMode} onChange={onMapModeChange} label={tMap("label")} />
