@@ -6,7 +6,8 @@
   },
   "metrics": {
     "earthquakes24h": "Earthquakes 24h",
-    "maxMagnitude": "Max magnitude"
+    "maxMagnitude": "Max magnitude",
+    "active": "Active events"
   },
   "status": {
     "live": "Live",
@@ -30,15 +31,13 @@
   },
   "layers": {
     "title": "Layers",
-    "earthquakes": "Recent earthquakes",
+    "earthquakes": "Earthquakes (24 h)",
     "airQuality": "Air quality (PM2.5)",
     "fires": "Active wildfires",
-    "weather": "Weather",
     "disasters": "Global disasters",
     "iss": "Space Station (ISS)",
-    "volcanoes": "Volcanoes",
-    "airQualityModel": "Modeled air (PM2.5)",
-    "hint": "Tap any marker on the map to see its details in real time.",
+    "volcanoes": "Active volcanoes (week)",
+    "hint": "Tap a marker for details, or any point on the map for local weather and seismicity.",
     "groups": {
       "geo": "Geophysics",
       "atmosphere": "Atmosphere",
@@ -46,7 +45,9 @@
       "space": "Space and sun"
     },
     "cyclones": "Cyclone tracks",
-    "dayNight": "Day and night"
+    "dayNight": "Day and night",
+    "volcanoCatalog": "Volcano catalog",
+    "radar": "Rain radar"
   },
   "nearby": {
     "title": "Earthquakes near me",
@@ -72,13 +73,6 @@
       "earthquake": "Earthquake",
       "fire": "Wildfire",
       "disaster": "Disaster"
-    },
-    "trend": {
-      "selectPrompt": "Select an earthquake to see its trend",
-      "noAftershocks": "No aftershocks recorded in the last 24h",
-      "magnitude": "Magnitude",
-      "time": "Time",
-      "title": "Aftershock trend"
     }
   },
   "mapMode": {
@@ -94,7 +88,8 @@
   "panel": {
     "controls": "Controls",
     "close": "Close",
-    "legend": "Legend"
+    "legend": "Legend",
+    "detail": "Details"
   },
   "legend": {
     "magnitude": "Earthquake magnitude",
@@ -111,50 +106,228 @@
       "Orange": "Orange",
       "Red": "Red"
     },
-    "storm": "Cyclones (Saffir-Simpson)",
+    "storm": "Tropical cyclones",
     "fires": "Fire intensity",
     "low": "Low",
     "high": "High",
-    "empty": "Turn on a layer to see its scale."
+    "empty": "Turn on a layer to see its scale.",
+    "volcanoes": "Active volcanoes",
+    "volcanoStatus": {
+      "new": "New eruption",
+      "continuing": "Continuing"
+    },
+    "radar": "Rain radar",
+    "light": "Light",
+    "heavy": "Heavy"
   },
-  "popup": {
-    "quake": "Earthquake M {mag}",
+  "detail": {
+    "back": "Back to events",
+    "close": "Close details",
+    "unavailable": "This item is no longer in the current data (it may be outside the time window).",
+    "kinds": {
+      "quake": "Earthquake",
+      "fire": "Active fire",
+      "disaster": "Disaster",
+      "cyclone": "Tropical cyclone",
+      "volcano": "Active volcano",
+      "volcanoCatalog": "Volcano (catalog)",
+      "air": "Air quality",
+      "iss": "International Space Station",
+      "point": "Selected point"
+    },
     "magnitude": "Magnitude",
     "depth": "Depth",
-    "occurred": "Occurred: {date}",
-    "updated": "Last updated: {date}",
-    "source": "Source: {source}",
-    "airQuality": "Air quality",
-    "airModel": "Air (model)",
-    "airModelNote": "Estimated by Open-Meteo, not directly observed",
-    "fire": "Active wildfire",
-    "frp": "FRP",
-    "confidence": "Confidence",
-    "temperature": "Temperature",
-    "humidity": "Humidity",
-    "wind": "Wind",
-    "alert": "{level} alert",
-    "range": "From: {from} · To: {to}",
-    "ongoing": "ongoing",
-    "gdacsReport": "View GDACS report",
-    "iss": "International Space Station",
-    "altitude": "Altitude",
-    "velocity": "Velocity",
-    "issSource": "NASA (OEM trajectory)",
-    "lastEruption": "Last eruption",
-    "elevation": "Elevation",
-    "noDate": "No documented date",
-    "bc": "{year} BCE",
-    "ad": "{year} CE",
-    "gvpNote": "Historical catalog (GVP) — not real-time monitoring",
-    "na": "N/A",
-    "close": "Close",
-    "cyclone": "Cyclone {name}",
-    "stormTD": "Tropical depression",
-    "stormTS": "Tropical storm",
-    "stormH": "Category {n} hurricane",
-    "cycloneNote": "Track and uncertainty cone: GDACS / JTWC",
-    "footprint": "Visible within",
-    "nextPass": "Track: 45 min back · 90 min ahead"
+    "depthClass": {
+      "shallow": "Shallow",
+      "intermediate": "Intermediate",
+      "deep": "Deep"
+    },
+    "time": "Time",
+    "coords": "Coordinates",
+    "felt": "Felt by",
+    "feltValue": "{n} people",
+    "significance": "Significance",
+    "source": "Source",
+    "pager": "PAGER {level} alert",
+    "pagerLevels": {
+      "green": "green",
+      "yellow": "yellow",
+      "orange": "orange",
+      "red": "red"
+    },
+    "tsunami": "Possible tsunami",
+    "viewSource": "View on {source}",
+    "history": {
+      "title": "Seismicity in the area",
+      "subtitle": "30 days · 150 km radius · M ≥ 2.5",
+      "count": "Earthquakes",
+      "strongest": "Strongest",
+      "latest": "Latest",
+      "empty": "No M ≥ 2.5 earthquakes in the last 30 days.",
+      "loading": "Loading history…",
+      "selected": "This earthquake"
+    },
+    "fire": {
+      "frp": "Radiative power",
+      "confidence": "Confidence",
+      "satellite": "Satellite",
+      "detected": "Detected",
+      "nearby": "Hotspots within 25 km",
+      "viewFirms": "View on NASA FIRMS",
+      "confidenceLevels": {
+        "low": "low",
+        "nominal": "nominal",
+        "high": "high"
+      }
+    },
+    "disaster": {
+      "type": "Type",
+      "alert": "Alert",
+      "country": "Countries",
+      "from": "Start",
+      "to": "End",
+      "ongoing": "Ongoing",
+      "report": "GDACS report"
+    },
+    "cyclone": {
+      "category": "Current category",
+      "alert": "GDACS alert",
+      "maxWind": "Max wind",
+      "peakCategory": "Saffir-Simpson cat. {n} at peak",
+      "report": "GDACS report",
+      "trackNote": "The solid line is the observed track; the dashed line and cone are the forecast."
+    },
+    "volcano": {
+      "status": {
+        "new": "New eruptive activity",
+        "continuing": "Continuing activity"
+      },
+      "country": "Country",
+      "period": "Report period",
+      "report": "Weekly report",
+      "sources": "Sources",
+      "viewGvp": "Smithsonian GVP profile"
+    },
+    "volcanoCatalog": {
+      "type": "Type",
+      "lastEruption": "Last eruption",
+      "elevation": "Elevation",
+      "noDate": "No documented date",
+      "bc": "{year} BCE",
+      "ad": "{year} CE",
+      "note": "Holocene historical catalog: does not indicate current activity.",
+      "periods": {
+        "D1": "1964 or later",
+        "D2": "1900–1963",
+        "D3": "1800–1899",
+        "D4": "1700–1799",
+        "D5": "1500–1699",
+        "D6": "1–1499 CE",
+        "D7": "BCE (Holocene)",
+        "U": "Undated",
+        "Q": "Quaternary",
+        "?": "Uncertain"
+      }
+    },
+    "air": {
+      "pm25": "PM2.5",
+      "updated": "Last reading",
+      "station": "Station",
+      "history": "Last 48 hours",
+      "model": "Model estimate",
+      "modelNote": "Open-Meteo (CAMS) for the same spot, to compare with the measurement.",
+      "loading": "Loading history…",
+      "noHistory": "The station has no recent history.",
+      "who": "WHO guideline (24 h): 15 µg/m³"
+    },
+    "iss": {
+      "altitude": "Altitude",
+      "speed": "Speed",
+      "visibility": "Visible within",
+      "heading": "Heading",
+      "position": "Over",
+      "orbitNote": "Track computed from NASA's official ephemeris (solid: last 45 min; dashed: next 90 min)."
+    },
+    "point": {
+      "now": "Now",
+      "feels": "Feels like",
+      "humidity": "Humidity",
+      "wind": "Wind",
+      "precip": "Precipitation",
+      "forecast": "Next 24 hours",
+      "temp": "Temperature",
+      "precipProb": "Rain chance",
+      "airModel": "Estimated PM2.5",
+      "loading": "Loading forecast…",
+      "unavailable": "No weather data for this point.",
+      "ocean": "Ocean / unnamed"
+    }
+  },
+  "weatherCodes": {
+    "0": "Clear sky",
+    "1": "Mainly clear",
+    "2": "Partly cloudy",
+    "3": "Overcast",
+    "45": "Fog",
+    "48": "Rime fog",
+    "51": "Light drizzle",
+    "53": "Drizzle",
+    "55": "Dense drizzle",
+    "56": "Freezing drizzle",
+    "57": "Dense freezing drizzle",
+    "61": "Light rain",
+    "63": "Rain",
+    "65": "Heavy rain",
+    "66": "Freezing rain",
+    "67": "Heavy freezing rain",
+    "71": "Light snow",
+    "73": "Snow",
+    "75": "Heavy snow",
+    "77": "Snow grains",
+    "80": "Light showers",
+    "81": "Showers",
+    "82": "Heavy showers",
+    "85": "Snow showers",
+    "86": "Heavy snow showers",
+    "95": "Thunderstorm",
+    "96": "Thunderstorm with hail",
+    "99": "Severe thunderstorm with hail"
+  },
+  "eventsPanel": {
+    "filter": "Filter by place or name",
+    "sort": {
+      "label": "Sort",
+      "relevant": "Important",
+      "recent": "Recent"
+    },
+    "chips": {
+      "all": "All",
+      "quake": "Earthquakes",
+      "fire": "Fires",
+      "disaster": "Disasters",
+      "cyclone": "Cyclones",
+      "volcano": "Volcanoes"
+    },
+    "more": "Show more",
+    "depth": "{km} km deep",
+    "tsunami": "Tsunami"
+  },
+  "placeSearch": {
+    "placeholder": "Search a place",
+    "searching": "Searching…",
+    "noResults": "No results",
+    "label": "Search a place on the map",
+    "clear": "Clear search"
+  },
+  "disasterTypes": {
+    "FL": "Flood",
+    "TC": "Tropical cyclone",
+    "DR": "Drought",
+    "VO": "Volcanic eruption"
+  },
+  "stormCategories": {
+    "TD": "Tropical depression",
+    "TS": "Tropical storm",
+    "HU": "Hurricane / typhoon"
   }
 }

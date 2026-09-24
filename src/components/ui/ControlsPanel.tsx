@@ -23,8 +23,9 @@ const GROUPS: { id: "geo" | "atmosphere" | "hazards" | "space"; icon: IconNode; 
     id: "geo",
     icon: Mountain,
     layers: [
-      { key: "earthquakes", tag: "USGS" },
+      { key: "earthquakes", tag: "USGS · EMSC" },
       { key: "volcanoes", tag: "GVP" },
+      { key: "volcanoCatalog", tag: "GVP", ring: true },
     ],
   },
   {
@@ -32,8 +33,7 @@ const GROUPS: { id: "geo" | "atmosphere" | "hazards" | "space"; icon: IconNode; 
     icon: CloudSun,
     layers: [
       { key: "airQuality", tag: "OpenAQ" },
-      { key: "airQualityModel", tag: "Open-Meteo", ring: true },
-      { key: "weather", tag: "Open-Meteo" },
+      { key: "radar", tag: "RainViewer" },
     ],
   },
   {

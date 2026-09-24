@@ -1,4 +1,5 @@
 import type { AlertLevel, CycloneFeature, CycloneGeoJSON } from "./types";
+import { normalizeStormCategory } from "@/design-system/tokens";
 
 // Trayectorias y conos de incertidumbre de los ciclones tropicales activos,
 // desde la API de geometrías de GDACS (la misma fuente que la capa de
@@ -17,6 +18,7 @@ interface GdacsListFeature {
     iscurrent?: string | boolean;
     todate: string;
     url: { geometry?: string };
+    severitydata?: { severity?: number; severityunit?: string };
   };
 }
 
@@ -49,12 +51,12 @@ function ringCentroid(ring: [number, number][]): [number, number] {
 
 /**
  * Convierte la respuesta de geometrías de GDACS en features propias:
- * segmentos de trayectoria con categoría (TD/TS/H1…) y si son pronóstico,
+ * segmentos de trayectoria con su fase (TD/TS/HU) y si son pronóstico,
  * el cono de incertidumbre y la posición del último aviso.
  */
 export function toCycloneFeatures(
   raw: GdacsGeometryFeature[],
-  meta: { eventId: string; name: string; alertLevel: AlertLevel; advisoryTime: number }
+  meta: { eventId: string; name: string; alertLevel: AlertLevel; advisoryTime: number; maxWindKmh?: number }
 ): CycloneFeature[] {
   const base = { eventId: meta.eventId, name: meta.name, alertLevel: meta.alertLevel };
   const reference = new Date(meta.advisoryTime);
@@ -79,7 +81,7 @@ export function toCycloneFeatures(
     if (line && f.geometry.type === "LineString") {
       out.push({
         type: "Feature",
-        properties: { ...base, kind: "track", category: f.properties.polygonlabel ?? "TS", forecast: isForecast(Number(line[1]) + 1) },
+        properties: { ...base, kind: "track", category: normalizeStormCategory(f.properties.polygonlabel), forecast: isForecast(Number(line[1]) + 1) },
         geometry: { type: "LineString", coordinates: f.geometry.coordinates as [number, number][] },
       });
     } else if (cls === "Poly_Cones" && f.geometry.type === "Polygon") {
@@ -98,7 +100,7 @@ export function toCycloneFeatures(
     const lastTrack = out.filter((f) => f.properties.kind === "track" && !f.properties.forecast).pop();
     out.push({
       type: "Feature",
-      properties: { ...base, kind: "position", category: lastTrack?.properties.category },
+      properties: { ...base, kind: "position", category: lastTrack?.properties.category, ...(meta.maxWindKmh != null && { maxWindKmh: meta.maxWindKmh }) },
       geometry: { type: "Point", coordinates: current.pos },
     });
   }
@@ -127,6 +129,7 @@ export async function fetchActiveCyclones(signal?: AbortSignal): Promise<Cyclone
             name: p.eventname || p.name.replace(/^Tropical Cyclone\s+/i, ""),
             alertLevel: p.alertlevel as AlertLevel,
             advisoryTime: new Date(p.todate + (p.todate.endsWith("Z") ? "" : "Z")).getTime(),
+            maxWindKmh: p.severitydata?.severityunit === "km/h" && Number.isFinite(p.severitydata.severity) ? p.severitydata.severity : undefined,
           });
         } catch (err) {
           if (err instanceof DOMException && err.name === "AbortError") throw err;

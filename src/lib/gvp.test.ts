@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { toVolcanoFeature, fetchVolcanoes } from "./gvp";
+import { toVolcanoFeature, fetchVolcanoes, fromNcei } from "./gvp";
 
 const realVolcanoRaw = {
   geometry: { type: "Point", coordinates: [2.981, 45.786] as [number, number] },
@@ -74,5 +74,31 @@ describe("fetchVolcanoes", () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 500 }));
     const result = await fetchVolcanoes();
     expect(result.features).toEqual([]);
+  });
+});
+
+describe("respaldo NOAA NCEI", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("mapea un volcán de NCEI conservando el número GVP", () => {
+    const f = fromNcei({ id: 10001, newNum: 210010, name: "West Eifel Volcanic Field", country: "Germany", latitude: 50.17, longitude: 6.85, elevation: 600, morphology: "Maar", timeErupt: "D7" });
+    expect(f?.id).toBe(210010);
+    expect(f?.properties.lastEruptionPeriod).toBe("D7");
+    expect(f?.geometry.coordinates).toEqual([6.85, 50.17]);
+  });
+
+  it("usa NCEI cuando el WFS del Smithsonian falla", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string) => {
+        if (url.includes("volcano.si.edu")) return Promise.reject(new TypeError("fetch failed"));
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ totalPages: 1, items: [{ id: 1, newNum: 211060, name: "Etna", country: "Italy", latitude: 37.75, longitude: 14.99, elevation: 3357, morphology: "Stratovolcano", timeErupt: "D1" }] }),
+        });
+      })
+    );
+    const result = await fetchVolcanoes();
+    expect(result.features.map((f) => f.properties.name)).toEqual(["Etna"]);
   });
 });

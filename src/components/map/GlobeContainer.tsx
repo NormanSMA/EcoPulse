@@ -1,73 +1,17 @@
 'use client';
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import * as Cesium from "cesium";
 import "cesium/Build/Cesium/Widgets/widgets.css";
-import {
-  EarthquakeGeoJSON,
-  AirQualityGeoJSON,
-  FireGeoJSON,
-  WeatherGeoJSON,
-  DisasterGeoJSON,
-  IssGeoJSON,
-  VolcanoGeoJSON,
-  AirQualityModelGeoJSON,
-} from "@/lib/types";
-import { getAQICategory } from "@/lib/openaq";
 import { dedupeByKey } from "@/lib/ingest";
-import { DEFAULT_MAP_VIEW, type MapView } from "@/lib/mapView";
+import { DEFAULT_MAP_VIEW, altitudeToZoom, zoomToAltitude } from "@/lib/mapView";
 import { themes, layers, marker, magnitudeColor, aqiColor, stormColor } from "@/design-system/tokens";
-import {
-  earthquakePopup,
-  airQualityPopup,
-  firePopup,
-  weatherPopup,
-  disasterPopup,
-  issPopup,
-  volcanoPopup,
-  airQualityModelPopup,
-  cyclonePopup,
-  popupCloseLabel,
-} from "@/lib/popupHtml";
 import { getIcon } from "@/lib/mapIcons";
-import type { CycloneGeoJSON } from "@/lib/types";
+import { selectionFromEntityId } from "@/lib/selection";
+import type { MapViewProps } from "./types";
 
-interface GlobeContainerProps {
-  earthquakes: EarthquakeGeoJSON;
-  airQuality: AirQualityGeoJSON;
-  fires: FireGeoJSON;
-  weather: WeatherGeoJSON;
-  disasters: DisasterGeoJSON;
-  iss: IssGeoJSON;
-  volcanoes: VolcanoGeoJSON;
-  airQualityModel: AirQualityModelGeoJSON;
-  cyclones: CycloneGeoJSON;
-  showQuakes: boolean;
-  showAirQuality: boolean;
-  showFires: boolean;
-  showWeather: boolean;
-  showDisasters: boolean;
-  showIss: boolean;
-  showVolcanoes: boolean;
-  showAirQualityModel: boolean;
-  showCyclones: boolean;
-  showDayNight: boolean;
-  /** Instante de referencia (ahora o cursor de reproducción). */
-  refTime: number;
-  onSelectEarthquake?: (id: string) => void;
-  selectedEarthquakeId?: string | null;
-  onViewChange?: (view: MapView) => void;
-  initialView?: MapView;
+interface GlobeContainerProps extends MapViewProps {
   theme: "light" | "dark";
-  focus?: { lng: number; lat: number; key: number } | null;
-}
-
-// Formula de conversión zoom (estilo slippy-map) -> altitud de cámara,
-// aproximación estándar usada en demos de sincronización MapLibre/Mapbox <->
-// Cesium (no es exacta porque depende del FOV/tamaño de pantalla, pero es
-// suficiente para preservar una vista "parecida" al cambiar de 2D a 3D).
-function zoomToAltitude(lat: number, zoom: number): number {
-  return (591657527.591555 * Math.cos((lat * Math.PI) / 180)) / Math.pow(2, zoom);
 }
 
 const HOUR_MS = 3_600_000;
@@ -75,10 +19,21 @@ const HOUR_MS = 3_600_000;
 // píxeles nativos, así que se escalan a la mitad y se achican con la distancia.
 const ICON_SCALE = 0.5;
 const ICON_BY_DISTANCE = new Cesium.NearFarScalar(1.5e6, 1, 2.5e7, 0.6);
-// Los billboards "pegados al terreno" se dibujaban a través del globo (se
-// veían iconos del otro lado de la Tierra): van a altura fija y Cesium los
-// ocluye con el elipsoide como al resto de entidades.
-const BILLBOARD_HEIGHT_M = 3000;
+// Iconos pegados al relieve real: a una altura fija quedaban enterrados en
+// montañas más altas (volcanes andinos, Himalaya) al acercarse.
+const GROUND = Cesium.HeightReference.CLAMP_TO_GROUND;
+// Iconos y puntos sin prueba de profundidad: el relieve nunca los tapa (ni
+// de cerca ni en mesetas altas vistas de lejos). Lo que queda detrás de la
+// Tierra se oculta con un test de horizonte propio (ver aboveHorizon).
+const NO_DEPTH_TEST = Number.POSITIVE_INFINITY;
+const RADAR_MAX_LEVEL = 7;
+// Un "tap" es pulsar y soltar sin arrastrar; el área de búsqueda del elemento
+// tocado es mayor con el dedo que con el ratón.
+const TAP_TOLERANCE_PX = 8;
+const TAP_MAX_MS = 800;
+const TOUCH_PICK_PX = 28;
+const MOUSE_PICK_PX = 6;
+const PICK_LIMIT = 8;
 
 /** Opacidad por antigüedad, misma curva que el mapa 2D. */
 function ageAlpha(refTime: number, t: number): number {
@@ -92,153 +47,50 @@ function ageAlpha(refTime: number, t: number): number {
   return 0.3;
 }
 
-export default function GlobeContainer({
-  earthquakes,
-  airQuality,
-  fires,
-  weather,
-  disasters,
-  iss,
-  volcanoes,
-  airQualityModel,
-  showQuakes,
-  showAirQuality,
-  showFires,
-  showWeather,
-  showDisasters,
-  showIss,
-  showVolcanoes,
-  showAirQualityModel,
-  cyclones,
-  showCyclones,
-  showDayNight,
-  refTime,
-  onSelectEarthquake,
-  selectedEarthquakeId,
-  initialView = DEFAULT_MAP_VIEW,
-  theme,
-  focus,
-}: GlobeContainerProps) {
+/**
+ * ¿Está `p` (sobre el elipsoide) por encima del horizonte visto desde la
+ * cámara? En el espacio escalado del elipsoide es una esfera unitaria: el punto
+ * se ve si la cámara queda por encima de su plano tangente (C·P > 1).
+ */
+function aboveHorizon(camera: Cesium.Cartesian3, p: Cesium.Cartesian3): boolean {
+  const r = Cesium.Ellipsoid.WGS84.oneOverRadii;
+  const px = p.x * r.x, py = p.y * r.y, pz = p.z * r.z;
+  const len2 = px * px + py * py + pz * pz;
+  return camera.x * r.x * px + camera.y * r.y * py + camera.z * r.z * pz > len2;
+}
+
+const css = (c: string) => Cesium.Color.fromCssColorString(c);
+const LABEL_FONT = "600 12px 'Google Sans Flex', Roboto, sans-serif";
+
+export default function GlobeContainer(props: GlobeContainerProps) {
+  const { data, visibility, refTime, radarTiles, selectedPoint, focus, theme, initialView = DEFAULT_MAP_VIEW } = props;
   const containerRef = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<Cesium.Viewer | null>(null);
-  const onSelectEarthquakeRef = useRef(onSelectEarthquake);
-  onSelectEarthquakeRef.current = onSelectEarthquake;
+  const propsRef = useRef(props);
+  propsRef.current = props;
 
-  // Refs con los datos más recientes: el click handler y el popup se
-  // registran una sola vez en el effect de inicialización, así que necesitan
-  // leer siempre el estado más reciente (mismo patrón que MapContainer.tsx).
-  const earthquakesRef = useRef(earthquakes);
-  earthquakesRef.current = earthquakes;
-  const cyclonesRef = useRef(cyclones);
-  cyclonesRef.current = cyclones;
-  const airQualityRef = useRef(airQuality);
-  airQualityRef.current = airQuality;
-  const firesRef = useRef(fires);
-  firesRef.current = fires;
-  const weatherRef = useRef(weather);
-  weatherRef.current = weather;
-  const disastersRef = useRef(disasters);
-  disastersRef.current = disasters;
-  const issRef = useRef(iss);
-  issRef.current = iss;
-  const volcanoesRef = useRef(volcanoes);
-  volcanoesRef.current = volcanoes;
-  const airQualityModelRef = useRef(airQualityModel);
-  airQualityModelRef.current = airQualityModel;
+  // Entidades por capa (iconos, trayectorias) y colecciones de primitivas
+  // para las capas masivas (sismos, incendios, aire: hasta ~10.000 puntos).
+  const layerEntitiesRef = useRef<Record<string, Cesium.Entity[]>>({});
+  // Iconos anclados al terreno y su posición: se ocultan tras el horizonte
+  // junto con los puntos (la prueba de profundidad deja asomar lo que está
+  // justo detrás del borde del globo). Se recalcula al mover la cámara o al
+  // cambiar los datos.
+  const groundedRef = useRef(new Map<Cesium.Entity, Cesium.Cartesian3>());
+  const horizonDirtyRef = useRef(true);
+  const pointsRef = useRef<Record<string, Cesium.PointPrimitiveCollection>>({});
+  const radarLayerRef = useRef<Cesium.ImageryLayer | null>(null);
 
-  // Popup flotante estilo glass para el globo 3D (infoBox nativo de Cesium
-  // está desactivado a propósito, ver comentario en el Viewer más abajo).
-  const [popupInfo, setPopupInfo] = useState<{ entityId: string; html: string } | null>(null);
-  const popupInfoRef = useRef(popupInfo);
-  popupInfoRef.current = popupInfo;
-  const popupElRef = useRef<HTMLDivElement>(null);
-
-  // Construye el HTML interno del popup para un id de entidad dado,
-  // replicando EXACTAMENTE el contenido/orden/labels de los popups 2D en
-  // MapContainer.tsx (misma plantilla glass, mismos campos por capa).
-  function buildPopupHtml(entityId: string): string | null {
-    if (entityId.startsWith("eq-")) {
-      const targetId = entityId.slice(3);
-      const f = earthquakesRef.current.features.find((ft) => String(ft.id) === targetId);
-      if (!f) return null;
-      const depth = f.geometry.coordinates[2] ?? 0;
-      return earthquakePopup(f.properties, depth);
-    }
-
-    if (entityId.startsWith("fire-")) {
-      const targetId = entityId.slice(5);
-      const f = firesRef.current.features.find((ft) => String(ft.id) === targetId);
-      if (!f) return null;
-      return firePopup(f.properties);
-    }
-
-    if (entityId.startsWith("aqm-")) {
-      const targetId = entityId.slice(4);
-      const f = airQualityModelRef.current.features.find((ft) => String(ft.id) === targetId);
-      if (!f) return null;
-      return airQualityModelPopup(f.properties, f.properties.category);
-    }
-
-    if (entityId.startsWith("aq-")) {
-      const targetId = entityId.slice(3);
-      const f = airQualityRef.current.features.find((ft) => String(ft.id) === targetId);
-      if (!f) return null;
-      return airQualityPopup(f.properties);
-    }
-
-    if (entityId.startsWith("weather-")) {
-      const targetId = entityId.slice(8);
-      const f = weatherRef.current.features.find((ft) => String(ft.id) === targetId);
-      if (!f) return null;
-      return weatherPopup(f.properties);
-    }
-
-    if (entityId.startsWith("disaster-")) {
-      const targetId = entityId.slice(9);
-      const f = disastersRef.current.features.find((ft) => String(ft.id) === targetId);
-      if (!f) return null;
-      return disasterPopup(f.properties);
-    }
-
-    if (entityId.startsWith("volcano-")) {
-      const targetId = entityId.slice(8);
-      const f = volcanoesRef.current.features.find((ft) => String(ft.id) === targetId);
-      if (!f) return null;
-      return volcanoPopup(f.properties);
-    }
-
-    if (entityId.startsWith("cyc-pos-")) {
-      const eventId = entityId.slice(8);
-      const f = cyclonesRef.current.features.find((ft) => ft.properties.kind === "position" && ft.properties.eventId === eventId);
-      return f ? cyclonePopup(f.properties) : null;
-    }
-
-    if (entityId === "iss") {
-      const f = issRef.current.features[0];
-      if (!f) return null;
-      return issPopup(f.properties);
-    }
-
-    return null;
-  }
-
-  // 1. Inicialización única del Viewer (igual que MapContainer: se crea una
-  // sola vez, los cambios posteriores de datos/tema se aplican en effects
-  // separados sin recrear el globo).
+  // 1. Inicialización única del Viewer.
   useEffect(() => {
     if (!containerRef.current) return;
-
     (window as unknown as { CESIUM_BASE_URL: string }).CESIUM_BASE_URL = "/cesium/";
-
     const token = process.env.NEXT_PUBLIC_CESIUM_TOKEN;
     if (token) Cesium.Ion.defaultAccessToken = token;
 
     const viewer = new Cesium.Viewer(containerRef.current, {
-      // El default de Viewer (ImageryLayer.fromWorldImagery(), respaldado
-      // por Bing) pega directo a dev.virtualearth.net con una key demo de
-      // Cesium, fuera del proxy de Ion — choca contra la CSP del proyecto y
-      // no usa el token propio. Se desactiva acá y se agrega explícitamente
-      // vía Ion más abajo (createWorldImageryAsync).
+      // Sin la capa base por defecto (Bing directo a dev.virtualearth.net,
+      // fuera del proxy de Ion y de la CSP): se agrega vía Ion más abajo.
       baseLayer: false,
       baseLayerPicker: false,
       geocoder: false,
@@ -251,492 +103,371 @@ export default function GlobeContainer({
       timeline: false,
       animation: false,
       shouldAnimate: false,
-      // preserveDrawingBuffer: true evita que Chromium capture un buffer en
-      // blanco/negro al hacer el snapshot para backdrop-filter (blur) de los
-      // paneles glass que flotan sobre el canvas WebGL del globo. Mismo fix
-      // que en MapContainer.tsx (MapLibre) para el mapa 2D.
-      contextOptions: {
-        webgl: {
-          preserveDrawingBuffer: true,
-        },
-      },
+      // Evita que el snapshot para backdrop-filter de los paneles salga negro.
+      contextOptions: { webgl: { preserveDrawingBuffer: true } },
     });
 
-    viewer.scene.globe.enableLighting = true;
+    viewer.scene.globe.enableLighting = propsRef.current.visibility.dayNight;
     viewer.scene.globe.showGroundAtmosphere = true;
     if (viewer.scene.skyAtmosphere) viewer.scene.skyAtmosphere.show = true;
     viewer.scene.fog.enabled = true;
-    // Nota: el crédito/atribución de Cesium Ion (esquina inferior) se deja
-    // visible a propósito — es requisito de los términos de uso de Ion al
-    // consumir su terreno/imagería, no se debe ocultar.
+    viewer.clock.currentTime = Cesium.JulianDate.fromDate(new Date(propsRef.current.refTime));
+    // Los créditos de Cesium Ion se dejan visibles: lo exigen sus términos.
 
     Cesium.createWorldTerrainAsync()
-      .then((terrainProvider) => {
-        if (!viewer.isDestroyed()) viewer.scene.terrainProvider = terrainProvider;
+      .then((terrain) => {
+        if (!viewer.isDestroyed()) viewer.scene.terrainProvider = terrain;
       })
       .catch((err) => console.error("Error cargando terreno de Cesium Ion:", err));
-
-    // Imagería explícita vía Ion (World Imagery / Bing Aerial, assetId 2) —
-    // no se deja el default implícito del Viewer, que en esta versión
-    // dispara una llamada a dev.virtualearth.net fuera del proxy de Ion y
-    // choca contra la CSP del proyecto.
     Cesium.createWorldImageryAsync()
-      .then((imageryProvider) => {
-        if (viewer.isDestroyed()) return;
-        viewer.imageryLayers.removeAll();
-        viewer.imageryLayers.addImageryProvider(imageryProvider);
+      .then((imagery) => {
+        // Índice 0: la imagería base siempre queda debajo del radar.
+        if (!viewer.isDestroyed()) viewer.imageryLayers.addImageryProvider(imagery, 0);
       })
       .catch((err) => console.error("Error cargando imagería de Cesium Ion:", err));
 
-    const finalAltitude = zoomToAltitude(initialView.lat, initialView.zoom);
-    const finalDestination = Cesium.Cartesian3.fromDegrees(initialView.lng, initialView.lat, finalAltitude);
+    for (const key of ["air", "fires", "quakes", "volcanoCatalog"]) {
+      pointsRef.current[key] = viewer.scene.primitives.add(new Cesium.PointPrimitiveCollection());
+    }
 
-    // Cinemática de entrada: solo la primera vez por sesión (sessionStorage,
-    // no localStorage — vuelve a jugarse en pestañas/sesiones nuevas) y solo
-    // si el usuario no pidió reduced-motion. Se puede omitir con click o Esc.
+    // Cámara inicial; cinemática de entrada una vez por sesión (se omite
+    // con click o Esc, y con prefers-reduced-motion).
+    const canvas = viewer.scene.canvas;
+    const finalAltitude = zoomToAltitude(initialView.lat, initialView.zoom, canvas.clientWidth, canvas.clientHeight);
+    const finalDestination = Cesium.Cartesian3.fromDegrees(initialView.lng, initialView.lat, finalAltitude);
     let alreadySeen = true;
     try {
       alreadySeen = sessionStorage.getItem("ecopulse-intro-seen") === "true";
-    } catch {
-      // sessionStorage bloqueado (modo privado) — se degrada sin cinemática.
-    }
-    const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: no-preference)").matches === false;
-    const shouldPlayIntro = !alreadySeen && !prefersReducedMotion;
-
-    try {
       sessionStorage.setItem("ecopulse-intro-seen", "true");
     } catch {
-      // Ver comentario de arriba.
+      // sessionStorage bloqueado (modo privado): sin cinemática.
     }
-
-    let introKeyHandler: ((e: KeyboardEvent) => void) | null = null;
-    let introSkipHandler: (() => void) | null = null;
-
-    if (shouldPlayIntro) {
-      // Punto de partida "desde el espacio": misma longitud/latitud, bastante
-      // más lejos que el destino final (que ya de por sí puede ser una
-      // altitud grande si el zoom inicial es muy alejado — de ahí el
-      // múltiplo en vez de una constante fija, para garantizar que el punto
-      // de partida SIEMPRE esté más lejos que el final). Instantáneo (sin
-      // animación) — la animación real es el flyTo de abajo.
-      const introStartAltitude = Math.max(finalAltitude * 6, 20000000);
-      viewer.camera.setView({
-        destination: Cesium.Cartesian3.fromDegrees(initialView.lng, initialView.lat, introStartAltitude),
-      });
-
-      const skipIntro = () => {
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    let skipIntro: (() => void) | null = null;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") skipIntro?.();
+    };
+    if (!alreadySeen && !reduceMotion) {
+      viewer.camera.setView({ destination: Cesium.Cartesian3.fromDegrees(initialView.lng, initialView.lat, Math.max(finalAltitude * 6, 2e7)) });
+      skipIntro = () => {
         viewer.camera.cancelFlight();
         viewer.camera.setView({ destination: finalDestination });
-        if (introKeyHandler) window.removeEventListener("keydown", introKeyHandler);
-        viewer.scene.canvas.removeEventListener("pointerdown", skipIntro);
+        window.removeEventListener("keydown", onKey);
+        viewer.scene.canvas.removeEventListener("pointerdown", skipIntro!);
       };
-      introSkipHandler = skipIntro;
-      introKeyHandler = (e: KeyboardEvent) => {
-        if (e.key === "Escape") skipIntro();
-      };
-      window.addEventListener("keydown", introKeyHandler);
+      window.addEventListener("keydown", onKey);
       viewer.scene.canvas.addEventListener("pointerdown", skipIntro, { once: true });
-
-      viewer.camera.flyTo({
-        destination: finalDestination,
-        duration: 2.5,
-        complete: () => {
-          if (introKeyHandler) window.removeEventListener("keydown", introKeyHandler);
-        },
-      });
+      viewer.camera.flyTo({ destination: finalDestination, duration: 2.5, complete: () => window.removeEventListener("keydown", onKey) });
     } else {
-      viewer.camera.flyTo({ destination: finalDestination, duration: 0 });
+      viewer.camera.setView({ destination: finalDestination });
     }
 
-    const handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
-    handler.setInputAction((click: { position: Cesium.Cartesian2 }) => {
-      const picked = viewer.scene.pick(click.position);
-      const id = picked?.id?.id as string | undefined;
-
-      if (!id) {
-        // Click en espacio vacío del globo: cierra el popup, si hay uno abierto.
-        setPopupInfo(null);
-        return;
+    // Tap/click: elemento → misma selección que el mapa 2D; globo vacío →
+    // punto. Se detecta con eventos de puntero propios (el LEFT_CLICK de
+    // Cesium no se dispara con toques en móvil) y, con el dedo, se busca en
+    // un área mayor para que los puntos pequeños sean fáciles de tocar.
+    const selectAt = (position: Cesium.Cartesian2, pickSize: number) => {
+      // Todo lo que hay bajo el puntero, de arriba abajo: gana lo primero con
+      // detalle propio (una trayectoria o un cono encima no tapan el sismo).
+      const picked = viewer.scene.drillPick(position, PICK_LIMIT, pickSize, pickSize);
+      for (const p of picked) {
+        const raw = p?.id;
+        const id: string | undefined = typeof raw === "string" ? raw : raw instanceof Cesium.Entity ? raw.id : undefined;
+        const selection = id ? selectionFromEntityId(id) : null;
+        if (selection) {
+          propsRef.current.onSelect(selection);
+          return;
+        }
       }
-
-      if (id.startsWith("eq-")) {
-        // Los sismos mantienen su comportamiento previo (selección para el
-        // panel lateral de tendencia) Y además ahora abren el popup, igual
-        // que en 2D (que hace ambas cosas en el mismo click).
-        onSelectEarthquakeRef.current?.(id.slice(3));
-      }
-
-      if (id.startsWith("iss-track") || id.startsWith("cyc-geo-")) {
-        // El anillo orbital de la ISS no tiene datos propios que mostrar —
-        // se ignora el click para no abrir/cerrar el popup accidentalmente.
-        return;
-      }
-
-      const html = buildPopupHtml(id);
-      if (html) {
-        setPopupInfo({ entityId: id, html });
-      } else {
-        setPopupInfo(null);
-      }
-    }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
-
-    // Ancla el popup DOM a la posición en pantalla de la entidad seleccionada
-    // en cada frame — patrón estándar de Cesium para pinear overlays HTML a
-    // un punto 3D que se mueve mientras la cámara orbita/paneal/hace zoom.
-    // Se oculta solo (sin desmontar el popup ni perder su contenido) cuando
-    // la entidad queda del lado oculto del globo o fuera de pantalla.
-    const positionPopup = () => {
-      const info = popupInfoRef.current;
-      const el = popupElRef.current;
-      if (!info || !el) return;
-
-      const entity = viewer.entities.getById(info.entityId);
-      const position = entity?.position?.getValue(viewer.clock.currentTime);
-      if (!entity || !position) {
-        el.style.display = "none";
-        return;
-      }
-
-      const windowPosition = Cesium.SceneTransforms.worldToWindowCoordinates(viewer.scene, position);
-      if (!windowPosition) {
-        el.style.display = "none";
-        return;
-      }
-
-      // Entidad detrás del globo: compara la normal de la superficie en ese
-      // punto contra la dirección cámara->punto — si apuntan "para el mismo
-      // lado" el punto está del lado oculto de la esfera desde la cámara
-      // actual (aproximación geométrica estándar, equivalente en la
-      // práctica a un chequeo de oclusión por el elipsoide).
-      const ellipsoid = viewer.scene.globe.ellipsoid;
-      const surfaceNormal = ellipsoid.geodeticSurfaceNormal(position, new Cesium.Cartesian3());
-      const cameraToPoint = Cesium.Cartesian3.subtract(position, viewer.camera.positionWC, new Cesium.Cartesian3());
-      Cesium.Cartesian3.normalize(cameraToPoint, cameraToPoint);
-      if (surfaceNormal && Cesium.Cartesian3.dot(surfaceNormal, cameraToPoint) > 0) {
-        el.style.display = "none";
-        return;
-      }
-
-      el.style.display = "block";
-      el.style.left = `${windowPosition.x}px`;
-      el.style.top = `${windowPosition.y}px`;
-      // Si no hay espacio arriba del punto para el popup (viewport corto o
-      // punto cerca del borde superior del canvas), se voltea para
-      // renderizar debajo — mismo comportamiento de auto-flip que ya trae
-      // maplibre-gl de fábrica en los popups 2D.
-      const estimatedHeight = el.offsetHeight || 160;
-      const shouldFlip = windowPosition.y - estimatedHeight - 14 < 0;
-      el.classList.toggle("cesium-glass-popup-flip", shouldFlip);
+      const cartesian = viewer.camera.pickEllipsoid(position, viewer.scene.globe.ellipsoid);
+      if (!cartesian) return;
+      const carto = Cesium.Cartographic.fromCartesian(cartesian);
+      propsRef.current.onSelect({ kind: "point", lon: Cesium.Math.toDegrees(carto.longitude), lat: Cesium.Math.toDegrees(carto.latitude) });
     };
-    viewer.scene.postRender.addEventListener(positionPopup);
+    // Duración medida con la marca de tiempo de los eventos (no con la hora
+    // en que se procesan): con el hilo ocupado renderizando, el pointerup puede
+    // atenderse tarde y un toque corto parecería largo.
+    let tap: { id: number; x: number; y: number; t: number } | null = null;
+    let pointersDown = 0;
+    let touchTapHandled = false;
+    const onPointerDown = (e: PointerEvent) => {
+      pointersDown++;
+      tap = pointersDown === 1 && e.button === 0 ? { id: e.pointerId, x: e.clientX, y: e.clientY, t: e.timeStamp } : null;
+    };
+    const onPointerUp = (e: PointerEvent) => {
+      pointersDown = Math.max(0, pointersDown - 1);
+      const start = tap;
+      tap = null;
+      if (!start || start.id !== e.pointerId) return;
+      if (Math.hypot(e.clientX - start.x, e.clientY - start.y) > TAP_TOLERANCE_PX || e.timeStamp - start.t > TAP_MAX_MS) return;
+      const rect = canvas.getBoundingClientRect();
+      touchTapHandled = e.pointerType === "touch";
+      selectAt(new Cesium.Cartesian2(e.clientX - rect.left, e.clientY - rect.top), e.pointerType === "touch" ? TOUCH_PICK_PX : MOUSE_PICK_PX);
+    };
+    // Tras un toque el navegador emite un click "de compatibilidad" que caería
+    // sobre la hoja de detalle recién abierta (y la cerraría): se cancela.
+    const onTouchEnd = (e: TouchEvent) => {
+      if (!touchTapHandled) return;
+      touchTapHandled = false;
+      e.preventDefault();
+    };
+    const onPointerCancel = () => {
+      pointersDown = 0;
+      tap = null;
+    };
+    canvas.addEventListener("pointerdown", onPointerDown);
+    canvas.addEventListener("pointerup", onPointerUp);
+    canvas.addEventListener("pointercancel", onPointerCancel);
+    canvas.addEventListener("touchend", onTouchEnd, { passive: false });
+
+    const handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
+    handler.setInputAction((move: { endPosition: Cesium.Cartesian2 }) => {
+      const picked = viewer.scene.pick(move.endPosition);
+      const raw = picked?.id;
+      const id = typeof raw === "string" ? raw : raw instanceof Cesium.Entity ? raw.id : undefined;
+      viewer.scene.canvas.style.cursor = id && selectionFromEntityId(id) ? "pointer" : "";
+    }, Cesium.ScreenSpaceEventType.MOUSE_MOVE);
+
+    const grounded = groundedRef.current;
+    const lastCamera = new Cesium.Cartesian3();
+    viewer.scene.preRender.addEventListener(() => {
+      const camera = viewer.camera.positionWC;
+      if (!horizonDirtyRef.current && Cesium.Cartesian3.equalsEpsilon(camera, lastCamera, 0, 1)) return;
+      Cesium.Cartesian3.clone(camera, lastCamera);
+      horizonDirtyRef.current = false;
+      grounded.forEach((position, entity) => {
+        const visible = aboveHorizon(camera, position);
+        if (entity.show !== visible) entity.show = visible;
+      });
+      for (const collection of Object.values(pointsRef.current)) {
+        for (let i = 0; i < collection.length; i++) {
+          const point = collection.get(i);
+          const visible = aboveHorizon(camera, point.position);
+          if (point.show !== visible) point.show = visible;
+        }
+      }
+    });
+
+    // Vista actual → zoom equivalente, para que el 2D abra en la misma región.
+    viewer.camera.moveEnd.addEventListener(() => {
+      const center = viewer.camera.pickEllipsoid(new Cesium.Cartesian2(canvas.clientWidth / 2, canvas.clientHeight / 2));
+      if (!center) return;
+      const c = Cesium.Cartographic.fromCartesian(center);
+      const lat = Cesium.Math.toDegrees(c.latitude);
+      propsRef.current.onViewChange?.({
+        lng: Cesium.Math.toDegrees(c.longitude),
+        lat,
+        zoom: altitudeToZoom(lat, viewer.camera.positionCartographic.height, canvas.clientWidth, canvas.clientHeight),
+      });
+    });
 
     viewerRef.current = viewer;
-
     return () => {
-      if (introKeyHandler) window.removeEventListener("keydown", introKeyHandler);
-      if (introSkipHandler) viewer.scene.canvas.removeEventListener("pointerdown", introSkipHandler);
-      viewer.scene.postRender.removeEventListener(positionPopup);
+      window.removeEventListener("keydown", onKey);
       handler.destroy();
+      canvas.removeEventListener("pointerdown", onPointerDown);
+      canvas.removeEventListener("pointerup", onPointerUp);
+      canvas.removeEventListener("pointercancel", onPointerCancel);
+      canvas.removeEventListener("touchend", onTouchEnd);
       if (!viewer.isDestroyed()) viewer.destroy();
       viewerRef.current = null;
+      pointsRef.current = {};
+      layerEntitiesRef.current = {};
+      grounded.clear();
+      radarLayerRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // 1b. Centrar en un evento seleccionado desde la lista.
+  // 1b. Centrar en un elemento elegido desde la lista o el buscador.
   useEffect(() => {
     const viewer = viewerRef.current;
     if (!viewer || !focus) return;
     viewer.camera.flyTo({ destination: Cesium.Cartesian3.fromDegrees(focus.lng, focus.lat, 2500000), duration: 1.5 });
   }, [focus]);
 
-  // 2. Color de fondo segun tema (no recrea el viewer).
+  // 2. Color de fondo según tema.
   useEffect(() => {
     const viewer = viewerRef.current;
     if (!viewer) return;
-    viewer.scene.backgroundColor =
-      theme === "dark"
-        ? Cesium.Color.fromCssColorString(themes.dark.canvas)
-        : Cesium.Color.fromCssColorString(themes.light.canvas);
+    viewer.scene.backgroundColor = css(theme === "dark" ? themes.dark.canvas : themes.light.canvas);
   }, [theme]);
 
-  // 3. Renderizado por capa. Cada capa tiene su propio effect y solo
-  // re-crea SUS entidades cuando cambian sus datos o su visibilidad (antes
-  // un solo effect borraba y recreaba las 8 capas ante cualquier cambio —
-  // incluido el poll de la ISS cada 15 s o seleccionar un sismo).
-  const layerEntitiesRef = useRef<Record<string, Cesium.Entity[]>>({});
-  const selectedRef = useRef(selectedEarthquakeId);
-  selectedRef.current = selectedEarthquakeId;
-
-  // Cierra o refresca el popup abierto si su entidad desapareció o cambió
-  // (típicamente la ISS, que llega por poll en vivo).
-  function syncPopup(viewer: Cesium.Viewer) {
-    const info = popupInfoRef.current;
-    if (!info) return;
-    if (!viewer.entities.getById(info.entityId)) {
-      setPopupInfo(null);
-      return;
-    }
-    const refreshedHtml = buildPopupHtml(info.entityId);
-    if (refreshedHtml && refreshedHtml !== info.html) {
-      setPopupInfo({ entityId: info.entityId, html: refreshedHtml });
-    }
-  }
-
-  function replaceLayer(
-    key: string,
-    visible: boolean,
-    build: (add: (e: Cesium.Entity.ConstructorOptions) => void) => void
-  ) {
+  // ---------- Helpers de capas ----------
+  function replaceEntities(key: string, show: boolean, build: (add: (e: Cesium.Entity.ConstructorOptions) => void) => void) {
     const viewer = viewerRef.current;
     if (!viewer) return;
     viewer.entities.suspendEvents();
-    (layerEntitiesRef.current[key] ?? []).forEach((e) => viewer.entities.remove(e));
+    (layerEntitiesRef.current[key] ?? []).forEach((e) => {
+      viewer.entities.remove(e);
+      groundedRef.current.delete(e);
+    });
     const added: Cesium.Entity[] = [];
-    if (visible) build((opts) => added.push(viewer.entities.add(opts)));
+    if (show) {
+      build((opts) => {
+        const entity = viewer.entities.add(opts);
+        added.push(entity);
+        const grounded = opts.billboard?.heightReference === GROUND || opts.point?.heightReference === GROUND;
+        if (grounded && opts.position instanceof Cesium.Cartesian3) groundedRef.current.set(entity, opts.position);
+      });
+    }
     layerEntitiesRef.current[key] = added;
+    horizonDirtyRef.current = true;
     viewer.entities.resumeEvents();
-    syncPopup(viewer);
+    viewer.scene.requestRender();
   }
 
-  // Estilo del sismo seleccionado: se aplica solo a la entidad afectada.
-  function styleQuake(id: string | null, selected: boolean) {
-    const viewer = viewerRef.current;
-    if (!viewer || !id) return;
-    const entity = viewer.entities.getById(`eq-${id}`);
-    const f = earthquakesRef.current.features.find((ft) => String(ft.id) === id);
-    if (!entity?.point || !f) return;
-    const mag = f.properties.mag ?? 0;
-    entity.point.pixelSize = new Cesium.ConstantProperty(selected ? 16 : 6 + mag * 2);
-    entity.point.outlineColor = new Cesium.ConstantProperty(
-      Cesium.Color.fromCssColorString(selected ? marker.selected : marker.stroke)
-    );
-    entity.point.outlineWidth = new Cesium.ConstantProperty(selected ? 3 : 1);
+  function replacePoints(key: string, show: boolean, build: (add: (o: Record<string, unknown>) => void) => void) {
+    const collection = pointsRef.current[key];
+    if (!collection) return;
+    collection.removeAll();
+    collection.show = show;
+    if (show) build((opts) => collection.add(opts as never));
+    horizonDirtyRef.current = true;
+    viewerRef.current?.scene.requestRender();
   }
 
-  const prevSelectedRef = useRef<string | null>(null);
-  useEffect(() => {
-    styleQuake(prevSelectedRef.current, false);
-    styleQuake(selectedEarthquakeId ?? null, true);
-    prevSelectedRef.current = selectedEarthquakeId ?? null;
-  }, [selectedEarthquakeId]);
+  const onPoint = (lon: number, lat: number) => Cesium.Cartesian3.fromDegrees(lon, lat, 0);
 
+  // 3. Capas.
   useEffect(() => {
-    replaceLayer("quakes", showQuakes, (add) => {
-      earthquakes.features.forEach((f) => {
-        const [lon, lat, depth] = f.geometry.coordinates;
+    replacePoints("quakes", visibility.earthquakes, (add) => {
+      for (const f of data.earthquakes.features) {
+        const [lon, lat] = f.geometry.coordinates;
         const mag = f.properties.mag ?? 0;
         add({
           id: `eq-${f.id}`,
-          position: Cesium.Cartesian3.fromDegrees(lon, lat, 0),
-          point: {
-            pixelSize: 6 + mag * 2,
-            color: Cesium.Color.fromCssColorString(magnitudeColor(mag)).withAlpha(ageAlpha(refTime, f.properties.time)),
-            outlineColor: Cesium.Color.fromCssColorString(marker.stroke),
-            outlineWidth: 1,
-            heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
-          },
-          description: `M ${mag} — ${f.properties.place} (${depth ?? 0} km)`,
-        });
-      });
-    });
-    styleQuake(selectedRef.current ?? null, true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [earthquakes, showQuakes]);
-
-  useEffect(() => {
-    // FIRMS trae filas casi-duplicadas — sin dedupe, entities.add() lanza
-    // DeveloperError por id repetido y crashea el globo entero.
-    replaceLayer("fires", showFires, (add) => {
-      dedupeByKey(fires.features, "id").forEach((f) => {
-        const [lon, lat] = f.geometry.coordinates;
-        add({
-          id: `fire-${f.id}`,
-          position: Cesium.Cartesian3.fromDegrees(lon, lat, 0),
-          // Puntos finos y translúcidos: a escala global se leen como una
-          // mancha de calor (equivalente al heatmap del 2D) y se definen al acercarse.
-          point: {
-            pixelSize: 3 + Math.min(f.properties.frp, 60) / 15,
-            color: Cesium.Color.fromCssColorString(layers.fires).withAlpha(0.7),
-            scaleByDistance: new Cesium.NearFarScalar(5e5, 1.8, 2e7, 0.7),
-            heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
-          },
-        });
-      });
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fires, showFires]);
-
-  useEffect(() => {
-    replaceLayer("aq", showAirQuality, (add) => {
-      airQuality.features.forEach((f) => {
-        const [lon, lat] = f.geometry.coordinates;
-        add({
-          id: `aq-${f.id}`,
-          position: Cesium.Cartesian3.fromDegrees(lon, lat, 0),
-          point: {
-            pixelSize: 10,
-            color: Cesium.Color.fromCssColorString(aqiColor(f.properties.category)).withAlpha(0.85),
-            outlineColor: Cesium.Color.fromCssColorString(marker.stroke),
-            outlineWidth: 1,
-            heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
-          },
-        });
-      });
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [airQuality, showAirQuality]);
-
-  useEffect(() => {
-    replaceLayer("aqm", showAirQualityModel, (add) => {
-      airQualityModel.features.forEach((f) => {
-        const [lon, lat] = f.geometry.coordinates;
-        const category = getAQICategory(f.properties.pm25);
-        add({
-          id: `aqm-${f.id}`,
-          position: Cesium.Cartesian3.fromDegrees(lon, lat, 0),
-          point: {
-            pixelSize: 8,
-            color: Cesium.Color.TRANSPARENT,
-            outlineColor: Cesium.Color.fromCssColorString(aqiColor(category)),
-            outlineWidth: 2,
-            heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
-          },
-        });
-      });
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [airQualityModel, showAirQualityModel]);
-
-  useEffect(() => {
-    replaceLayer("weather", showWeather, (add) => {
-      weather.features.forEach((f) => {
-        const [lon, lat] = f.geometry.coordinates;
-        add({
-          id: `weather-${f.id}`,
-          position: Cesium.Cartesian3.fromDegrees(lon, lat, 0),
-          point: { pixelSize: 5, color: Cesium.Color.fromCssColorString(layers.weather), heightReference: Cesium.HeightReference.CLAMP_TO_GROUND },
-          label: {
-            text: `${Math.round(f.properties.temperature)}°C`,
-            font: "500 11px 'Google Sans Flex', Roboto, sans-serif",
-            fillColor: Cesium.Color.fromCssColorString(marker.weatherText),
-            style: Cesium.LabelStyle.FILL_AND_OUTLINE,
-            outlineWidth: 2,
-            outlineColor: Cesium.Color.fromCssColorString(marker.halo),
-            pixelOffset: new Cesium.Cartesian2(0, -16),
-            heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
-          },
-        });
-      });
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [weather, showWeather]);
-
-  useEffect(() => {
-    replaceLayer("disasters", showDisasters, (add) => {
-      disasters.features.forEach((f) => {
-        const [lon, lat] = f.geometry.coordinates;
-        add({
-          id: `disaster-${f.id}`,
-          position: Cesium.Cartesian3.fromDegrees(lon, lat, BILLBOARD_HEIGHT_M),
-          billboard: {
-            scale: ICON_SCALE,
-            scaleByDistance: ICON_BY_DISTANCE,
-            image: getIcon(`ep-disaster-${f.properties.eventType}-${f.properties.alertLevel}`) ?? "",
-            heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
-          },
-        });
-      });
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [disasters, showDisasters]);
-
-  useEffect(() => {
-    replaceLayer("volcanoes", showVolcanoes, (add) => {
-      volcanoes.features.forEach((f) => {
-        const [lon, lat] = f.geometry.coordinates;
-        add({
-          id: `volcano-${f.id}`,
-          position: Cesium.Cartesian3.fromDegrees(lon, lat, BILLBOARD_HEIGHT_M),
-          billboard: {
-            scale: ICON_SCALE,
-            scaleByDistance: ICON_BY_DISTANCE,
-            image: getIcon("ep-volcano") ?? "",
-          },
-        });
-      });
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [volcanoes, showVolcanoes]);
-
-  useEffect(() => {
-    const issFeature = iss.features[0];
-    replaceLayer("iss", showIss && !!issFeature, (add) => {
-      const [lon, lat] = issFeature.geometry.coordinates;
-      const altitudeM = issFeature.properties.altitudeKm * 1000;
-      add({
-        id: "iss",
-        position: Cesium.Cartesian3.fromDegrees(lon, lat, altitudeM),
-        billboard: {
-            scale: ICON_SCALE,
-            scaleByDistance: ICON_BY_DISTANCE, image: getIcon("ep-iss") ?? "" },
-        label: {
-          text: "ISS",
-          font: "600 12px 'Google Sans Flex', Roboto, sans-serif",
-          fillColor: Cesium.Color.fromCssColorString(marker.labelText),
-          outlineColor: Cesium.Color.fromCssColorString(marker.halo),
-          outlineWidth: 3,
-          style: Cesium.LabelStyle.FILL_AND_OUTLINE,
-          pixelOffset: new Cesium.Cartesian2(0, 30),
-        },
-      });
-      // Trayectoria real (efemérides NASA) a la altitud orbital: pasada
-      // continua, futura punteada — igual que en 2D.
-      const track = issFeature.properties.track;
-      if (track) {
-        const toPositions = (pts: typeof track.past) =>
-          Cesium.Cartesian3.fromDegreesArrayHeights(pts.flatMap(([x, y, altKm]) => [x, y, altKm * 1000]));
-        add({
-          id: "iss-track-past",
-          polyline: {
-            positions: toPositions(track.past),
-            width: 2,
-            arcType: Cesium.ArcType.NONE,
-            material: Cesium.Color.fromCssColorString(marker.issStroke).withAlpha(0.85),
-          },
-        });
-        add({
-          id: "iss-track-future",
-          polyline: {
-            positions: toPositions(track.future),
-            width: 2,
-            arcType: Cesium.ArcType.NONE,
-            material: new Cesium.PolylineDashMaterialProperty({
-              color: Cesium.Color.fromCssColorString(marker.issStroke).withAlpha(0.6),
-              dashLength: 12,
-            }),
-          },
+          position: onPoint(lon, lat),
+          pixelSize: 6 + mag * 2,
+          color: css(magnitudeColor(mag)).withAlpha(ageAlpha(refTime, f.properties.time)),
+          outlineColor: css(marker.stroke).withAlpha(ageAlpha(refTime, f.properties.time)),
+          outlineWidth: 1,
+          disableDepthTestDistance: NO_DEPTH_TEST,
         });
       }
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [iss, showIss]);
+  }, [data.earthquakes, visibility.earthquakes]);
 
   useEffect(() => {
-    replaceLayer("cyclones", showCyclones, (add) => {
-      cyclones.features.forEach((f, i) => {
+    // FIRMS trae filas casi duplicadas: sin dedupe se repiten ids.
+    replacePoints("fires", visibility.fires, (add) => {
+      for (const f of dedupeByKey(data.fires.features, "id")) {
+        const [lon, lat] = f.geometry.coordinates;
+        add({
+          id: `fire-${f.id}`,
+          position: onPoint(lon, lat),
+          // Finos y translúcidos: a escala global se leen como una mancha de
+          // calor (como el heatmap del 2D) y se definen al acercarse.
+          pixelSize: 3 + Math.min(f.properties.frp, 60) / 15,
+          color: css(layers.fires).withAlpha(0.7),
+          scaleByDistance: new Cesium.NearFarScalar(5e5, 1.8, 2e7, 0.7),
+          disableDepthTestDistance: NO_DEPTH_TEST,
+        });
+      }
+    });
+     
+  }, [data.fires, visibility.fires]);
+
+  useEffect(() => {
+    replacePoints("air", visibility.airQuality, (add) => {
+      for (const f of data.airQuality.features) {
+        const [lon, lat] = f.geometry.coordinates;
+        add({
+          id: `aq-${f.id}`,
+          position: onPoint(lon, lat),
+          pixelSize: 5,
+          color: css(aqiColor(f.properties.category)),
+          outlineColor: css(marker.strokeDark),
+          outlineWidth: 1,
+          scaleByDistance: new Cesium.NearFarScalar(5e5, 1.6, 2e7, 0.8),
+          disableDepthTestDistance: NO_DEPTH_TEST,
+        });
+      }
+    });
+     
+  }, [data.airQuality, visibility.airQuality]);
+
+  useEffect(() => {
+    replacePoints("volcanoCatalog", visibility.volcanoCatalog && !!data.volcanoCatalog, (add) => {
+      for (const f of data.volcanoCatalog?.features ?? []) {
+        const [lon, lat] = f.geometry.coordinates;
+        add({
+          id: `volcat-${f.id}`,
+          position: onPoint(lon, lat),
+          pixelSize: 5,
+          color: css(layers.volcanoCatalog),
+          outlineColor: css(marker.volcanoStroke),
+          outlineWidth: 1,
+          disableDepthTestDistance: NO_DEPTH_TEST,
+        });
+      }
+    });
+     
+  }, [data.volcanoCatalog, visibility.volcanoCatalog]);
+
+  const billboard = (image: string) => ({
+    image: getIcon(image) ?? "",
+    scale: ICON_SCALE,
+    scaleByDistance: ICON_BY_DISTANCE,
+    heightReference: GROUND,
+    disableDepthTestDistance: NO_DEPTH_TEST,
+  });
+  // La etiqueta de la ISS va a altitud orbital (sin anclar ni test de horizonte).
+  const label = (text: string, grounded = true) => ({
+    text,
+    font: LABEL_FONT,
+    fillColor: css(marker.labelText),
+    outlineColor: css(marker.halo),
+    outlineWidth: 3,
+    style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+    pixelOffset: new Cesium.Cartesian2(0, 30),
+    ...(grounded && { heightReference: GROUND, disableDepthTestDistance: NO_DEPTH_TEST }),
+  });
+
+  useEffect(() => {
+    replaceEntities("disasters", visibility.disasters, (add) => {
+      for (const f of data.disasters.features) {
+        const [lon, lat] = f.geometry.coordinates;
+        add({
+          id: `disaster-${f.properties.eventId}`,
+          position: Cesium.Cartesian3.fromDegrees(lon, lat),
+          billboard: billboard(`ep-disaster-${f.properties.eventType}-${f.properties.alertLevel}`),
+        });
+      }
+    });
+     
+  }, [data.disasters, visibility.disasters]);
+
+  useEffect(() => {
+    replaceEntities("volcanoes", visibility.volcanoes, (add) => {
+      for (const f of data.volcanoes.features) {
+        const [lon, lat] = f.geometry.coordinates;
+        add({
+          id: `vol-${f.id}`,
+          position: Cesium.Cartesian3.fromDegrees(lon, lat),
+          billboard: billboard(f.properties.status === "new" ? "ep-volcano-new" : "ep-volcano-continuing"),
+        });
+      }
+    });
+     
+  }, [data.volcanoes, visibility.volcanoes]);
+
+  useEffect(() => {
+    replaceEntities("cyclones", visibility.cyclones, (add) => {
+      data.cyclones.features.forEach((f, i) => {
         const p = f.properties;
         if (f.geometry.type === "Polygon" && p.kind === "cone") {
           add({
             id: `cyc-geo-cone-${p.eventId}-${i}`,
             polygon: {
               hierarchy: Cesium.Cartesian3.fromDegreesArray(f.geometry.coordinates[0].flat()),
-              material: Cesium.Color.fromCssColorString(marker.cone).withAlpha(0.12),
+              material: css(marker.cone).withAlpha(0.12),
               classificationType: Cesium.ClassificationType.TERRAIN,
             },
           });
         } else if (f.geometry.type === "LineString" && p.kind === "track") {
-          const color = Cesium.Color.fromCssColorString(stormColor(p.category ?? "TS"));
+          const color = css(stormColor(p.category ?? "TS"));
           add({
             id: `cyc-geo-track-${p.eventId}-${i}`,
             polyline: {
@@ -750,66 +481,112 @@ export default function GlobeContainer({
           const [lon, lat] = f.geometry.coordinates;
           add({
             id: `cyc-pos-${p.eventId}`,
-            position: Cesium.Cartesian3.fromDegrees(lon, lat, BILLBOARD_HEIGHT_M),
-            billboard: {
-            scale: ICON_SCALE,
-            scaleByDistance: ICON_BY_DISTANCE,
-              image: getIcon(`ep-cyclone-${p.category ?? "TS"}`) ?? getIcon("ep-cyclone-TS") ?? "",
-              heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
-            },
-            label: {
-              text: p.name,
-              font: "600 12px 'Google Sans Flex', Roboto, sans-serif",
-              fillColor: Cesium.Color.fromCssColorString(marker.labelText),
-              outlineColor: Cesium.Color.fromCssColorString(marker.halo),
-              outlineWidth: 3,
-              style: Cesium.LabelStyle.FILL_AND_OUTLINE,
-              pixelOffset: new Cesium.Cartesian2(0, 30),
-            },
+            position: Cesium.Cartesian3.fromDegrees(lon, lat),
+            billboard: billboard(`ep-cyclone-${p.category ?? "TS"}`),
+            label: label(p.name),
           });
         }
       });
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cyclones, showCyclones]);
+     
+  }, [data.cyclones, visibility.cyclones]);
 
-  // Tiempo de referencia: el reloj de Cesium (iluminación día/noche) y la
-  // antigüedad de los sismos siguen al cursor de reproducción.
+  useEffect(() => {
+    const f = data.iss.features[0];
+    replaceEntities("iss", visibility.iss && !!f, (add) => {
+      const [lon, lat] = f.geometry.coordinates;
+      add({
+        id: "iss",
+        position: Cesium.Cartesian3.fromDegrees(lon, lat, f.properties.altitudeKm * 1000),
+        billboard: { image: getIcon("ep-iss") ?? "", scale: ICON_SCALE, scaleByDistance: ICON_BY_DISTANCE },
+        label: label("ISS", false),
+      });
+      // Trayectoria real (efemérides NASA) a la altitud orbital.
+      const track = f.properties.track;
+      if (!track) return;
+      const toPositions = (pts: typeof track.past) => Cesium.Cartesian3.fromDegreesArrayHeights(pts.flatMap(([x, y, altKm]) => [x, y, altKm * 1000]));
+      add({
+        id: "iss-track-past",
+        polyline: { positions: toPositions(track.past), width: 2, arcType: Cesium.ArcType.NONE, material: css(marker.issStroke).withAlpha(0.85) },
+      });
+      add({
+        id: "iss-track-future",
+        polyline: {
+          positions: toPositions(track.future),
+          width: 2,
+          arcType: Cesium.ArcType.NONE,
+          material: new Cesium.PolylineDashMaterialProperty({ color: css(marker.issStroke).withAlpha(0.6), dashLength: 12 }),
+        },
+      });
+    });
+     
+  }, [data.iss, visibility.iss]);
+
+  // Anillo de selección.
+  useEffect(() => {
+    replaceEntities("selection", !!selectedPoint, (add) => {
+      const [lon, lat] = selectedPoint!;
+      add({
+        id: "selection-ring",
+        position: Cesium.Cartesian3.fromDegrees(lon, lat),
+        point: {
+          pixelSize: 34,
+          color: css(marker.selected).withAlpha(0.12),
+          outlineColor: css(marker.selected),
+          outlineWidth: 3,
+          heightReference: GROUND,
+          disableDepthTestDistance: NO_DEPTH_TEST,
+        },
+      });
+    });
+     
+  }, [selectedPoint]);
+
+  // 4. Radar de lluvia (RainViewer) como capa de imagería.
+  useEffect(() => {
+    const viewer = viewerRef.current;
+    if (!viewer) return;
+    if (radarLayerRef.current) {
+      viewer.imageryLayers.remove(radarLayerRef.current, true);
+      radarLayerRef.current = null;
+    }
+    if (!radarTiles || !visibility.radar) return;
+    const layer = viewer.imageryLayers.addImageryProvider(
+      new Cesium.UrlTemplateImageryProvider({ url: radarTiles, maximumLevel: RADAR_MAX_LEVEL, credit: "RainViewer" })
+    );
+    layer.alpha = 0.7;
+    radarLayerRef.current = layer;
+  }, [radarTiles, visibility.radar]);
+
+  // 5. Tiempo de referencia: reloj (iluminación día/noche) y antigüedad.
   useEffect(() => {
     const viewer = viewerRef.current;
     if (!viewer) return;
     viewer.clock.currentTime = Cesium.JulianDate.fromDate(new Date(refTime));
-    for (const entity of layerEntitiesRef.current.quakes ?? []) {
-      const f = earthquakesRef.current.features.find((ft) => `eq-${ft.id}` === entity.id);
-      if (!f || !entity.point) continue;
-      const color = Cesium.Color.fromCssColorString(magnitudeColor(f.properties.mag ?? 0)).withAlpha(ageAlpha(refTime, f.properties.time));
-      entity.point.color = new Cesium.ConstantProperty(color);
+    const quakes = pointsRef.current.quakes;
+    if (quakes) {
+      const byId = new Map(data.earthquakes.features.map((f) => [`eq-${f.id}`, f]));
+      for (let i = 0; i < quakes.length; i++) {
+        const p = quakes.get(i);
+        const f = byId.get(p.id as string);
+        if (!f) continue;
+        const alpha = ageAlpha(refTime, f.properties.time);
+        p.color = css(magnitudeColor(f.properties.mag ?? 0)).withAlpha(alpha);
+        p.outlineColor = css(marker.stroke).withAlpha(alpha);
+      }
     }
     viewer.scene.requestRender();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refTime]);
 
   useEffect(() => {
     const viewer = viewerRef.current;
-    if (!viewer) return;
-    viewer.scene.globe.enableLighting = showDayNight;
-  }, [showDayNight]);
+    if (viewer) viewer.scene.globe.enableLighting = visibility.dayNight;
+  }, [visibility.dayNight]);
 
   return (
-    <div className="relative w-full h-full">
-      <div ref={containerRef} className="w-full h-full" />
-      {popupInfo && (
-        <div ref={popupElRef} className="cesium-glass-popup" style={{ display: "none" }}>
-          <button
-            type="button"
-            aria-label={popupCloseLabel()}
-            className="cesium-glass-popup-close"
-            onClick={() => setPopupInfo(null)}
-          >
-            ×
-          </button>
-          <div dangerouslySetInnerHTML={{ __html: popupInfo.html }} />
-        </div>
-      )}
+    <div className="relative h-full w-full">
+      <div ref={containerRef} className="h-full w-full" />
     </div>
   );
 }

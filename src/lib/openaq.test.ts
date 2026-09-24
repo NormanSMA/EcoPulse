@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { getAQICategory, mockAirQualityGeoJSON, fetchLiveAirQuality } from "./openaq";
+import { getAQICategory, fetchLiveAirQuality, fetchGlobalAirQuality } from "./openaq";
 
 describe("getAQICategory", () => {
   it("clasifica como 'good' en el límite inferior y en 12.0", () => {
@@ -23,41 +23,20 @@ describe("getAQICategory", () => {
   });
 });
 
-describe("mockAirQualityGeoJSON", () => {
-  it("devuelve una FeatureCollection con la forma esperada", () => {
-    const result = mockAirQualityGeoJSON();
-    expect(result.type).toBe("FeatureCollection");
-    expect(result.features.length).toBeGreaterThan(0);
-  });
-
-  it("cada feature tiene coordenadas [lng, lat] y categoría consistente con su pm25", () => {
-    const result = mockAirQualityGeoJSON();
-    for (const feature of result.features) {
-      expect(feature.type).toBe("Feature");
-      expect(feature.geometry.type).toBe("Point");
-      expect(feature.geometry.coordinates).toHaveLength(2);
-      expect(feature.properties.category).toBe(getAQICategory(feature.properties.pm25));
-    }
-  });
-});
-
 describe("fetchLiveAirQuality", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
     vi.unstubAllEnvs();
   });
 
-  it("cae al mock si no hay OPENAQ_API_KEY configurada", async () => {
+  it("sin OPENAQ_API_KEY devuelve vacío (nunca datos inventados)", async () => {
     vi.stubEnv("OPENAQ_API_KEY", "");
     const fetchSpy = vi.fn();
     vi.stubGlobal("fetch", fetchSpy);
 
     const result = await fetchLiveAirQuality();
     expect(fetchSpy).not.toHaveBeenCalled();
-    expect(result.type).toBe("FeatureCollection");
-    expect(result.features.map((f) => f.properties.station)).toEqual(
-      mockAirQualityGeoJSON().features.map((f) => f.properties.station)
-    );
+    expect(result.features).toEqual([]);
   });
 
   it("mapea estaciones reales cuando la API responde con una ubicacion y un sensor valido", async () => {
@@ -94,7 +73,7 @@ describe("fetchLiveAirQuality", () => {
     expect(result.features[0].properties.category).toBe("moderate");
   });
 
-  it("filtra lecturas negativas y cae al mock si ninguna estacion queda valida", async () => {
+  it("filtra lecturas negativas y devuelve vacío si ninguna estación queda válida", async () => {
     vi.stubEnv("OPENAQ_API_KEY", "test-key");
     vi.stubGlobal(
       "fetch",
@@ -122,9 +101,7 @@ describe("fetchLiveAirQuality", () => {
     );
 
     const result = await fetchLiveAirQuality();
-    expect(result.features.map((f) => f.properties.station)).toEqual(
-      mockAirQualityGeoJSON().features.map((f) => f.properties.station)
-    );
+    expect(result.features).toEqual([]);
   });
 
   it("omite una ciudad sin estaciones cercanas sin fallar las demas", async () => {
@@ -140,8 +117,49 @@ describe("fetchLiveAirQuality", () => {
     );
 
     const result = await fetchLiveAirQuality();
-    expect(result.features.map((f) => f.properties.station)).toEqual(
-      mockAirQualityGeoJSON().features.map((f) => f.properties.station)
+    expect(result.features).toEqual([]);
+  });
+});
+
+describe("fetchGlobalAirQuality", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+  });
+
+  it("toma la lectura más reciente por estación y descarta valores imposibles", async () => {
+    vi.stubEnv("OPENAQ_API_KEY", "test-key");
+    const row = (loc: number, value: number, utc: string) => ({
+      datetime: { utc },
+      value,
+      coordinates: { latitude: 10, longitude: 20 },
+      sensorsId: loc * 10,
+      locationsId: loc,
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          meta: { found: 4 },
+          results: [
+            row(1, 10, "2026-09-23T10:00:00Z"),
+            row(1, 40, "2026-09-23T11:00:00Z"),
+            row(2, -5, "2026-09-23T11:00:00Z"),
+            row(3, 5000, "2026-09-23T11:00:00Z"),
+          ],
+        }),
+      })
     );
+    const result = await fetchGlobalAirQuality();
+    expect(result.features).toHaveLength(1);
+    expect(result.features[0].properties.pm25).toBe(40);
+    expect(result.features[0].properties.category).toBe("unhealthy");
+    expect(result.features[0].properties.updated).toBe("2026-09-23T11:00:00Z");
+  });
+
+  it("sin clave devuelve vacío", async () => {
+    vi.stubEnv("OPENAQ_API_KEY", "");
+    expect((await fetchGlobalAirQuality()).features).toEqual([]);
   });
 });

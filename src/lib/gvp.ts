@@ -42,27 +42,76 @@ export function toVolcanoFeature(raw: GvpRawFeature): VolcanoFeature | null {
   };
 }
 
+// Respaldo: base de volcanes de NOAA NCEI (1.608 volcanes, con el número GVP
+// para enlazar la ficha del Smithsonian). El WFS del Smithsonian corta
+// conexiones con frecuencia (ECONNRESET) y dejaba la capa vacía.
+const NCEI_URL = "https://www.ngdc.noaa.gov/hazel/hazard-service/api/v1/volcanolocs";
+const NCEI_PAGE = 200; // máximo que acepta la API
+const GVP_TIMEOUT_MS = 8000;
+
+interface NceiVolcano {
+  newNum?: number | null;
+  id: number;
+  name: string;
+  country: string;
+  latitude: number;
+  longitude: number;
+  elevation?: number | null;
+  morphology?: string | null;
+  timeErupt?: string | null;
+}
+
+export function fromNcei(v: NceiVolcano): VolcanoFeature | null {
+  if (!Number.isFinite(v.latitude) || !Number.isFinite(v.longitude)) return null;
+  const num = v.newNum ?? v.id;
+  return {
+    type: "Feature",
+    id: num,
+    properties: {
+      volcanoNumber: num,
+      name: v.name,
+      country: v.country,
+      volcanoType: v.morphology ?? "—",
+      lastEruptionYear: null,
+      lastEruptionPeriod: v.timeErupt && v.timeErupt !== "Unknown" ? v.timeErupt : "U",
+      elevationM: v.elevation ?? null,
+    },
+    geometry: { type: "Point", coordinates: [v.longitude, v.latitude] },
+  };
+}
+
+async function fetchNceiVolcanoes(signal?: AbortSignal): Promise<VolcanoFeature[]> {
+  const page = (n: number) =>
+    fetch(`${NCEI_URL}?itemsPerPage=${NCEI_PAGE}&page=${n}`, { signal }).then((r) => (r.ok ? r.json() : null));
+  const first = await page(1);
+  if (!first?.items) return [];
+  const pages: number = first.totalPages ?? 1;
+  const rest = await Promise.all(Array.from({ length: pages - 1 }, (_, i) => page(i + 2).catch(() => null)));
+  const items: NceiVolcano[] = [first, ...rest].flatMap((p) => p?.items ?? []);
+  const seen = new Set<number>();
+  return items
+    .map(fromNcei)
+    .filter((f): f is VolcanoFeature => !!f && !seen.has(f.id) && (seen.add(f.id), true));
+}
+
 export async function fetchVolcanoes(signal?: AbortSignal): Promise<VolcanoGeoJSON> {
   try {
-    // El WFS del Smithsonian corta conexiones de vez en cuando (ECONNRESET):
-    // un reintento breve evita dejar la capa vacía por un fallo transitorio.
-    const res = await fetch(GVP_WFS_URL, { signal }).catch(async (err: unknown) => {
-      if (err instanceof DOMException && err.name === "AbortError") throw err;
-      await new Promise((r) => setTimeout(r, 1000));
-      return fetch(GVP_WFS_URL, { signal });
-    });
-    if (!res.ok) {
-      throw new Error(`Smithsonian GVP HTTP ${res.status}`);
-    }
+    const timeout = AbortSignal.timeout(GVP_TIMEOUT_MS);
+    const res = await fetch(GVP_WFS_URL, { signal: signal ? AbortSignal.any([signal, timeout]) : timeout });
+    if (!res.ok) throw new Error(`Smithsonian GVP HTTP ${res.status}`);
     const data: GvpResponse = await res.json();
-    const features = data.features
-      .map(toVolcanoFeature)
-      .filter((f): f is VolcanoFeature => f !== null);
-
-    return { type: "FeatureCollection", features };
+    const features = data.features.map(toVolcanoFeature).filter((f): f is VolcanoFeature => f !== null);
+    if (features.length) return { type: "FeatureCollection", features };
+    throw new Error("Smithsonian GVP sin volcanes");
+  } catch (error) {
+    if (signal?.aborted) throw error;
+    console.error("Smithsonian GVP no disponible, usando NOAA NCEI:", error instanceof Error ? error.message : error);
+  }
+  try {
+    return { type: "FeatureCollection", features: await fetchNceiVolcanoes(signal) };
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") throw error;
-    console.error("Error obteniendo volcanes de Smithsonian GVP:", error);
+    console.error("Error obteniendo volcanes de NOAA NCEI:", error);
     return { type: "FeatureCollection", features: [] };
   }
 }

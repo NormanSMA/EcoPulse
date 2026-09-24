@@ -142,6 +142,8 @@ export function iconCatalog(): Record<string, HTMLCanvasElement> {
   scales.storm.forEach(({ key }) => {
     icons[`ep-cyclone-${key}`] = markerCanvas({ glyph: "cyclone", fill: stormColor(key), size: 32 });
   });
+  icons["ep-volcano-new"] = markerCanvas({ glyph: "volcano", fill: marker.volcanoNew, size: 28 });
+  icons["ep-volcano-continuing"] = markerCanvas({ glyph: "volcano", fill: marker.volcanoContinuing, size: 26 });
   icons["ep-volcano"] = markerCanvas({ glyph: "volcano", fill: layers.volcanoes, size: 16, badge: false, ring: marker.volcanoStroke });
   icons["ep-fire"] = markerCanvas({ glyph: "fire", fill: layers.fires, size: 18, badge: false, ring: marker.fireStroke });
   icons["ep-iss"] = markerCanvas({ glyph: "satellite", fill: themes.dark.surface, size: 36, ring: marker.issStroke, glyphColor: marker.issStroke });

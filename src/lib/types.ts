@@ -8,6 +8,12 @@ export interface EarthquakeProperties {
   status: string;
   tsunami: number;
   sig: number;
+  /** Tipo de magnitud (mb, ml, mww…). */
+  magType?: string;
+  /** Reportes "¿Lo sentiste?" de USGS. */
+  felt?: number | null;
+  /** Agencia de origen tras la fusión USGS + EMSC. */
+  source?: "USGS" | "EMSC";
 }
 
 export interface EarthquakeFeature {
@@ -40,6 +46,9 @@ export interface AirQualityProperties {
   pm25: number;
   category: AQICategory;
   updated: string;
+  /** Ids de OpenAQ (cobertura global) para pedir nombre e historial. */
+  locationId?: number;
+  sensorId?: number;
 }
 
 export interface AirQualityFeature {
@@ -173,6 +182,8 @@ export interface VolcanoProperties {
   country: string;
   volcanoType: string;
   lastEruptionYear: number | null;
+  /** Código de periodo de NCEI/GVP (D1 = 1964 o después … D7 = a.C., U = sin fecha). */
+  lastEruptionPeriod?: string;
   elevationM: number | null;
 }
 
@@ -236,7 +247,7 @@ export interface SystemHealthResponse {
   };
 }
 
-export type StormCategory = "TD" | "TS" | "H1" | "H2" | "H3" | "H4" | "H5";
+export type StormCategory = "TD" | "TS" | "HU";
 
 export interface CycloneProperties {
   eventId: string;
@@ -246,6 +257,8 @@ export interface CycloneProperties {
   kind: "track" | "cone" | "position";
   category?: string;
   forecast?: boolean;
+  /** Viento sostenido máximo del evento según GDACS (km/h). */
+  maxWindKmh?: number;
 }
 
 export interface CycloneFeature {
@@ -260,4 +273,29 @@ export interface CycloneFeature {
 export interface CycloneGeoJSON {
   type: "FeatureCollection";
   features: CycloneFeature[];
+}
+
+export interface ActiveVolcanoProperties {
+  name: string;
+  country: string;
+  /** Periodo del reporte ("10 September-16 September 2026"). */
+  period: string;
+  /** new = nueva actividad eruptiva esta semana; continuing = continúa. */
+  status: "new" | "continuing";
+  summary: string;
+  sources: string | null;
+  reportUrl: string;
+  published: string | null;
+}
+
+export interface ActiveVolcanoFeature {
+  type: "Feature";
+  id: number;
+  properties: ActiveVolcanoProperties;
+  geometry: { type: "Point"; coordinates: [number, number] };
+}
+
+export interface ActiveVolcanoGeoJSON {
+  type: "FeatureCollection";
+  features: ActiveVolcanoFeature[];
 }

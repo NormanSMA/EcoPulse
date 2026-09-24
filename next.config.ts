@@ -9,9 +9,9 @@ const cspHeader = `
     default-src 'self';
     script-src 'self' 'unsafe-eval' 'unsafe-inline';
     style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
-    img-src 'self' blob: data: https://tiles.openfreemap.org https://*.cesium.com https://*.virtualearth.net https://server.arcgisonline.com;
+    img-src 'self' blob: data: https://tiles.openfreemap.org https://tilecache.rainviewer.com https://*.cesium.com https://*.virtualearth.net https://server.arcgisonline.com;
     font-src 'self' https://fonts.gstatic.com;
-    connect-src 'self' https://tiles.openfreemap.org https://earthquake.usgs.gov https://*.supabase.co https://api.openaq.org https://api.cesium.com https://assets.ion.cesium.com https://*.cesium.com https://*.virtualearth.net https://dev.virtualearth.net https://server.arcgisonline.com;
+    connect-src 'self' https://tiles.openfreemap.org https://api.rainviewer.com https://tilecache.rainviewer.com https://*.supabase.co https://api.cesium.com https://assets.ion.cesium.com https://*.cesium.com https://*.virtualearth.net https://dev.virtualearth.net https://server.arcgisonline.com;
     worker-src 'self' blob:;
     object-src 'none';
     base-uri 'self';

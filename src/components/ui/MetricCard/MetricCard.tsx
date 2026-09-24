@@ -11,11 +11,24 @@ export interface MetricCardProps {
   /** Color del icono (hex de tokens/colors.ts). */
   iconColor?: string;
   status?: SimpleStatus;
+  /** Vertical y estrecho (tres métricas en fila en un panel de 340 px). */
+  compact?: boolean;
   className?: string;
 }
 
 /** Métrica compacta: icono + valor grande + etiqueta, en chip tonal. */
-export function MetricCard({ label, value, unit, icon, iconColor, status, className }: MetricCardProps) {
+export function MetricCard({ label, value, unit, icon, iconColor, status, compact, className }: MetricCardProps) {
+  if (compact) {
+    return (
+      <div className={cn("flex min-w-0 flex-col gap-1 rounded-ds-2xl bg-ds-surface-container px-3 py-2", className)}>
+        <span className="flex items-center gap-1.5">
+          {icon && <MorphIcon icon={icon} size={14} reducedMotion="user" style={iconColor ? { color: iconColor } : undefined} />}
+          <span className="text-base font-medium leading-5 tabular-nums text-ds-text-primary">{value}</span>
+        </span>
+        <span className="line-clamp-2 text-[11px] leading-[14px] text-ds-text-secondary">{label}</span>
+      </div>
+    );
+  }
   return (
     <div className={cn("flex min-w-0 items-center gap-3 rounded-ds-2xl bg-ds-surface-container px-3 py-2", className)}>
       {icon && (

@@ -77,8 +77,10 @@ async function fetchSensorLatestValue(
 export async function fetchLiveAirQuality(signal?: AbortSignal): Promise<AirQualityGeoJSON> {
   const apiKey = process.env.OPENAQ_API_KEY;
   if (!apiKey) {
-    console.error("OPENAQ_API_KEY no configurada, usando datos de respaldo");
-    return mockAirQualityGeoJSON();
+    // Sin clave no hay datos: nunca se inventan lecturas (antes se devolvía un
+    // mock con valores fijos que la web y la ingesta trataban como reales).
+    console.error("OPENAQ_API_KEY no configurada: sin datos de calidad del aire");
+    return { type: "FeatureCollection", features: [] };
   }
 
   const features: AirQualityFeature[] = [];
@@ -112,43 +114,100 @@ export async function fetchLiveAirQuality(signal?: AbortSignal): Promise<AirQual
     }
   }
 
-  if (features.length === 0) {
-    console.error("Sin estaciones OpenAQ validas, usando datos de respaldo");
-    return mockAirQualityGeoJSON();
-  }
-
   return { type: "FeatureCollection", features };
 }
 
-export function mockAirQualityGeoJSON(): AirQualityGeoJSON {
-  const stations = [
-    { name: "Managua Centro", coords: [-86.2362, 12.1150], pm25: 14.5 },
-    { name: "San Jose Downtown", coords: [-84.0875, 9.9333], pm25: 11.2 },
-    { name: "Guatemala City Zona 1", coords: [-90.5133, 14.6407], pm25: 42.0 },
-    { name: "Mexico City Zocalo", coords: [-99.1332, 19.4326], pm25: 58.3 },
-    { name: "Bogota Chapinero", coords: [-74.0636, 4.6486], pm25: 22.8 },
-    { name: "Lima Miraflores", coords: [-77.0316, -12.1217], pm25: 38.1 },
-    { name: "Santiago Providencia", coords: [-70.6105, -33.4314], pm25: 65.4 },
-    { name: "Madrid Gran Via", coords: [-3.7038, 40.4168], pm25: 9.8 },
-    { name: "Tokyo Shinjuku", coords: [139.7034, 35.6938], pm25: 8.5 },
-    { name: "Los Angeles Downtown", coords: [-118.2437, 34.0522], pm25: 28.6 }
-  ];
+// ---------- Cobertura global para la web ----------
+// /v3/parameters/2/latest devuelve la última lectura de PM2.5 de todos los
+// sensores; con datetime_min solo los que reportaron en las últimas horas
+// (~10.000 en todo el mundo). Mucho mejor que 10 ciudades fijas.
 
-  return {
-    type: "FeatureCollection",
-    features: stations.map((s, idx) => ({
+const FRESH_HOURS = 3;
+const MAX_PAGES = 12;
+const PAGE_SIZE = 1000;
+
+interface OpenAQLatestResponse {
+  meta: { found: number | string };
+  results: {
+    datetime: { utc: string };
+    value: number;
+    coordinates: { latitude: number; longitude: number };
+    sensorsId: number;
+    locationsId: number;
+  }[];
+}
+
+export async function fetchGlobalAirQuality(signal?: AbortSignal): Promise<AirQualityGeoJSON> {
+  const apiKey = process.env.OPENAQ_API_KEY;
+  if (!apiKey) {
+    console.error("OPENAQ_API_KEY no configurada: sin datos de calidad del aire");
+    return { type: "FeatureCollection", features: [] };
+  }
+  const since = new Date(Date.now() - FRESH_HOURS * 3_600_000).toISOString();
+  const page = (n: number) =>
+    fetch(`${OPENAQ_BASE}/parameters/${PM25_PARAMETER_ID}/latest?limit=${PAGE_SIZE}&page=${n}&datetime_min=${encodeURIComponent(since)}`, {
+      headers: { "X-API-Key": apiKey },
+      signal,
+    }).then((r) => (r.ok ? (r.json() as Promise<OpenAQLatestResponse>) : null));
+
+  try {
+    const first = await page(1);
+    if (!first) return { type: "FeatureCollection", features: [] };
+    const found = Number(first.meta.found) || first.results.length;
+    const pages = Math.min(MAX_PAGES, Math.ceil(found / PAGE_SIZE));
+    const rest = await Promise.all(Array.from({ length: pages - 1 }, (_, i) => page(i + 2).catch(() => null)));
+    const rows = [first, ...rest].flatMap((r) => r?.results ?? []);
+
+    // Una lectura por estación (la más reciente); se descartan valores
+    // imposibles (sensores descalibrados reportan negativos o miles).
+    const byLocation = new Map<number, OpenAQLatestResponse["results"][number]>();
+    for (const r of rows) {
+      if (!(r.value >= 0 && r.value < 1000)) continue;
+      const prev = byLocation.get(r.locationsId);
+      if (!prev || Date.parse(r.datetime.utc) > Date.parse(prev.datetime.utc)) byLocation.set(r.locationsId, r);
+    }
+
+    const features: AirQualityFeature[] = [...byLocation.values()].map((r) => ({
       type: "Feature",
-      id: idx + 1,
+      id: r.locationsId,
       properties: {
-        station: s.name,
-        pm25: s.pm25,
-        category: getAQICategory(s.pm25),
-        updated: new Date().toISOString()
+        station: `OpenAQ ${r.locationsId}`,
+        pm25: Math.round(r.value * 10) / 10,
+        category: getAQICategory(r.value),
+        updated: r.datetime.utc,
+        locationId: r.locationsId,
+        sensorId: r.sensorsId,
       },
-      geometry: {
-        type: "Point",
-        coordinates: [s.coords[0], s.coords[1]]
-      }
-    }))
-  };
+      geometry: { type: "Point", coordinates: [r.coordinates.longitude, r.coordinates.latitude] },
+    }));
+    return { type: "FeatureCollection", features };
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") throw error;
+    console.error("Error obteniendo calidad del aire global de OpenAQ:", error);
+    return { type: "FeatureCollection", features: [] };
+  }
+}
+
+/** Nombre de la estación e historial horario de PM2.5 (48 h) para el panel de detalle. */
+export async function fetchStationHistory(
+  locationId: number,
+  sensorId: number,
+  signal?: AbortSignal
+): Promise<{ name: string | null; locality: string | null; country: string | null; history: { t: string; v: number }[] }> {
+  const apiKey = process.env.OPENAQ_API_KEY;
+  const empty = { name: null, locality: null, country: null, history: [] };
+  if (!apiKey) return empty;
+  const headers = { "X-API-Key": apiKey };
+  const from = new Date(Date.now() - 48 * 3_600_000).toISOString();
+  const [loc, hours] = await Promise.all([
+    fetch(`${OPENAQ_BASE}/locations/${locationId}`, { headers, signal }).then((r) => (r.ok ? r.json() : null)).catch(() => null),
+    fetch(`${OPENAQ_BASE}/sensors/${sensorId}/hours?datetime_from=${encodeURIComponent(from)}&limit=100`, { headers, signal })
+      .then((r) => (r.ok ? r.json() : null))
+      .catch(() => null),
+  ]);
+  const l = loc?.results?.[0];
+  const history = ((hours?.results ?? []) as { value: number; period: { datetimeTo: { utc: string } } }[])
+    .filter((h) => h.value >= 0 && h.value < 1000)
+    .map((h) => ({ t: h.period.datetimeTo.utc, v: Math.round(h.value * 10) / 10 }));
+  return { name: l?.name ?? null, locality: l?.locality ?? null, country: l?.country?.name ?? null, history };
 }

@@ -1,19 +1,14 @@
-import { NextResponse } from "next/server";
 import { fetchLiveIssPosition } from "@/lib/iss";
+import { cachedJson, upstreamError } from "@/lib/apiResponse";
 
-// Caché de CDN solo para respuestas OK y con datos: sin esto cada visita
-// pega directo a la API externa y consume su cuota. Las librerías devuelven
-// una colección vacía cuando la fuente falla — eso tampoco se cachea.
-const CACHE_HEADERS = { "Cache-Control": "public, s-maxage=10, stale-while-revalidate=60" };
-const NO_STORE = { "Cache-Control": "no-store" };
 export const dynamic = "force-dynamic";
 
+// Posición, trayectoria real y huella de visibilidad de la ISS.
 export async function GET() {
   try {
     const data = await fetchLiveIssPosition();
-    return NextResponse.json(data, { headers: data.features.length ? CACHE_HEADERS : NO_STORE });
-  } catch (error: unknown) {
-    console.error("[api/iss]", error);
-    return NextResponse.json({ success: false, error: "Upstream fetch failed" }, { status: 500, headers: NO_STORE });
+    return cachedJson(data, 10, data.features.length > 0);
+  } catch (error) {
+    return upstreamError("iss", error);
   }
 }

@@ -7,118 +7,52 @@ import maplibregl, {
   type ExpressionSpecification,
   type FilterSpecification,
   type MapGeoJSONFeature,
+  type RasterTileSource,
 } from "maplibre-gl";
-import type {
-  EarthquakeGeoJSON,
-  AirQualityGeoJSON,
-  FireGeoJSON,
-  WeatherGeoJSON,
-  DisasterGeoJSON,
-  IssGeoJSON,
-  VolcanoGeoJSON,
-  AirQualityModelGeoJSON,
-  CycloneGeoJSON,
-  EarthquakeProperties,
-  AirQualityProperties,
-  FireProperties,
-  WeatherProperties,
-  DisasterProperties,
-  IssProperties,
-  VolcanoProperties,
-  AirQualityModelProperties,
-  CycloneProperties,
-} from "@/lib/types";
-import { DEFAULT_MAP_VIEW, type MapView } from "@/lib/mapView";
+import type { EarthquakeGeoJSON, FireGeoJSON, IssGeoJSON, AirQualityGeoJSON } from "@/lib/types";
+import { DEFAULT_MAP_VIEW } from "@/lib/mapView";
 import { BASEMAP_STYLES, type Basemap } from "@/lib/mapStyles";
-import { layers, scales, marker, withAlpha } from "@/design-system/tokens";
+import { layers, scales, marker, withAlpha, type LayerKey } from "@/design-system/tokens";
 import { registerMapIcons } from "@/lib/mapIcons";
 import { nightPolygon, footprintRing, unwrapLongitudes } from "@/lib/geoShapes";
-import {
-  earthquakePopup,
-  airQualityPopup,
-  firePopup,
-  weatherPopup,
-  disasterPopup,
-  issPopup,
-  volcanoPopup,
-  airQualityModelPopup,
-  cyclonePopup,
-} from "@/lib/popupHtml";
+import type { Selection } from "@/lib/selection";
+import type { MapViewProps } from "./types";
 
-interface MapContainerProps {
-  earthquakes: EarthquakeGeoJSON;
-  airQuality: AirQualityGeoJSON;
-  fires: FireGeoJSON;
-  weather: WeatherGeoJSON;
-  disasters: DisasterGeoJSON;
-  iss: IssGeoJSON;
-  volcanoes: VolcanoGeoJSON;
-  airQualityModel: AirQualityModelGeoJSON;
-  cyclones: CycloneGeoJSON;
-  showQuakes: boolean;
-  showAirQuality: boolean;
-  showFires: boolean;
-  showWeather: boolean;
-  showDisasters: boolean;
-  showIss: boolean;
-  showVolcanoes: boolean;
-  showAirQualityModel: boolean;
-  showCyclones: boolean;
-  showDayNight: boolean;
-  /** Instante de referencia (ahora o cursor de reproducción): antigüedad y día/noche. */
-  refTime: number;
-  onSelectEarthquake?: (id: string) => void;
-  onViewChange?: (view: MapView) => void;
-  initialView?: MapView;
+interface MapContainerProps extends MapViewProps {
   basemap: Basemap;
-  /** Punto a centrar (p.ej. al tocar un evento de la lista); key fuerza re-vuelo. */
-  focus?: { lng: number; lat: number; key: number } | null;
-  selectedEarthquakeId?: string | null;
 }
 
-type Visibility = Pick<
-  MapContainerProps,
-  | "showQuakes"
-  | "showAirQuality"
-  | "showFires"
-  | "showWeather"
-  | "showDisasters"
-  | "showIss"
-  | "showVolcanoes"
-  | "showAirQualityModel"
-  | "showCyclones"
-  | "showDayNight"
->;
-
 // Capas de MapLibre que controla cada toggle del panel.
-const LAYER_GROUPS: Record<keyof Visibility, string[]> = {
-  showDayNight: ["night-fill"],
-  showQuakes: ["quake-clusters", "quake-cluster-count", "quakes", "quake-pulse", "quake-selected"],
-  showAirQuality: ["air-quality"],
-  showAirQualityModel: ["air-quality-model-hit", "air-quality-model"],
-  showFires: ["fires-heat", "fires"],
-  showWeather: ["weather-hit", "weather"],
-  showDisasters: ["disasters"],
-  showVolcanoes: ["volcanoes"],
-  showCyclones: ["cyclone-cone", "cyclone-cone-line", "cyclone-track", "cyclone-forecast", "cyclone-position"],
-  showIss: ["iss-footprint", "iss-footprint-line", "iss-track-past", "iss-track-future", "iss"],
+const LAYER_GROUPS: Record<LayerKey, string[]> = {
+  dayNight: ["night-fill"],
+  radar: ["radar"],
+  earthquakes: ["quake-clusters", "quake-cluster-count", "quakes", "quake-pulse"],
+  airQuality: ["air-quality"],
+  fires: ["fires-heat", "fires"],
+  disasters: ["disasters"],
+  volcanoes: ["volcanoes"],
+  volcanoCatalog: ["volcano-catalog"],
+  cyclones: ["cyclone-cone", "cyclone-cone-line", "cyclone-track", "cyclone-forecast", "cyclone-position"],
+  iss: ["iss-footprint", "iss-footprint-line", "iss-track-past", "iss-track-future", "iss"],
 };
+
+// Orden de prioridad al hacer click (lo que está encima gana).
+// Margen de búsqueda alrededor de un toque o click que no cae justo en un elemento.
+const TOUCH_HIT_PX = 14;
+const MOUSE_HIT_PX = 4;
+const INTERACTIVE = ["iss", "cyclone-position", "disasters", "volcanoes", "quakes", "quake-clusters", "fires", "volcano-catalog", "air-quality"];
 
 const EMPTY: GeoJSON.FeatureCollection = { type: "FeatureCollection", features: [] };
 const FONT_BOLD = ["Noto Sans Bold"];
 const NOT_CLUSTER: FilterSpecification = ["!", ["has", "point_count"]];
 const HOUR_MS = 3_600_000;
 const PULSE_WINDOW_MS = HOUR_MS;
+const RADAR_MAX_ZOOM = 7;
 
 const MAG = ["coalesce", ["get", "mag"], 1] as ExpressionSpecification;
 const MAG_COLOR = ["interpolate", ["linear"], MAG, ...scales.magnitude.flatMap((s) => [s.stop, s.color])] as ExpressionSpecification;
 const MAG_RADIUS = ["interpolate", ["linear"], MAG, 2, 4, 5, 9, 7, 18, 9, 32] as ExpressionSpecification;
-const STORM_COLOR = [
-  "match",
-  ["get", "category"],
-  ...scales.storm.flatMap((s) => [s.key, s.color]),
-  scales.storm[1].color,
-] as unknown as ExpressionSpecification;
+const STORM_COLOR = ["match", ["get", "category"], ...scales.storm.flatMap((s) => [s.key, s.color]), scales.storm[1].color] as unknown as ExpressionSpecification;
 const AQI_COLOR = [
   "match",
   ["get", "category"],
@@ -141,17 +75,17 @@ function fireOpacity(refTime: number): ExpressionSpecification {
 }
 
 // ---------- Transformaciones de datos para las fuentes ----------
-
-// MapLibre descarta los ids de feature que no son numéricos (los de USGS son
-// strings como "us7000abcd"), así que se copian a properties._id.
-function quakeData(fc: EarthquakeGeoJSON) {
-  return { ...fc, features: fc.features.map((f) => ({ ...f, properties: { ...f.properties, _id: String(f.id) } })) };
+// MapLibre descarta los ids de feature que no son numéricos, así que el id
+// que necesita la selección se copia a properties._id.
+function withIds<T extends { features: { id: string | number; properties: object }[] }>(fc: T, extra?: (f: T["features"][number]) => object) {
+  return {
+    ...fc,
+    features: fc.features.map((f) => ({ ...f, properties: { ...f.properties, _id: String(f.id), ...(extra?.(f) ?? {}) } })),
+  } as unknown as GeoJSON.FeatureCollection;
 }
-
-// Las expresiones no parsean fechas ISO: se precalcula _t (ms).
-function fireData(fc: FireGeoJSON) {
-  return { ...fc, features: fc.features.map((f) => ({ ...f, properties: { ...f.properties, _t: Date.parse(f.properties.acquiredAt) } })) };
-}
+const quakeData = (fc: EarthquakeGeoJSON) => withIds(fc);
+const fireData = (fc: FireGeoJSON) => withIds(fc, (f) => ({ _t: Date.parse((f as FireGeoJSON["features"][number]).properties.acquiredAt) }));
+const airData = (fc: AirQualityGeoJSON) => withIds(fc);
 
 // Trayectoria real (pasada + futura) y huella de visibilidad de la ISS.
 function issDerived(iss: IssGeoJSON): { track: GeoJSON.FeatureCollection; footprint: GeoJSON.FeatureCollection } {
@@ -160,115 +94,134 @@ function issDerived(iss: IssGeoJSON): { track: GeoJSON.FeatureCollection; footpr
   const { past, future } = f.properties.track;
   const [lon, lat] = f.geometry.coordinates;
   const joined = unwrapLongitudes([...past, ...future.slice(1)].map(([x, y]) => [x, y] as [number, number]));
-  // Alinea la línea con el marcador (mismo "mundo" de longitudes).
   const anchorIdx = Math.max(0, past.length - 1);
   const shift = joined[anchorIdx] ? Math.round((lon - joined[anchorIdx][0]) / 360) * 360 : 0;
   const line = joined.map(([x, y]) => [x + shift, y]);
-  const track: GeoJSON.FeatureCollection = {
-    type: "FeatureCollection",
-    features: [
-      { type: "Feature", properties: { kind: "past" }, geometry: { type: "LineString", coordinates: line.slice(0, anchorIdx + 1) } },
-      { type: "Feature", properties: { kind: "future" }, geometry: { type: "LineString", coordinates: line.slice(anchorIdx) } },
-    ],
+  return {
+    track: {
+      type: "FeatureCollection",
+      features: [
+        { type: "Feature", properties: { kind: "past" }, geometry: { type: "LineString", coordinates: line.slice(0, anchorIdx + 1) } },
+        { type: "Feature", properties: { kind: "future" }, geometry: { type: "LineString", coordinates: line.slice(anchorIdx) } },
+      ],
+    },
+    footprint: {
+      type: "FeatureCollection",
+      features: [{ type: "Feature", properties: {}, geometry: { type: "Polygon", coordinates: [footprintRing(lon, lat, f.properties.altitudeKm)] } }],
+    },
   };
-  const footprint: GeoJSON.FeatureCollection = {
-    type: "FeatureCollection",
-    features: [
-      { type: "Feature", properties: {}, geometry: { type: "Polygon", coordinates: [footprintRing(lon, lat, f.properties.altitudeKm)] } },
-    ],
-  };
-  return { track, footprint };
 }
 
-function nightData(refTime: number): GeoJSON.FeatureCollection {
-  return {
-    type: "FeatureCollection",
-    features: [{ type: "Feature", properties: {}, geometry: { type: "Polygon", coordinates: [nightPolygon(new Date(refTime))] } }],
-  };
+const nightData = (refTime: number): GeoJSON.FeatureCollection => ({
+  type: "FeatureCollection",
+  features: [{ type: "Feature", properties: {}, geometry: { type: "Polygon", coordinates: [nightPolygon(new Date(refTime))] } }],
+});
+
+const selectionData = (p: [number, number] | null): GeoJSON.FeatureCollection =>
+  p ? { type: "FeatureCollection", features: [{ type: "Feature", properties: {}, geometry: { type: "Point", coordinates: p } }] } : EMPTY;
+
+/** Feature clicada → selección (misma estructura que emite el globo 3D). */
+function toSelection(layerId: string, f: MapGeoJSONFeature): Selection | null {
+  const id = (f.properties as { _id?: string })._id;
+  switch (layerId) {
+    case "iss":
+      return { kind: "iss" };
+    case "quakes":
+      return id ? { kind: "quake", id } : null;
+    case "fires":
+      return id ? { kind: "fire", id } : null;
+    case "disasters":
+      return { kind: "disaster", id: String(f.properties.eventId) };
+    case "cyclone-position":
+      return { kind: "cyclone", id: String(f.properties.eventId) };
+    case "volcanoes":
+      return id ? { kind: "volcano", id: Number(id) } : null;
+    case "volcano-catalog":
+      return id ? { kind: "volcanoCatalog", id: Number(id) } : null;
+    case "air-quality":
+      return id ? { kind: "air", id: Number(id) } : null;
+    default:
+      return null;
+  }
 }
 
 export default function MapContainer(props: MapContainerProps) {
-  const {
-    earthquakes,
-    airQuality,
-    fires,
-    weather,
-    disasters,
-    iss,
-    volcanoes,
-    airQualityModel,
-    cyclones,
-    refTime,
-    onViewChange,
-    initialView = DEFAULT_MAP_VIEW,
-    basemap,
-    focus,
-    selectedEarthquakeId = null,
-  } = props;
+  const { data, visibility, refTime, radarTiles, selectedPoint, focus, basemap, initialView = DEFAULT_MAP_VIEW } = props;
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const isMapLoadedRef = useRef<boolean>(false);
 
-  // Props más recientes: setupLayers() corre en el "load" inicial y tras
-  // cada map.setStyle() (cambio de basemap, que borra fuentes y capas), y
-  // los handlers de click se registran una sola vez.
+  // Props más recientes: setupLayers() corre en el "load" inicial y tras cada
+  // map.setStyle() (que borra fuentes y capas); los handlers se registran una vez.
   const propsRef = useRef(props);
   propsRef.current = props;
-  const onViewChangeRef = useRef(onViewChange);
-  onViewChangeRef.current = onViewChange;
+
+  function addRadar(map: MapLibreMap, tiles: string) {
+    map.addSource("radar", { type: "raster", tiles: [tiles], tileSize: 256, maxzoom: RADAR_MAX_ZOOM, attribution: "RainViewer" });
+    map.addLayer(
+      {
+        id: "radar",
+        type: "raster",
+        source: "radar",
+        layout: { visibility: propsRef.current.visibility.radar ? "visible" : "none" },
+        paint: { "raster-opacity": 0.7, "raster-fade-duration": 0 },
+      },
+      "night-fill"
+    );
+  }
 
   function setupLayers(map: MapLibreMap) {
     const p = propsRef.current;
-    const vis = (key: keyof Visibility) => (p[key] ? "visible" : "none") as "visible" | "none";
+    const vis = (key: LayerKey) => (p.visibility[key] ? "visible" : "none") as "visible" | "none";
     const onLight = p.basemap === "light";
     const labelHalo = onLight ? marker.haloOnLight : marker.halo;
     const labelText = onLight ? marker.labelTextOnLight : marker.labelText;
-    const { track, footprint } = issDerived(p.iss);
+    const { track, footprint } = issDerived(p.data.iss);
 
     registerMapIcons(map);
 
-    // ---------- Fuentes ----------
     map.addSource("night", { type: "geojson", data: nightData(p.refTime) });
     map.addSource("quakes", {
       type: "geojson",
-      data: quakeData(p.earthquakes),
+      data: quakeData(p.data.earthquakes),
       cluster: true,
       clusterRadius: 40,
       clusterMaxZoom: 4,
       clusterProperties: { maxMag: ["max", ["coalesce", ["get", "mag"], 0]] },
     });
-    map.addSource("air-quality", { type: "geojson", data: p.airQuality });
-    map.addSource("air-quality-model", { type: "geojson", data: p.airQualityModel });
-    map.addSource("fires", { type: "geojson", data: fireData(p.fires) });
-    map.addSource("weather", { type: "geojson", data: p.weather });
-    map.addSource("disasters", { type: "geojson", data: p.disasters });
-    map.addSource("volcanoes", { type: "geojson", data: p.volcanoes });
-    map.addSource("cyclones", { type: "geojson", data: p.cyclones });
-    map.addSource("iss", { type: "geojson", data: p.iss });
+    map.addSource("air-quality", { type: "geojson", data: airData(p.data.airQuality) });
+    map.addSource("fires", { type: "geojson", data: fireData(p.data.fires) });
+    map.addSource("disasters", { type: "geojson", data: p.data.disasters });
+    map.addSource("volcanoes", { type: "geojson", data: withIds(p.data.volcanoes) });
+    map.addSource("volcano-catalog", { type: "geojson", data: p.data.volcanoCatalog ? withIds(p.data.volcanoCatalog) : EMPTY });
+    map.addSource("cyclones", { type: "geojson", data: p.data.cyclones });
+    map.addSource("iss", { type: "geojson", data: p.data.iss });
     map.addSource("iss-track", { type: "geojson", data: track });
     map.addSource("iss-footprint", { type: "geojson", data: footprint });
+    map.addSource("selection", { type: "geojson", data: selectionData(p.selectedPoint) });
 
     // ---------- Capas (de abajo hacia arriba) ----------
     map.addLayer({
       id: "night-fill",
       type: "fill",
       source: "night",
-      layout: { visibility: vis("showDayNight") },
+      layout: { visibility: vis("dayNight") },
       paint: { "fill-color": marker.night, "fill-opacity": onLight ? 0.16 : 0.32, "fill-antialias": false },
     });
+    if (p.radarTiles) addRadar(map, p.radarTiles);
 
     map.addLayer({
       id: "iss-footprint",
       type: "fill",
       source: "iss-footprint",
-      layout: { visibility: vis("showIss") },
+      layout: { visibility: vis("iss") },
       paint: { "fill-color": marker.issStroke, "fill-opacity": 0.08 },
     });
     map.addLayer({
       id: "iss-footprint-line",
       type: "line",
       source: "iss-footprint",
-      layout: { visibility: vis("showIss") },
+      layout: { visibility: vis("iss") },
       paint: { "line-color": marker.issStroke, "line-opacity": 0.5, "line-width": 1, "line-dasharray": [2, 2] },
     });
 
@@ -277,7 +230,7 @@ export default function MapContainer(props: MapContainerProps) {
       type: "fill",
       source: "cyclones",
       filter: ["==", ["get", "kind"], "cone"],
-      layout: { visibility: vis("showCyclones") },
+      layout: { visibility: vis("cyclones") },
       paint: { "fill-color": marker.cone, "fill-opacity": onLight ? 0.18 : 0.1 },
     });
     map.addLayer({
@@ -285,7 +238,7 @@ export default function MapContainer(props: MapContainerProps) {
       type: "line",
       source: "cyclones",
       filter: ["==", ["get", "kind"], "cone"],
-      layout: { visibility: vis("showCyclones") },
+      layout: { visibility: vis("cyclones") },
       paint: { "line-color": onLight ? marker.labelTextOnLight : marker.cone, "line-opacity": 0.45, "line-width": 1, "line-dasharray": [3, 2] },
     });
     map.addLayer({
@@ -293,7 +246,7 @@ export default function MapContainer(props: MapContainerProps) {
       type: "line",
       source: "cyclones",
       filter: ["all", ["==", ["get", "kind"], "track"], ["!=", ["get", "forecast"], true]],
-      layout: { visibility: vis("showCyclones"), "line-cap": "round" },
+      layout: { visibility: vis("cyclones"), "line-cap": "round" },
       paint: { "line-color": STORM_COLOR, "line-width": 3.5 },
     });
     map.addLayer({
@@ -301,17 +254,16 @@ export default function MapContainer(props: MapContainerProps) {
       type: "line",
       source: "cyclones",
       filter: ["all", ["==", ["get", "kind"], "track"], ["==", ["get", "forecast"], true]],
-      layout: { visibility: vis("showCyclones") },
+      layout: { visibility: vis("cyclones") },
       paint: { "line-color": STORM_COLOR, "line-width": 2.5, "line-dasharray": [1.5, 1.5] },
     });
 
-    // Incendios: mapa de calor con zoom alejado, iconos al acercarse.
     map.addLayer({
       id: "fires-heat",
       type: "heatmap",
       source: "fires",
       maxzoom: 7,
-      layout: { visibility: vis("showFires") },
+      layout: { visibility: vis("fires") },
       paint: {
         "heatmap-weight": ["interpolate", ["linear"], ["coalesce", ["get", "frp"], 5], 0, 0.15, 50, 0.6, 200, 1],
         "heatmap-intensity": ["interpolate", ["linear"], ["zoom"], 0, 0.6, 6, 1.6],
@@ -334,37 +286,26 @@ export default function MapContainer(props: MapContainerProps) {
       id: "air-quality",
       type: "circle",
       source: "air-quality",
-      layout: { visibility: vis("showAirQuality") },
+      layout: { visibility: vis("airQuality") },
       paint: {
-        "circle-radius": 7,
+        "circle-radius": ["interpolate", ["linear"], ["zoom"], 1, 2.5, 5, 4.5, 9, 8],
         "circle-color": AQI_COLOR,
         "circle-opacity": 0.9,
-        "circle-stroke-width": 1.5,
+        "circle-stroke-width": ["interpolate", ["linear"], ["zoom"], 1, 0.3, 6, 1],
         "circle-stroke-color": marker.strokeDark,
       },
     });
-    // Hit-target: con color 100% transparente MapLibre no detecta clicks
-    // dentro del círculo, solo en el borde.
-    map.addLayer({
-      id: "air-quality-model-hit",
-      type: "circle",
-      source: "air-quality-model",
-      layout: { visibility: vis("showAirQualityModel") },
-      paint: { "circle-radius": 14, "circle-color": "rgba(0,0,0,0.01)" },
-    });
-    map.addLayer({
-      id: "air-quality-model",
-      type: "circle",
-      source: "air-quality-model",
-      layout: { visibility: vis("showAirQualityModel") },
-      paint: { "circle-radius": 11, "circle-color": "rgba(0,0,0,0.01)", "circle-stroke-width": 2.5, "circle-stroke-color": AQI_COLOR },
-    });
 
     map.addLayer({
-      id: "volcanoes",
+      id: "volcano-catalog",
       type: "symbol",
-      source: "volcanoes",
-      layout: { visibility: vis("showVolcanoes"), "icon-image": "ep-volcano", "icon-allow-overlap": true, "icon-size": ["interpolate", ["linear"], ["zoom"], 1, 0.7, 6, 1.1] },
+      source: "volcano-catalog",
+      layout: {
+        visibility: vis("volcanoCatalog"),
+        "icon-image": "ep-volcano",
+        "icon-allow-overlap": true,
+        "icon-size": ["interpolate", ["linear"], ["zoom"], 1, 0.55, 6, 1],
+      },
     });
 
     map.addLayer({
@@ -373,48 +314,20 @@ export default function MapContainer(props: MapContainerProps) {
       source: "fires",
       minzoom: 5.5,
       layout: {
-        visibility: vis("showFires"),
+        visibility: vis("fires"),
         "icon-image": "ep-fire",
         "icon-allow-overlap": true,
         "icon-size": ["interpolate", ["linear"], ["coalesce", ["get", "frp"], 5], 0, 0.7, 100, 1.1, 500, 1.5],
       },
-      paint: {
-        "icon-opacity": fireOpacity(p.refTime),
-      },
+      paint: { "icon-opacity": fireOpacity(p.refTime) },
     });
 
-    map.addLayer({
-      id: "weather-hit",
-      type: "circle",
-      source: "weather",
-      layout: { visibility: vis("showWeather") },
-      paint: { "circle-radius": 12, "circle-color": "rgba(0,0,0,0.01)" },
-    });
-    map.addLayer({
-      id: "weather",
-      type: "symbol",
-      source: "weather",
-      layout: {
-        visibility: vis("showWeather"),
-        "text-field": ["concat", ["to-string", ["round", ["get", "temperature"]]], "°"],
-        "text-font": FONT_BOLD,
-        "text-size": 13,
-        "text-allow-overlap": true,
-      },
-      paint: {
-        "text-color": onLight ? marker.weatherTextOnLight : marker.weatherText,
-        "text-halo-color": labelHalo,
-        "text-halo-width": 2,
-      },
-    });
-
-    // Sismos: clusters con zoom alejado (color = mayor magnitud del grupo).
     map.addLayer({
       id: "quake-clusters",
       type: "circle",
       source: "quakes",
       filter: ["has", "point_count"],
-      layout: { visibility: vis("showQuakes") },
+      layout: { visibility: vis("earthquakes") },
       paint: {
         "circle-color": ["interpolate", ["linear"], ["get", "maxMag"], ...scales.magnitude.flatMap((s) => [s.stop, s.color])] as ExpressionSpecification,
         "circle-radius": ["step", ["get", "point_count"], 13, 10, 17, 50, 23],
@@ -430,7 +343,7 @@ export default function MapContainer(props: MapContainerProps) {
       source: "quakes",
       filter: ["has", "point_count"],
       layout: {
-        visibility: vis("showQuakes"),
+        visibility: vis("earthquakes"),
         "text-field": ["get", "point_count_abbreviated"],
         "text-font": FONT_BOLD,
         "text-size": 12,
@@ -443,7 +356,7 @@ export default function MapContainer(props: MapContainerProps) {
       type: "circle",
       source: "quakes",
       filter: NOT_CLUSTER,
-      layout: { visibility: vis("showQuakes") },
+      layout: { visibility: vis("earthquakes") },
       paint: {
         "circle-radius": MAG_RADIUS,
         "circle-color": MAG_COLOR,
@@ -453,13 +366,12 @@ export default function MapContainer(props: MapContainerProps) {
         "circle-stroke-opacity": ageOpacity(p.refTime, "time"),
       },
     });
-    // Onda expansiva para los sismos de la última hora (animada en rAF).
     map.addLayer({
       id: "quake-pulse",
       type: "circle",
       source: "quakes",
       filter: ["all", NOT_CLUSTER, ["<", ["-", p.refTime, ["get", "time"]], PULSE_WINDOW_MS]] as FilterSpecification,
-      layout: { visibility: vis("showQuakes") },
+      layout: { visibility: vis("earthquakes") },
       paint: {
         "circle-radius": MAG_RADIUS,
         "circle-color": "rgba(0,0,0,0)",
@@ -468,39 +380,36 @@ export default function MapContainer(props: MapContainerProps) {
         "circle-stroke-opacity": 0,
       },
     });
+
     map.addLayer({
-      id: "quake-selected",
-      type: "circle",
-      source: "quakes",
-      filter: ["all", NOT_CLUSTER, ["==", ["get", "_id"], p.selectedEarthquakeId ?? ""]] as FilterSpecification,
-      layout: { visibility: vis("showQuakes") },
-      paint: {
-        "circle-radius": ["+", MAG_RADIUS, 6] as ExpressionSpecification,
-        "circle-color": "rgba(0,0,0,0)",
-        "circle-stroke-width": 3,
-        "circle-stroke-color": marker.selected,
+      id: "volcanoes",
+      type: "symbol",
+      source: "volcanoes",
+      layout: {
+        visibility: vis("volcanoes"),
+        "icon-image": ["match", ["get", "status"], "new", "ep-volcano-new", "ep-volcano-continuing"],
+        "icon-allow-overlap": true,
+        "icon-size": ["interpolate", ["linear"], ["zoom"], 1, 0.75, 5, 1],
       },
     });
-
     map.addLayer({
       id: "disasters",
       type: "symbol",
       source: "disasters",
       layout: {
-        visibility: vis("showDisasters"),
+        visibility: vis("disasters"),
         "icon-image": ["concat", "ep-disaster-", ["get", "eventType"], "-", ["get", "alertLevel"]],
         "icon-allow-overlap": true,
         "icon-size": ["interpolate", ["linear"], ["zoom"], 1, 0.75, 5, 1],
       },
     });
-
     map.addLayer({
       id: "cyclone-position",
       type: "symbol",
       source: "cyclones",
       filter: ["==", ["get", "kind"], "position"],
       layout: {
-        visibility: vis("showCyclones"),
+        visibility: vis("cyclones"),
         "icon-image": ["concat", "ep-cyclone-", ["coalesce", ["get", "category"], "TS"]],
         "icon-allow-overlap": true,
         "text-field": ["get", "name"],
@@ -518,19 +427,15 @@ export default function MapContainer(props: MapContainerProps) {
       type: "line",
       source: "iss-track",
       filter: ["==", ["get", "kind"], "past"],
-      layout: { visibility: vis("showIss"), "line-cap": "round" },
-      paint: {
-        "line-color": marker.issStroke,
-        "line-width": 2,
-        "line-opacity": 0.85,
-      },
+      layout: { visibility: vis("iss"), "line-cap": "round" },
+      paint: { "line-color": marker.issStroke, "line-width": 2, "line-opacity": 0.85 },
     });
     map.addLayer({
       id: "iss-track-future",
       type: "line",
       source: "iss-track",
       filter: ["==", ["get", "kind"], "future"],
-      layout: { visibility: vis("showIss") },
+      layout: { visibility: vis("iss") },
       paint: { "line-color": marker.issStroke, "line-width": 1.5, "line-opacity": 0.6, "line-dasharray": [2, 2] },
     });
     map.addLayer({
@@ -538,7 +443,7 @@ export default function MapContainer(props: MapContainerProps) {
       type: "symbol",
       source: "iss",
       layout: {
-        visibility: vis("showIss"),
+        visibility: vis("iss"),
         "icon-image": "ep-iss",
         "icon-allow-overlap": true,
         "text-field": "ISS",
@@ -550,9 +455,23 @@ export default function MapContainer(props: MapContainerProps) {
       },
       paint: { "text-color": labelText, "text-halo-color": labelHalo, "text-halo-width": 2 },
     });
+
+    // Anillo de selección (cualquier tipo de elemento o punto del mapa).
+    map.addLayer({
+      id: "selection-halo",
+      type: "circle",
+      source: "selection",
+      paint: { "circle-radius": 22, "circle-color": withAlpha(marker.selected, 0.15), "circle-stroke-width": 0 },
+    });
+    map.addLayer({
+      id: "selection",
+      type: "circle",
+      source: "selection",
+      paint: { "circle-radius": 17, "circle-color": "rgba(0,0,0,0)", "circle-stroke-width": 3, "circle-stroke-color": marker.selected },
+    });
   }
 
-  // 1. Inicialización única del mapa (evita fugas y pérdida de contexto WebGL).
+  // 1. Inicialización única del mapa.
   useEffect(() => {
     if (!mapContainerRef.current) return;
 
@@ -569,96 +488,67 @@ export default function MapContainer(props: MapContainerProps) {
       attributionControl: false,
     });
 
-    // Zoom/brújula arriba a la derecha y atribución compacta abajo a la
-    // izquierda; globals.css (.ep-map-stage) los desplaza con --ep-inset-*.
     map.addControl(new maplibregl.NavigationControl({ showCompass: true }), "top-right");
     map.addControl(new maplibregl.AttributionControl({ compact: true }), "bottom-left");
 
-    // Imagen faltante (p.ej. un tipo de evento nuevo): se registra el set y
-    // se ignora en silencio si sigue sin existir.
     map.on("styleimagemissing", (e) => {
       if (e.id.startsWith("ep-")) registerMapIcons(map);
+      // Iconos que el estilo base pide y su sprite no trae (p.ej. "circle-11"):
+      // uno transparente evita el aviso en cada repintado.
+      else if (!map.hasImage(e.id)) map.addImage(e.id, { width: 1, height: 1, data: new Uint8Array(4) });
     });
-
     map.on("moveend", () => {
-      const center = map.getCenter();
-      onViewChangeRef.current?.({ lng: center.lng, lat: center.lat, zoom: map.getZoom() });
+      const c = map.getCenter();
+      propsRef.current.onViewChange?.({ lng: c.lng, lat: c.lat, zoom: map.getZoom() });
     });
-
     map.on("load", () => {
       isMapLoadedRef.current = true;
       setupLayers(map);
     });
 
-    // Handlers de interacción: se registran UNA vez (sobreviven a setStyle,
-    // así no se duplican popups al cambiar de mapa base).
-    const openPopup = (lngLat: [number, number], html: string) =>
-      new maplibregl.Popup({ closeButton: true, focusAfterOpen: false, maxWidth: "300px" }).setLngLat(lngLat).setHTML(html).addTo(map);
-    const pointOf = (f: MapGeoJSONFeature): [number, number] | null =>
-      f.geometry.type === "Point" ? [f.geometry.coordinates[0], f.geometry.coordinates[1]] : null;
-
-    const handlers: Record<string, (f: MapGeoJSONFeature) => void> = {
-      quakes: (f) => {
-        const at = pointOf(f);
-        if (!at) return;
-        const props = f.properties as EarthquakeProperties & { _id?: string };
-        if (props._id) propsRef.current.onSelectEarthquake?.(props._id);
-        const depth = f.geometry.type === "Point" ? (f.geometry.coordinates[2] ?? 0) : 0;
-        openPopup(at, earthquakePopup(props, depth));
-      },
-      "air-quality": (f) => {
-        const at = pointOf(f);
-        if (at) openPopup(at, airQualityPopup(f.properties as AirQualityProperties));
-      },
-      fires: (f) => {
-        const at = pointOf(f);
-        if (at) openPopup(at, firePopup(f.properties as FireProperties));
-      },
-      "weather-hit": (f) => {
-        const at = pointOf(f);
-        if (at) openPopup(at, weatherPopup(f.properties as WeatherProperties));
-      },
-      disasters: (f) => {
-        const at = pointOf(f);
-        if (at) openPopup(at, disasterPopup(f.properties as DisasterProperties));
-      },
-      iss: (f) => {
-        const at = pointOf(f);
-        if (at) openPopup(at, issPopup(f.properties as IssProperties));
-      },
-      volcanoes: (f) => {
-        const at = pointOf(f);
-        if (at) openPopup(at, volcanoPopup(f.properties as VolcanoProperties));
-      },
-      "air-quality-model-hit": (f) => {
-        const at = pointOf(f);
-        const props = f.properties as AirQualityModelProperties;
-        if (at) openPopup(at, airQualityModelPopup(props, props.category));
-      },
-      "cyclone-position": (f) => {
-        const at = pointOf(f);
-        if (at) openPopup(at, cyclonePopup(f.properties as CycloneProperties));
-      },
-    };
-    for (const [layerId, handle] of Object.entries(handlers)) {
-      map.on("click", layerId, (e) => {
-        const f = e.features?.[0];
-        if (f) handle(f);
-      });
-      map.on("mouseenter", layerId, () => { map.getCanvas().style.cursor = "pointer"; });
-      map.on("mouseleave", layerId, () => { map.getCanvas().style.cursor = ""; });
-    }
-
-    // Click en un cluster: acerca el zoom hasta que se separe.
-    map.on("click", "quake-clusters", async (e) => {
-      const f = e.features?.[0];
-      if (!f || f.geometry.type !== "Point") return;
-      const source = map.getSource("quakes") as GeoJSONSource;
-      const zoom = await source.getClusterExpansionZoom(f.properties.cluster_id as number);
-      map.easeTo({ center: f.geometry.coordinates as [number, number], zoom: zoom + 0.5 });
+    // Un solo handler de click: el elemento de más arriba gana; los clusters
+    // acercan el zoom; un click en el vacío selecciona ese punto del mapa
+    // (pronóstico, aire y sismicidad de la zona en el panel de detalle).
+    map.on("click", async (e) => {
+      const present = INTERACTIVE.filter((id) => map.getLayer(id));
+      // Primero justo bajo el puntero; si no hay nada, en un margen alrededor
+      // (mayor con el dedo) para que los puntos pequeños sean fáciles de tocar.
+      let hits = map.queryRenderedFeatures(e.point, { layers: present });
+      if (hits.length === 0) {
+        const ev = e.originalEvent as Event;
+        const touch = (typeof PointerEvent !== "undefined" && ev instanceof PointerEvent && ev.pointerType === "touch") || (typeof TouchEvent !== "undefined" && ev instanceof TouchEvent);
+        const r = touch ? TOUCH_HIT_PX : MOUSE_HIT_PX;
+        hits = map.queryRenderedFeatures(
+          [
+            [e.point.x - r, e.point.y - r],
+            [e.point.x + r, e.point.y + r],
+          ],
+          { layers: present }
+        );
+      }
+      for (const layerId of INTERACTIVE) {
+        const f = hits.find((h) => h.layer.id === layerId);
+        if (!f) continue;
+        if (layerId === "quake-clusters" && f.geometry.type === "Point") {
+          const source = map.getSource("quakes") as GeoJSONSource;
+          const zoom = await source.getClusterExpansionZoom(f.properties.cluster_id as number);
+          map.easeTo({ center: f.geometry.coordinates as [number, number], zoom: zoom + 0.5 });
+          return;
+        }
+        const selection = toSelection(layerId, f);
+        if (selection) {
+          propsRef.current.onSelect(selection);
+          return;
+        }
+      }
+      const { lng, lat } = e.lngLat.wrap();
+      propsRef.current.onSelect({ kind: "point", lon: lng, lat });
     });
-    map.on("mouseenter", "quake-clusters", () => { map.getCanvas().style.cursor = "pointer"; });
-    map.on("mouseleave", "quake-clusters", () => { map.getCanvas().style.cursor = ""; });
+    map.on("mousemove", (e) => {
+      const present = INTERACTIVE.filter((id) => map.getLayer(id));
+      const hit = present.length > 0 && map.queryRenderedFeatures(e.point, { layers: present }).length > 0;
+      map.getCanvas().style.cursor = hit ? "pointer" : "";
+    });
 
     // Onda de los sismos recientes (se respeta prefers-reduced-motion).
     let raf = 0;
@@ -675,7 +565,6 @@ export default function MapContainer(props: MapContainerProps) {
 
     const resizeObserver = new ResizeObserver(() => map.resize());
     resizeObserver.observe(mapContainerRef.current);
-
     mapRef.current = map;
 
     return () => {
@@ -684,11 +573,10 @@ export default function MapContainer(props: MapContainerProps) {
       isMapLoadedRef.current = false;
       map.remove();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- inicialización única; los cambios de datos/visibilidad/basemap se aplican en los effects de abajo sin recrear el mapa.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- inicialización única; los cambios se aplican en los effects de abajo.
   }, []);
 
-  // 1b. Cambio de basemap: setStyle() borra fuentes/capas/iconos; se
-  // re-agregan cuando el nuevo estilo termina de cargar.
+  // 1b. Cambio de basemap: setStyle() borra fuentes/capas/iconos.
   const isFirstBasemapRenderRef = useRef(true);
   useEffect(() => {
     if (isFirstBasemapRenderRef.current) {
@@ -703,9 +591,10 @@ export default function MapContainer(props: MapContainerProps) {
       isMapLoadedRef.current = true;
       setupLayers(map);
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [basemap]);
 
-  // 1c. Centrar en un evento seleccionado desde la lista.
+  // 1c. Centrar en un elemento elegido desde la lista o el buscador.
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !focus) return;
@@ -713,27 +602,41 @@ export default function MapContainer(props: MapContainerProps) {
   }, [focus]);
 
   // 2. Datos: setData sin recrear el mapa.
-  const setData = (sourceId: string, data: GeoJSON.GeoJSON) => {
+  const setData = (sourceId: string, fc: GeoJSON.GeoJSON) => {
     if (!isMapLoadedRef.current) return;
-    (mapRef.current?.getSource(sourceId) as GeoJSONSource | undefined)?.setData(data);
+    (mapRef.current?.getSource(sourceId) as GeoJSONSource | undefined)?.setData(fc);
   };
-  useEffect(() => setData("quakes", quakeData(earthquakes)), [earthquakes]);
-  useEffect(() => setData("air-quality", airQuality), [airQuality]);
-  useEffect(() => setData("air-quality-model", airQualityModel), [airQualityModel]);
-  useEffect(() => setData("fires", fireData(fires)), [fires]);
-  useEffect(() => setData("weather", weather), [weather]);
-  useEffect(() => setData("disasters", disasters), [disasters]);
-  useEffect(() => setData("volcanoes", volcanoes), [volcanoes]);
-  useEffect(() => setData("cyclones", cyclones), [cyclones]);
+  useEffect(() => setData("quakes", quakeData(data.earthquakes)), [data.earthquakes]);
+  useEffect(() => setData("air-quality", airData(data.airQuality)), [data.airQuality]);
+  useEffect(() => setData("fires", fireData(data.fires)), [data.fires]);
+  useEffect(() => setData("disasters", data.disasters), [data.disasters]);
+  useEffect(() => setData("volcanoes", withIds(data.volcanoes)), [data.volcanoes]);
+  useEffect(() => setData("volcano-catalog", data.volcanoCatalog ? withIds(data.volcanoCatalog) : EMPTY), [data.volcanoCatalog]);
+  useEffect(() => setData("cyclones", data.cyclones), [data.cyclones]);
+  useEffect(() => setData("selection", selectionData(selectedPoint)), [selectedPoint]);
   useEffect(() => {
-    setData("iss", iss);
-    const { track, footprint } = issDerived(iss);
+    setData("iss", data.iss);
+    const { track, footprint } = issDerived(data.iss);
     setData("iss-track", track);
     setData("iss-footprint", footprint);
-  }, [iss]);
+  }, [data.iss]);
 
-  // 3. Tiempo de referencia: antigüedad de eventos, onda de la última hora y
-  // terminador día/noche (en reproducción siguen al cursor).
+  // 2b. Radar: cambia el cuadro según el cursor de tiempo.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !isMapLoadedRef.current) return;
+    const source = map.getSource("radar") as RasterTileSource | undefined;
+    if (!radarTiles) {
+      if (map.getLayer("radar")) map.removeLayer("radar");
+      if (source) map.removeSource("radar");
+      return;
+    }
+    if (source) source.setTiles([radarTiles]);
+    else addRadar(map, radarTiles);
+     
+  }, [radarTiles]);
+
+  // 3. Tiempo de referencia: antigüedad, onda de la última hora y día/noche.
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !isMapLoadedRef.current) return;
@@ -743,25 +646,16 @@ export default function MapContainer(props: MapContainerProps) {
       map.setPaintProperty("quakes", "circle-stroke-opacity", ageOpacity(refTime, "time"));
       map.setFilter("quake-pulse", ["all", NOT_CLUSTER, ["<", ["-", refTime, ["get", "time"]], PULSE_WINDOW_MS]] as FilterSpecification);
     }
-    if (map.getLayer("fires")) {
-      map.setPaintProperty("fires", "icon-opacity", fireOpacity(refTime));
-    }
+    if (map.getLayer("fires")) map.setPaintProperty("fires", "icon-opacity", fireOpacity(refTime));
   }, [refTime]);
 
-  // 4. Selección.
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !isMapLoadedRef.current || !map.getLayer("quake-selected")) return;
-    map.setFilter("quake-selected", ["all", NOT_CLUSTER, ["==", ["get", "_id"], selectedEarthquakeId ?? ""]] as FilterSpecification);
-  }, [selectedEarthquakeId]);
-
-  // 5. Visibilidad por grupo (sin latencia: setLayoutProperty).
-  const visKey = (Object.keys(LAYER_GROUPS) as (keyof Visibility)[]).map((k) => (props[k] ? 1 : 0)).join("");
+  // 4. Visibilidad por grupo (setLayoutProperty, sin latencia).
+  const visKey = (Object.keys(LAYER_GROUPS) as LayerKey[]).map((k) => (visibility[k] ? 1 : 0)).join("");
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !isMapLoadedRef.current) return;
-    for (const [key, ids] of Object.entries(LAYER_GROUPS) as [keyof Visibility, string[]][]) {
-      const value = props[key] ? "visible" : "none";
+    for (const [key, ids] of Object.entries(LAYER_GROUPS) as [LayerKey, string[]][]) {
+      const value = visibility[key] ? "visible" : "none";
       for (const id of ids) if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", value);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

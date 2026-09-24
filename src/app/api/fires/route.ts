@@ -1,19 +1,14 @@
-import { NextResponse } from "next/server";
 import { fetchLiveFires } from "@/lib/firms";
+import { cachedJson, upstreamError } from "@/lib/apiResponse";
 
-// Caché de CDN solo para respuestas OK y con datos: sin esto cada visita
-// pega directo a la API externa y consume su cuota. Las librerías devuelven
-// una colección vacía cuando la fuente falla — eso tampoco se cachea.
-const CACHE_HEADERS = { "Cache-Control": "public, s-maxage=900, stale-while-revalidate=5400" };
-const NO_STORE = { "Cache-Control": "no-store" };
 export const dynamic = "force-dynamic";
 
+// Focos de calor activos de NASA FIRMS.
 export async function GET() {
   try {
     const data = await fetchLiveFires();
-    return NextResponse.json(data, { headers: data.features.length ? CACHE_HEADERS : NO_STORE });
-  } catch (error: unknown) {
-    console.error("[api/fires]", error);
-    return NextResponse.json({ success: false, error: "Upstream fetch failed" }, { status: 500, headers: NO_STORE });
+    return cachedJson(data, 900, data.features.length > 0);
+  } catch (error) {
+    return upstreamError("fires", error);
   }
 }

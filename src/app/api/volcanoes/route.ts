@@ -1,19 +1,17 @@
-import { NextResponse } from "next/server";
 import { fetchVolcanoes } from "@/lib/gvp";
+import { fetchActiveVolcanoes } from "@/lib/gvpWeekly";
+import { cachedJson, upstreamError } from "@/lib/apiResponse";
 
-// Caché de CDN solo para respuestas OK y con datos: sin esto cada visita
-// pega directo a la API externa y consume su cuota. Las librerías devuelven
-// una colección vacía cuando la fuente falla — eso tampoco se cachea.
-const CACHE_HEADERS = { "Cache-Control": "public, s-maxage=86400, stale-while-revalidate=518400" };
-const NO_STORE = { "Cache-Control": "no-store" };
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+// Por defecto: volcanes con actividad esta semana (reporte Smithsonian/USGS).
+// ?catalog=1: catálogo histórico completo del Holoceno (GVP).
+export async function GET(request: Request) {
+  const catalog = new URL(request.url).searchParams.get("catalog") === "1";
   try {
-    const data = await fetchVolcanoes();
-    return NextResponse.json(data, { headers: data.features.length ? CACHE_HEADERS : NO_STORE });
-  } catch (error: unknown) {
-    console.error("[api/volcanoes]", error);
-    return NextResponse.json({ success: false, error: "Upstream fetch failed" }, { status: 500, headers: NO_STORE });
+    const data = catalog ? await fetchVolcanoes() : await fetchActiveVolcanoes();
+    return cachedJson(data, catalog ? 86400 : 3600, data.features.length > 0);
+  } catch (error) {
+    return upstreamError("volcanoes", error);
   }
 }

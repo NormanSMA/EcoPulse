@@ -5,7 +5,8 @@ import { Activity, Sun, Moon, Languages, Search, Layers, Check, X } from "lucide
 import { MorphIcon } from "morphicons/react";
 import { useTranslations } from "next-intl";
 import { IconButton } from "@/components/ui/Button";
-import { SearchInput } from "@/components/ui/SearchInput";
+import { PlaceSearch } from "@/components/ui/PlaceSearch";
+import type { GeocodeResult } from "@/lib/pointInfo";
 import type { Theme } from "@/design-system/hooks";
 import { useLocale, type Locale } from "@/design-system/i18n/I18nProvider";
 import { BASEMAP_ORDER, type Basemap } from "@/lib/mapStyles";
@@ -14,7 +15,7 @@ import { cn } from "@/design-system/utils/cn";
 export type MapMode = "2d" | "3d";
 
 interface HeaderProps {
-  onSearchChange: (value: string) => void;
+  onPlace: (place: GeocodeResult) => void;
   mapMode: MapMode;
   onMapModeChange: (mode: MapMode) => void;
   basemap: Basemap;
@@ -113,7 +114,7 @@ function BasemapMenu({ value, onChange, disabled }: { value: Basemap; onChange: 
 }
 
 export default function Header({
-  onSearchChange,
+  onPlace,
   mapMode,
   onMapModeChange,
   basemap,
@@ -128,7 +129,6 @@ export default function Header({
   const tMap = useTranslations("mapMode");
   const { locale, setLocale } = useLocale();
   const [searchOpen, setSearchOpen] = useState(false);
-  const [hasQuery, setHasQuery] = useState(false);
 
   function toggleLocale() {
     const next: Locale = locale === "es" ? "en" : "es";
@@ -160,9 +160,12 @@ export default function Header({
           searchOpen ? "block" : "hidden"
         )}
       >
-        <SearchInput placeholder={tSearch("placeholder")} shortcutHint={tSearch("shortcutHint")} onChange={(v) => {
-            setHasQuery(v.trim() !== "");
-            onSearchChange(v);
+        <PlaceSearch
+          locale={locale}
+          focusWhen={searchOpen}
+          onPick={(place) => {
+            onPlace(place);
+            setSearchOpen(false);
           }}
         />
       </div>
@@ -175,11 +178,6 @@ export default function Header({
           className="md:hidden"
         >
           <MorphIcon icon={searchOpen ? X : Search} size={20} reducedMotion="user" />
-          {/* Filtro activo con la búsqueda plegada: sin esto la lista/mapa
-              quedan filtrados sin ninguna pista visual en móvil. */}
-          {!searchOpen && hasQuery && (
-            <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-ds-primary" aria-hidden="true" />
-          )}
         </IconButton>
 
         <ModeToggle mode={mapMode} onChange={onMapModeChange} label={tMap("label")} />

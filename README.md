@@ -4,7 +4,7 @@
 
 **Monitor ambiental y sísmico global en tiempo real**
 
-Sismos, incendios, calidad del aire, clima, desastres naturales, volcanes y la Estación Espacial Internacional en un solo mapa interactivo, en 2D y 3D.
+Sismos, incendios, calidad del aire, lluvia, ciclones, volcanes activos y la Estación Espacial Internacional en un solo mapa interactivo, en 2D y 3D.
 
 ![Next.js](https://img.shields.io/badge/Next.js-15-000000?logo=nextdotjs&logoColor=white)
 ![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)
@@ -20,19 +20,27 @@ Sismos, incendios, calidad del aire, clima, desastres naturales, volcanes y la E
 
 ## Sobre el proyecto
 
-EcoPulse reúne en tiempo real datos de agencias científicas y fuentes abiertas (USGS, NASA, GDACS, OpenAQ, Open-Meteo y el Smithsonian) y los muestra sobre un mapa acelerado por GPU.
+EcoPulse reúne en tiempo real datos de agencias científicas y fuentes abiertas (USGS, EMSC, NASA, GDACS, OpenAQ, Open-Meteo, RainViewer y el Smithsonian) y los muestra sobre un mapa acelerado por GPU.
 
 La idea es sencilla: los datos ambientales públicos existen, pero están dispersos en decenas de APIs con formatos distintos. EcoPulse los normaliza, los guarda en una base geoespacial y los presenta en una interfaz clara. Así se puede ver de un vistazo qué está pasando en el planeta: un sismo en el Pacífico, un incendio activo en Australia o una alerta roja de ciclón en el Caribe.
 
 ### Qué puedes hacer
 
-- **Explorar 10 capas de datos en vivo** sobre un mapa 2D (MapLibre) o un globo 3D con terreno real (CesiumJS), con iconos propios por tipo de evento, agrupación de sismos, mapa de calor de incendios y marcadores que se desvanecen con la antigüedad.
+- **Explorar 10 capas de datos en vivo** sobre un mapa 2D (MapLibre) o un globo 3D con terreno real (CesiumJS). Ambas vistas muestran los mismos datos, con iconos propios por tipo de evento, agrupación de sismos, mapa de calor de incendios y marcadores que se desvanecen con la antigüedad. Al cambiar de 2D a 3D (o al revés) se conserva la región que estabas viendo.
+- **Abrir el detalle de cualquier cosa**, sea un evento o un punto cualquiera del mapa, en un panel con datos y gráficos:
+  - **Sismo:** magnitud y su tipo, profundidad (superficial, intermedio o profundo), personas que lo sintieron, alerta PAGER, aviso de tsunami y la sismicidad de la zona en los últimos 30 días.
+  - **Volcán:** el reporte semanal de actividad.
+  - **Estación de aire:** PM2.5 de las últimas 48 h frente a la guía de la OMS.
+  - **Ciclón:** fase, alerta y viento máximo con su categoría Saffir-Simpson.
+  - **Cualquier punto:** tiempo actual y pronóstico de 24 h.
+- **Buscar lugares** (Ctrl+K) y volar hasta ellos para ver su tiempo, su aire y su actividad sísmica.
 - **Seguir ciclones tropicales** con su trayectoria observada, pronóstico y cono de incertidumbre (GDACS / JTWC).
-- **Ver la ISS en su órbita real**: trayectoria pasada y futura calculada desde las efemérides de NASA, y la zona desde la que es visible. Incluye la línea día/noche.
-- **Consultar cada evento** en un popup con magnitud, profundidad, PM2.5, potencia radiativa (FRP), nivel de alerta, etc.
-- **Seguir la actividad reciente** en una lista unificada de sismos, incendios y desastres ordenada por recencia, con indicador de frescura del dato. Al tocar un evento, el mapa vuela hasta él.
+- **Ver la ISS en su órbita real**: trayectoria pasada y futura calculada desde las efemérides de NASA. Incluye la línea día/noche.
+- **Revisar la actividad reciente** en una bandeja unificada de sismos, incendios, desastres, ciclones y volcanes:
+  - Se puede filtrar por tipo o por texto.
+  - Se ordena por importancia (magnitud, alertas oficiales, tsunami, recencia) o por fecha.
+  - Al tocar un evento, el mapa vuela hasta él.
 - **Viajar en el tiempo**: filtra por ventana (1 h, 6 h, 24 h, 7 días) y reproduce la actividad como una animación a lo largo de la ventana.
-- **Analizar réplicas**: al seleccionar un sismo, un gráfico muestra la actividad sísmica en la misma zona.
 - **Buscar sismos cercanos** a tu ubicación con una consulta geoespacial (PostGIS) en un radio de 50 a 500 km.
 - **Recibir alertas en Discord** cuando ocurre un sismo fuerte o la calidad del aire llega a un nivel peligroso.
 - **Personalizar la vista**: tema claro u oscuro, mapa base oscuro, claro o satelital, e idioma español o inglés.
@@ -41,16 +49,25 @@ La idea es sencilla: los datos ambientales públicos existen, pero están disper
 
 | Capa | Fuente | Actualización |
 |---|---|---|
-| Sismos | [USGS Earthquake Hazards](https://earthquake.usgs.gov/) | Tiempo real (últimas 24 h) |
+| Sismos | [USGS](https://earthquake.usgs.gov/) + [EMSC](https://www.seismicportal.eu/), fusionados sin duplicados (prioridad USGS) | Cada 2 min (24 h o 7 días) |
+| Volcanes activos | [Smithsonian GVP](https://volcano.si.edu/): reporte semanal de actividad volcánica | Semanal |
+| Catálogo de volcanes | [Smithsonian GVP](https://volcano.si.edu/) (con respaldo de [NOAA NCEI](https://www.ngdc.noaa.gov/hazel/)) | Catálogo histórico |
+| Calidad del aire | [OpenAQ v3](https://openaq.org/): ~7.600 estaciones PM2.5 de todo el mundo | Horaria |
+| Radar de lluvia | [RainViewer](https://www.rainviewer.com/) | Cada 10 min |
 | Incendios activos | [NASA FIRMS](https://firms.modaps.eosdis.nasa.gov/) (VIIRS) | Casi tiempo real |
-| Calidad del aire (observada) | [OpenAQ v3](https://openaq.org/) | Horaria |
-| Calidad del aire (modelada) | [Open-Meteo Air Quality](https://open-meteo.com/) | Horaria |
-| Clima | [Open-Meteo](https://open-meteo.com/) | Horaria |
-| Desastres globales | [GDACS](https://www.gdacs.org/) (inundaciones, ciclones, sequías, erupciones) | Por evento |
-| Volcanes | [Smithsonian GVP](https://volcano.si.edu/) | Catálogo histórico |
-| Trayectorias de ciclones | [GDACS](https://www.gdacs.org/) (avisos JTWC) | Por aviso |
+| Desastres globales | [GDACS](https://www.gdacs.org/) (inundaciones, sequías, erupciones) | Por evento |
+| Trayectorias de ciclones | [GDACS](https://www.gdacs.org/) (avisos JTWC / NOAA) | Por aviso |
 | Estación Espacial (ISS) | NASA (efemérides OEM, interpolación de Hermite) | Cada 15 s |
 | Día / noche | Cálculo solar en el cliente | Continuo |
+
+Además, bajo demanda:
+
+- **Tiempo y pronóstico de cualquier punto:** [Open-Meteo](https://open-meteo.com/).
+- **PM2.5 modelado:** Open-Meteo Air Quality.
+- **Nombres de lugares:** [Photon / OpenStreetMap](https://photon.komoot.io/) para la geocodificación inversa y el geocoder de Open-Meteo (GeoNames) para el buscador.
+- **Historial sísmico de una zona:** USGS, 30 días.
+
+Todas estas consultas pasan por rutas propias del servidor (`/api/point`, `/api/geocode`, `/api/quake-history`, `/api/air-quality/station`).
 
 ## Arquitectura
 
@@ -97,9 +114,9 @@ La idea es sencilla: los datos ambientales públicos existen, pero están disper
 La interfaz sigue un sistema de diseño propio (**Design System 4.0**), inspirado en Google DeepMind y Weather Lab, que aplica las pautas de Material 3.
 
 - **El mapa como protagonista:** ocupa toda la pantalla y los controles flotan encima en paneles.
-- **Tokens centralizados:** todos los colores viven en `src/design-system/tokens/colors.ts`. Una misma escala (magnitud, AQI, nivel de alerta) se ve igual en el mapa 2D, el globo 3D, la leyenda, la lista y los popups.
+- **Tokens centralizados:** todos los colores viven en `src/design-system/tokens/colors.ts`. Una misma escala (magnitud, AQI, nivel de alerta, fase del ciclón, radar) se ve igual en el mapa 2D, el globo 3D, la leyenda, la bandeja de eventos y el panel de detalle.
 - **Temas claro y oscuro** mediante variables CSS, con soporte de opacidad en Tailwind.
-- **Diseño responsivo:** paneles laterales en escritorio y paneles deslizables desde abajo en móvil, con áreas táctiles de al menos 44 px y respeto por `prefers-reduced-motion`.
+- **Diseño responsivo:** paneles laterales en escritorio y paneles deslizables desde abajo en móvil, con áreas táctiles de al menos 44 px (y tolerancia de toque ampliada sobre los marcadores del mapa y del globo) y respeto por `prefers-reduced-motion`.
 
 ## Puesta en marcha
 
@@ -162,7 +179,7 @@ src/
 │   ├── map/            # MapContainer (MapLibre 2D) · GlobeContainer (Cesium 3D)
 │   └── ui/             # Componentes del sistema de diseño
 ├── design-system/      # Tokens, tema, hooks, i18n
-└── lib/                # Clientes de cada fuente, ingesta, tipos, popups
+└── lib/                # Clientes de cada fuente, ingesta, selección compartida 2D/3D, formato, tipos
 messages/               # Traducciones es / en
 ```
 
@@ -171,7 +188,7 @@ messages/               # Traducciones es / en
 - Content Security Policy estricta y cabeceras de seguridad (HSTS, `X-Frame-Options`, `Permissions-Policy`).
 - `/api/ingest` exige un token Bearer y rechaza la llamada en producción si falta el secreto.
 - Las claves privadas (service role, OpenAQ, FIRMS) nunca llegan al cliente.
-- El contenido de terceros que aparece en los popups se escapa antes de insertarse en el DOM.
+- El texto de terceros (reportes de volcanes, nombres de lugares) se muestra siempre como texto, nunca como HTML.
 
 ## Autor
 
@@ -179,4 +196,4 @@ messages/               # Traducciones es / en
 
 ## Créditos de datos
 
-Datos de USGS, NASA FIRMS, NASA (efemérides de la ISS), GDACS (Comisión Europea / ONU), OpenAQ, Open-Meteo y el Global Volcanism Program del Smithsonian Institution. Mapas de © OpenStreetMap contributors, OpenFreeMap, Esri y Cesium Ion.
+Datos de USGS, EMSC, NASA FIRMS, NASA (efemérides de la ISS), GDACS (Comisión Europea / ONU), OpenAQ, Open-Meteo, RainViewer, NOAA NCEI y el Global Volcanism Program del Smithsonian Institution. Nombres de lugares de Photon (Komoot) / OpenStreetMap y GeoNames. Mapas de © OpenStreetMap contributors, OpenFreeMap, Esri y Cesium Ion.

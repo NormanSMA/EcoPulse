@@ -81,14 +81,14 @@ const palette = {
 // eventos, acento del popup).
 export const layers = {
   earthquakes: palette.red,
-  airQuality: palette.green,
-  airQualityModel: palette.green,
   fires: palette.orange,
-  weather: palette.blue,
   disasters: palette.yellow,
-  iss: palette.blueLight,
-  volcanoes: palette.brown,
   cyclones: palette.teal,
+  volcanoes: palette.brown,
+  volcanoCatalog: palette.brown,
+  airQuality: palette.green,
+  radar: palette.blue,
+  iss: palette.blueLight,
   // Swatch del toggle (la sombra nocturna usa marker.night).
   dayNight: palette.grey,
 } as const;
@@ -112,17 +112,17 @@ export const scales = {
     hazardous: palette.purple,
     unknown: palette.grey,
   },
-  // Categoría de ciclón (escala Saffir-Simpson): depresión y tormenta en
-  // fríos, huracanes H1–H5 de amarillo a púrpura, igual que la magnitud.
+  // Fase del ciclón tal como la publica GDACS por segmento de trayectoria:
+  // depresión y tormenta en fríos, huracán/tifón en rojo. (GDACS no da la
+  // categoría Saffir-Simpson por tramo; el detalle la deduce del viento máximo.)
   storm: [
     { key: "TD", color: palette.blueLight },
     { key: "TS", color: palette.teal },
-    { key: "H1", color: palette.yellow },
-    { key: "H2", color: palette.orange },
-    { key: "H3", color: palette.red },
-    { key: "H4", color: "#d93a8a" },
-    { key: "H5", color: palette.purple },
+    { key: "HU", color: palette.red },
   ],
+  // Radar de lluvia: copia de la paleta "Universal Blue" (esquema 2) con la
+  // que RainViewer pinta sus teselas; la leyenda debe coincidir con el mapa.
+  radar: ["#88ddee", "#0099cc", "#0077aa", "#005588", "#ffee00", "#ff4400", "#ff0000", "#ffaaff"],
   // Nivel de alerta GDACS.
   alert: {
     Red: palette.red,
@@ -150,6 +150,9 @@ export const marker = {
   // Sombra nocturna (línea día/noche) y cono de incertidumbre de ciclones.
   night: palette.ink,
   cone: palette.white,
+  // Volcán con nueva actividad eruptiva esta semana vs. actividad que continúa.
+  volcanoNew: palette.red,
+  volcanoContinuing: palette.brown,
 } as const;
 
 /** Hex (#rrggbb) → rgba() con opacidad, para expresiones de MapLibre/CSS. */
@@ -159,8 +162,15 @@ export function withAlpha(hex: string, alpha: number): string {
 }
 
 export function stormColor(category: string): string {
-  const key = category.toUpperCase().replace(/^CAT/, "H");
-  return scales.storm.find((s) => s.key === key)?.color ?? scales.storm[1].color;
+  return scales.storm.find((s) => s.key === normalizeStormCategory(category))?.color ?? scales.storm[1].color;
+}
+
+/** Etiqueta de GDACS (TD, TS, HU, TY, H3, Cat. 4…) → TD | TS | HU. */
+export function normalizeStormCategory(label: string | undefined): "TD" | "TS" | "HU" {
+  const l = (label ?? "").trim().toUpperCase();
+  if (l === "TD") return "TD";
+  if (/^(HU|TY|STY|H\d|CAT)/.test(l)) return "HU";
+  return "TS";
 }
 
 export function magnitudeColor(mag: number): string {

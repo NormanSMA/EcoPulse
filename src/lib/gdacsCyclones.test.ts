@@ -1,3 +1,4 @@
+import { normalizeStormCategory, stormColor } from "@/design-system/tokens";
 import { describe, expect, it } from "vitest";
 import { parseTrackLabel, toCycloneFeatures } from "./gdacsCyclones";
 import fixture from "./__fixtures__/gdacs-tc-geometry.json";
@@ -33,5 +34,20 @@ describe("toCycloneFeatures", () => {
     expect(features.some((f) => f.properties.kind === "cone")).toBe(true);
     const pos = features.find((f) => f.properties.kind === "position");
     expect(pos?.geometry.type).toBe("Point");
+  });
+});
+
+describe("normalizeStormCategory", () => {
+  it("reduce las etiquetas de GDACS a TD / TS / HU", () => {
+    expect(normalizeStormCategory("TD")).toBe("TD");
+    expect(normalizeStormCategory("TS")).toBe("TS");
+    expect(normalizeStormCategory("HU")).toBe("HU");
+    expect(normalizeStormCategory("TY")).toBe("HU");
+    expect(normalizeStormCategory("Cat. 4")).toBe("HU");
+    expect(normalizeStormCategory(undefined)).toBe("TS");
+  });
+
+  it("el color de un huracán sin número no cae en el de tormenta", () => {
+    expect(stormColor("HU")).not.toBe(stormColor("TS"));
   });
 });

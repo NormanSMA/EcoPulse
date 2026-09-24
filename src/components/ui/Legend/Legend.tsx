@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { useTranslations } from "next-intl";
-import { scales, layers, type LayerKey } from "@/design-system/tokens";
+import { scales, layers, marker, type LayerKey } from "@/design-system/tokens";
 import { cn } from "@/design-system/utils/cn";
 
 export interface LegendProps {
@@ -13,6 +13,8 @@ export interface LegendProps {
 
 const MAG_GRADIENT = `linear-gradient(90deg, ${scales.magnitude.map((s) => s.color).join(", ")})`;
 const FIRE_GRADIENT = `linear-gradient(90deg, ${scales.magnitude[0].color}66, ${layers.fires}, ${scales.magnitude[2].color})`;
+// Paleta "Universal Blue" de RainViewer (la única que sirve su API gratuita).
+const RADAR_GRADIENT = `linear-gradient(90deg, ${scales.radar.join(", ")})`;
 const AQI_ORDER = ["good", "moderate", "unhealthy", "hazardous"] as const;
 
 function Block({ title, children }: { title: string; children: ReactNode }) {
@@ -80,7 +82,7 @@ export function Legend({ variant = "inline", visibility, className }: LegendProp
     </Block>
   );
 
-  const aqi = (on("airQuality") || on("airQualityModel")) && (
+  const aqi = on("airQuality") && (
     <Block title={t("aqi")}>
       <ul className="grid grid-cols-2 gap-x-3 gap-y-2">
         {AQI_ORDER.map((k) => (
@@ -106,7 +108,33 @@ export function Legend({ variant = "inline", visibility, className }: LegendProp
     </Block>
   );
 
-  const empty = ![magnitude, storms, fires, aqi, alerts].some(Boolean);
+  const volcanoes = on("volcanoes") && (
+    <Block title={t("volcanoes")}>
+      <ul className="flex flex-wrap gap-x-4 gap-y-2">
+        {([
+          ["new", marker.volcanoNew],
+          ["continuing", marker.volcanoContinuing],
+        ] as const).map(([k, color]) => (
+          <li key={k} className="flex items-center gap-2 text-xs text-ds-text-primary">
+            <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: color }} />
+            {t(`volcanoStatus.${k}`)}
+          </li>
+        ))}
+      </ul>
+    </Block>
+  );
+
+  const radar = on("radar") && (
+    <Block title={t("radar")}>
+      <div className="h-2 w-full rounded-ds-full" style={{ background: RADAR_GRADIENT }} />
+      <div className="flex justify-between text-[11px] text-ds-text-muted">
+        <span>{t("light")}</span>
+        <span>{t("heavy")}</span>
+      </div>
+    </Block>
+  );
+
+  const empty = ![magnitude, storms, fires, aqi, alerts, volcanoes, radar].some(Boolean);
   return (
     <div className={cn("flex flex-col gap-4 px-3", className)}>
       {magnitude}
@@ -114,6 +142,8 @@ export function Legend({ variant = "inline", visibility, className }: LegendProp
       {fires}
       {aqi}
       {alerts}
+      {volcanoes}
+      {radar}
       {empty && <p className="text-xs text-ds-text-muted">{t("empty")}</p>}
     </div>
   );
