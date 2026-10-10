@@ -33,6 +33,7 @@ const LAYER_GROUPS: Record<LayerKey, string[]> = {
   volcanoes: ["volcanoes"],
   volcanoCatalog: ["volcano-catalog"],
   cyclones: ["cyclone-cone", "cyclone-cone-line", "cyclone-track", "cyclone-forecast", "cyclone-position"],
+  tectonics: ["tectonic-boundaries", "tectonic-boundaries-transform", "tectonic-plates"],
   iss: ["iss-footprint", "iss-footprint-line", "iss-track-past", "iss-track-future", "iss"],
 };
 
@@ -40,7 +41,7 @@ const LAYER_GROUPS: Record<LayerKey, string[]> = {
 // Margen de búsqueda alrededor de un toque o click que no cae justo en un elemento.
 const TOUCH_HIT_PX = 14;
 const MOUSE_HIT_PX = 4;
-const INTERACTIVE = ["iss", "cyclone-position", "disasters", "volcanoes", "quakes", "quake-clusters", "fires", "volcano-catalog", "air-quality"];
+const INTERACTIVE = ["iss", "cyclone-position", "disasters", "volcanoes", "quakes", "quake-clusters", "fires", "volcano-catalog", "air-quality", "tectonic-plates", "tectonic-boundaries", "tectonic-boundaries-transform"];
 
 const EMPTY: GeoJSON.FeatureCollection = { type: "FeatureCollection", features: [] };
 const FONT_BOLD = ["Noto Sans Bold"];
@@ -53,6 +54,7 @@ const MAG = ["coalesce", ["get", "mag"], 1] as ExpressionSpecification;
 const MAG_COLOR = ["interpolate", ["linear"], MAG, ...scales.magnitude.flatMap((s) => [s.stop, s.color])] as ExpressionSpecification;
 const MAG_RADIUS = ["interpolate", ["linear"], MAG, 2, 4, 5, 9, 7, 18, 9, 32] as ExpressionSpecification;
 const STORM_COLOR = ["match", ["get", "category"], ...scales.storm.flatMap((s) => [s.key, s.color]), scales.storm[1].color] as unknown as ExpressionSpecification;
+const BOUNDARY_COLOR = ["match", ["get", "type"], ...Object.entries(scales.boundary).flat(), scales.boundary.transform] as unknown as ExpressionSpecification;
 const AQI_COLOR = [
   "match",
   ["get", "category"],
@@ -140,6 +142,11 @@ function toSelection(layerId: string, f: MapGeoJSONFeature): Selection | null {
       return id ? { kind: "volcanoCatalog", id: Number(id) } : null;
     case "air-quality":
       return id ? { kind: "air", id: Number(id) } : null;
+    case "tectonic-boundaries":
+    case "tectonic-boundaries-transform":
+      return f.properties.plates ? { kind: "boundary", id: String(f.properties.plates) } : null;
+    case "tectonic-plates":
+      return f.properties.code ? { kind: "plate", id: String(f.properties.code) } : null;
     default:
       return null;
   }
@@ -195,6 +202,8 @@ export default function MapContainer(props: MapContainerProps) {
     map.addSource("volcanoes", { type: "geojson", data: withIds(p.data.volcanoes) });
     map.addSource("volcano-catalog", { type: "geojson", data: p.data.volcanoCatalog ? withIds(p.data.volcanoCatalog) : EMPTY });
     map.addSource("cyclones", { type: "geojson", data: p.data.cyclones });
+    map.addSource("tectonic-boundaries", { type: "geojson", data: p.data.tectonics?.boundaries ?? EMPTY });
+    map.addSource("tectonic-plates", { type: "geojson", data: p.data.tectonics?.plates ?? EMPTY });
     map.addSource("iss", { type: "geojson", data: p.data.iss });
     map.addSource("iss-track", { type: "geojson", data: track });
     map.addSource("iss-footprint", { type: "geojson", data: footprint });
@@ -223,6 +232,50 @@ export default function MapContainer(props: MapContainerProps) {
       source: "iss-footprint",
       layout: { visibility: vis("iss") },
       paint: { "line-color": marker.issStroke, "line-opacity": 0.5, "line-width": 1, "line-dasharray": [2, 2] },
+    });
+
+    // Límites y nombres de placas tectónicas (bajo las capas de eventos).
+    map.addLayer({
+      id: "tectonic-boundaries",
+      type: "line",
+      source: "tectonic-boundaries",
+      filter: ["!=", ["get", "type"], "transform"],
+      layout: { visibility: vis("tectonics"), "line-cap": "round", "line-join": "round" },
+      paint: {
+        "line-color": BOUNDARY_COLOR,
+        "line-width": ["interpolate", ["linear"], ["zoom"], 1, 1.2, 6, 3] as ExpressionSpecification,
+        "line-opacity": 0.85,
+      },
+    });
+    // line-dasharray no admite expresiones por feature: capa aparte para transformantes.
+    map.addLayer({
+      id: "tectonic-boundaries-transform",
+      type: "line",
+      source: "tectonic-boundaries",
+      filter: ["==", ["get", "type"], "transform"],
+      layout: { visibility: vis("tectonics") },
+      paint: {
+        "line-color": scales.boundary.transform,
+        "line-width": ["interpolate", ["linear"], ["zoom"], 1, 1.2, 6, 3] as ExpressionSpecification,
+        "line-opacity": 0.95,
+        "line-dasharray": [3, 2],
+      },
+    });
+    map.addLayer({
+      id: "tectonic-plates",
+      type: "symbol",
+      source: "tectonic-plates",
+      minzoom: 1.5,
+      layout: {
+        visibility: vis("tectonics"),
+        "text-field": ["get", "name"],
+        "text-font": FONT_BOLD,
+        "text-size": 11,
+        "text-transform": "uppercase",
+        "text-letter-spacing": 0.1,
+        "text-optional": true,
+      },
+      paint: { "text-color": labelText, "text-halo-color": labelHalo, "text-halo-width": 2 },
     });
 
     map.addLayer({
@@ -613,6 +666,10 @@ export default function MapContainer(props: MapContainerProps) {
   useEffect(() => setData("volcanoes", withIds(data.volcanoes)), [data.volcanoes]);
   useEffect(() => setData("volcano-catalog", data.volcanoCatalog ? withIds(data.volcanoCatalog) : EMPTY), [data.volcanoCatalog]);
   useEffect(() => setData("cyclones", data.cyclones), [data.cyclones]);
+  useEffect(() => {
+    setData("tectonic-boundaries", data.tectonics?.boundaries ?? EMPTY);
+    setData("tectonic-plates", data.tectonics?.plates ?? EMPTY);
+  }, [data.tectonics]);
   useEffect(() => setData("selection", selectionData(selectedPoint)), [selectedPoint]);
   useEffect(() => {
     setData("iss", data.iss);

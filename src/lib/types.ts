@@ -299,3 +299,48 @@ export interface ActiveVolcanoGeoJSON {
   type: "FeatureCollection";
   features: ActiveVolcanoFeature[];
 }
+
+export type TectonicBoundaryType = "divergent" | "convergent" | "transform";
+export type TectonicStepClass = "OSR" | "CRB" | "SUB" | "OCB" | "CCB" | "OTF" | "CTF";
+
+export interface TectonicBoundaryProperties {
+  id: string;
+  /** Par de placas, p.ej. "NZ-SA". */
+  plates: string;
+  stepClass: TectonicStepClass;
+  type: TectonicBoundaryType;
+  lengthKm: number;
+  velocityMmYr: number;
+}
+
+export interface TectonicBoundaryFeature {
+  type: "Feature";
+  id?: number;
+  properties: TectonicBoundaryProperties;
+  geometry: { type: "LineString"; coordinates: [number, number][] };
+}
+
+export interface TectonicBoundaryGeoJSON {
+  type: "FeatureCollection";
+  attribution?: string;
+  features: TectonicBoundaryFeature[];
+}
+
+export interface TectonicPlateProperties {
+  code: string;
+  name: string;
+  areaKm2: number;
+  neighbors: string[];
+}
+
+export interface TectonicPlateFeature {
+  type: "Feature";
+  properties: TectonicPlateProperties;
+  geometry: { type: "Point"; coordinates: [number, number] };
+}
+
+export interface TectonicPlateGeoJSON {
+  type: "FeatureCollection";
+  attribution?: string;
+  features: TectonicPlateFeature[];
+}

@@ -89,6 +89,7 @@ export const layers = {
   airQuality: palette.green,
   radar: palette.blue,
   iss: palette.blueLight,
+  tectonics: palette.purple,
   // Swatch del toggle (la sombra nocturna usa marker.night).
   dayNight: palette.grey,
 } as const;
@@ -123,6 +124,12 @@ export const scales = {
   // Radar de lluvia: copia de la paleta "Universal Blue" (esquema 2) con la
   // que RainViewer pinta sus teselas; la leyenda debe coincidir con el mapa.
   radar: ["#88ddee", "#0099cc", "#0077aa", "#005588", "#ffee00", "#ff4400", "#ff0000", "#ffaaff"],
+  // Tipo de límite de placa: divergente, convergente y transformante.
+  boundary: {
+    divergent: palette.blue,
+    convergent: palette.red,
+    transform: palette.yellow,
+  },
   // Nivel de alerta GDACS.
   alert: {
     Red: palette.red,
@@ -187,6 +194,10 @@ export function alertColor(level: string): string {
 
 export function aqiColor(category: string): string {
   return (scales.aqi as Record<string, string>)[category] ?? scales.aqi.unknown;
+}
+
+export function boundaryColor(type: string): string {
+  return (scales.boundary as Record<string, string>)[type] ?? scales.boundary.transform;
 }
 
 export const colors = { themes, layers, scales, marker, palette } as const;

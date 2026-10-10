@@ -10,6 +10,9 @@ export type Selection =
   | { kind: "volcano"; id: number }
   | { kind: "volcanoCatalog"; id: number }
   | { kind: "air"; id: number }
+  // boundary: id = par de placas ("NZ-SA"); plate: id = código ("NZ").
+  | { kind: "boundary"; id: string }
+  | { kind: "plate"; id: string }
   | { kind: "iss" }
   // name/detail: lugar elegido en el buscador (si no, se geocodifica el punto).
   | { kind: "point"; lon: number; lat: number; name?: string; detail?: string };
@@ -32,6 +35,8 @@ const PREFIX: Record<Exclude<SelectionKind, "iss" | "point">, string> = {
   volcano: "vol-",
   volcanoCatalog: "volcat-",
   air: "aq-",
+  boundary: "bnd-",
+  plate: "plate-",
 };
 
 export function entityIdFor(s: Selection): string | null {

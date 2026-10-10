@@ -33,6 +33,7 @@ La idea es sencilla: los datos ambientales públicos existen, pero están disper
   - **Estación de aire:** PM2.5 de las últimas 48 h frente a la guía de la OMS.
   - **Ciclón:** fase, alerta y viento máximo con su categoría Saffir-Simpson.
   - **Cualquier punto:** tiempo actual y pronóstico de 24 h.
+- **Ver las placas tectónicas**: límites coloreados por tipo, velocidad relativa y la historia sísmica de cada límite (sismos M ≥ 7 desde 1900, por década, con los 5 mayores). Cada sismo indica el límite de placa más cercano.
 - **Buscar lugares** (Ctrl+K) y volar hasta ellos para ver su tiempo, su aire y su actividad sísmica.
 - **Seguir ciclones tropicales** con su trayectoria observada, pronóstico y cono de incertidumbre (GDACS / JTWC).
 - **Ver la ISS en su órbita real**: trayectoria pasada y futura calculada desde las efemérides de NASA. Incluye la línea día/noche.
@@ -49,10 +50,11 @@ La idea es sencilla: los datos ambientales públicos existen, pero están disper
 
 | Capa | Fuente | Actualización |
 |---|---|---|
-| Sismos | [USGS](https://earthquake.usgs.gov/) + [EMSC](https://www.seismicportal.eu/), fusionados sin duplicados (prioridad USGS) | Cada 2 min (24 h o 7 días) |
+| Sismos | [USGS](https://earthquake.usgs.gov/) + [EMSC](https://www.seismicportal.eu/), fusionados sin duplicados (prioridad USGS) | Cada 2 min (24 h) · cada 15 min (7 días) |
 | Volcanes activos | [Smithsonian GVP](https://volcano.si.edu/): reporte semanal de actividad volcánica | Semanal |
 | Catálogo de volcanes | [Smithsonian GVP](https://volcano.si.edu/) (con respaldo de [NOAA NCEI](https://www.ngdc.noaa.gov/hazel/)) | Catálogo histórico |
 | Calidad del aire | [OpenAQ v3](https://openaq.org/): ~7.600 estaciones PM2.5 de todo el mundo | Horaria |
+| Placas tectónicas | [PB2002](https://doi.org/10.1029/2001GC000252) (Bird, 2003; GeoJSON de H. Ahlenius): 52 placas y límites por tipo (divergente, convergente, transformante) con velocidad relativa | Estático (`pnpm build:tectonics`) |
 | Radar de lluvia | [RainViewer](https://www.rainviewer.com/) | Cada 10 min |
 | Incendios activos | [NASA FIRMS](https://firms.modaps.eosdis.nasa.gov/) (VIIRS) | Casi tiempo real |
 | Desastres globales | [GDACS](https://www.gdacs.org/) (inundaciones, sequías, erupciones) | Por evento |
@@ -67,7 +69,7 @@ Además, bajo demanda:
 - **Nombres de lugares:** [Photon / OpenStreetMap](https://photon.komoot.io/) para la geocodificación inversa y el geocoder de Open-Meteo (GeoNames) para el buscador.
 - **Historial sísmico de una zona:** USGS, 30 días.
 
-Todas estas consultas pasan por rutas propias del servidor (`/api/point`, `/api/geocode`, `/api/quake-history`, `/api/air-quality/station`).
+Todas estas consultas pasan por rutas propias del servidor (`/api/point`, `/api/geocode`, `/api/quake-history`, `/api/air-quality/station`, `/api/boundary-history`).
 
 ## Arquitectura
 
@@ -94,7 +96,7 @@ Todas estas consultas pasan por rutas propias del servidor (`/api/point`, `/api/
 ```
 
 - **Ingesta:** un workflow de GitHub Actions llama a `/api/ingest` cada 30 minutos. Las 8 fuentes se consultan en paralelo, se normalizan a filas tipadas, se deduplican y se guardan en Supabase con upsert.
-- **Lectura:** las rutas públicas `/api/*` devuelven GeoJSON con caché de CDN (`s-maxage` + `stale-while-revalidate`) para no gastar las cuotas de las APIs externas. Los errores nunca se cachean.
+- **Lectura:** las rutas públicas `/api/*` consultan las fuentes externas directamente y devuelven GeoJSON con caché de CDN (`s-maxage` + `stale-while-revalidate`) para no gastar sus cuotas. Los errores nunca se cachean. Supabase guarda el histórico de la ingesta, dispara las alertas y resuelve la consulta geoespacial de sismos cercanos; el mapa no lee de Supabase.
 - **Renderizado:** MapLibre GL dibuja las capas en WebGL. Al cambiar de estilo o de datos, las fuentes se actualizan sin recrear el mapa. El globo 3D usa CesiumJS con terreno e imágenes de Cesium Ion.
 
 ## Stack
@@ -122,7 +124,7 @@ La interfaz sigue un sistema de diseño propio (**Design System 4.0**), inspirad
 
 ### Requisitos
 
-- Node.js 20 o superior
+- Node.js 20 o superior y [pnpm](https://pnpm.io/) 11
 - Un proyecto de [Supabase](https://supabase.com/) con PostGIS habilitado
 - Claves gratuitas de [OpenAQ](https://openaq.org/), [NASA FIRMS](https://firms.modaps.eosdis.nasa.gov/api/map_key/) y [Cesium Ion](https://ion.cesium.com/)
 
@@ -131,9 +133,9 @@ La interfaz sigue un sistema de diseño propio (**Design System 4.0**), inspirad
 ```bash
 git clone https://github.com/NormanSMA/EcoPulse.git
 cd EcoPulse
-npm install
+pnpm install
 cp .env.example .env.local   # completa las variables
-npm run dev
+pnpm dev
 ```
 
 Luego abre [http://localhost:3000](http://localhost:3000).
@@ -150,18 +152,18 @@ Luego abre [http://localhost:3000](http://localhost:3000).
 | `NEXT_PUBLIC_CESIUM_TOKEN` | Token de Cesium Ion (terreno e imágenes 3D) |
 | `DISCORD_WEBHOOK_URL` | Webhook para las alertas (opcional) |
 | `INGEST_SECRET` | Secreto Bearer que protege `/api/ingest` (**obligatorio en producción**) |
-| `APP_URL` | URL pública de la app, usada por el cron de GitHub Actions |
+| `APP_URL` | URL pública de la app. La usa el cron de GitHub Actions y genera los enlaces de las alertas de Discord |
 
 ### Scripts
 
 | Comando | Acción |
 |---|---|
-| `npm run dev` | Servidor de desarrollo |
-| `npm run build` | Build de producción |
-| `npm start` | Servir el build |
-| `npm run lint` | ESLint |
-| `npm run typecheck` | Verificación de tipos |
-| `npm test` | Tests unitarios (Vitest) |
+| `pnpm dev` | Servidor de desarrollo |
+| `pnpm build` | Build de producción |
+| `pnpm start` | Servir el build |
+| `pnpm lint` | ESLint |
+| `pnpm typecheck` | Verificación de tipos |
+| `pnpm test` | Tests unitarios (Vitest) |
 
 ### Ingesta automática
 
@@ -185,8 +187,8 @@ messages/               # Traducciones es / en
 
 ## Seguridad
 
-- Content Security Policy estricta y cabeceras de seguridad (HSTS, `X-Frame-Options`, `Permissions-Policy`).
-- `/api/ingest` exige un token Bearer y rechaza la llamada en producción si falta el secreto.
+- Content Security Policy con orígenes explícitos y cabeceras de seguridad (HSTS, `X-Frame-Options`, `Permissions-Policy`). `script-src` permite `unsafe-eval` y `unsafe-inline` porque CesiumJS evalúa código y compila WebAssembly en tiempo de ejecución.
+- `/api/ingest` exige un token Bearer. En producción rechaza la llamada si falta `INGEST_SECRET`. En desarrollo, sin `INGEST_SECRET`, acepta llamadas sin token para facilitar las pruebas locales.
 - Las claves privadas (service role, OpenAQ, FIRMS) nunca llegan al cliente.
 - El texto de terceros (reportes de volcanes, nombres de lugares) se muestra siempre como texto, nunca como HTML.
 
@@ -196,4 +198,4 @@ messages/               # Traducciones es / en
 
 ## Créditos de datos
 
-Datos de USGS, EMSC, NASA FIRMS, NASA (efemérides de la ISS), GDACS (Comisión Europea / ONU), OpenAQ, Open-Meteo, RainViewer, NOAA NCEI y el Global Volcanism Program del Smithsonian Institution. Nombres de lugares de Photon (Komoot) / OpenStreetMap y GeoNames. Mapas de © OpenStreetMap contributors, OpenFreeMap, Esri y Cesium Ion.
+Datos de USGS, EMSC, NASA FIRMS, NASA (efemérides de la ISS), GDACS (Comisión Europea / ONU), OpenAQ, Open-Meteo, RainViewer, NOAA NCEI y el Global Volcanism Program del Smithsonian Institution. Nombres de lugares de Photon (Komoot) / OpenStreetMap y GeoNames. Placas tectónicas: Bird, P. (2003), *An updated digital model of plate boundaries*, G³ 4(3), datos PB2002 en GeoJSON de Hugo Ahlenius (ODC-By 1.0). Mapas de © OpenStreetMap contributors, OpenFreeMap, Esri y Cesium Ion.

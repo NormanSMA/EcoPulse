@@ -47,7 +47,8 @@
     "cyclones": "Cyclone tracks",
     "dayNight": "Day and night",
     "volcanoCatalog": "Volcano catalog",
-    "radar": "Rain radar"
+    "radar": "Rain radar",
+    "tectonics": "Tectonic plates"
   },
   "nearby": {
     "title": "Earthquakes near me",
@@ -118,7 +119,13 @@
     },
     "radar": "Rain radar",
     "light": "Light",
-    "heavy": "Heavy"
+    "heavy": "Heavy",
+    "boundary": "Plate boundaries",
+    "boundaryTypes": {
+      "divergent": "Divergent",
+      "convergent": "Convergent",
+      "transform": "Transform"
+    }
   },
   "detail": {
     "back": "Back to events",
@@ -133,7 +140,9 @@
       "volcanoCatalog": "Volcano (catalog)",
       "air": "Air quality",
       "iss": "International Space Station",
-      "point": "Selected point"
+      "point": "Selected point",
+      "boundary": "Plate boundary",
+      "plate": "Tectonic plate"
     },
     "magnitude": "Magnitude",
     "depth": "Depth",
@@ -261,6 +270,100 @@
       "loading": "Loading forecast…",
       "unavailable": "No weather data for this point.",
       "ocean": "Ocean / unnamed"
+    },
+    "tectonics": {
+      "stepClasses": {
+        "OSR": "Oceanic spreading ridge",
+        "CRB": "Continental rift",
+        "SUB": "Subduction zone",
+        "OCB": "Oceanic convergent boundary",
+        "CCB": "Continental collision",
+        "OTF": "Oceanic transform fault",
+        "CTF": "Continental transform fault"
+      },
+      "types": {
+        "divergent": "Divergent",
+        "convergent": "Convergent",
+        "transform": "Transform"
+      },
+      "velocity": "Relative velocity",
+      "mmYr": "mm/yr",
+      "length": "Length",
+      "area": "Area",
+      "neighbors": "Neighboring plates",
+      "nearest": "Nearest boundary",
+      "dominantClass": "Dominant class",
+      "totalLength": "Total length",
+      "boundaryCount": "Boundaries",
+      "byType": "Boundaries by type",
+      "explain": {
+        "divergent": "Plates move apart and new crust forms.",
+        "convergent": "Plates collide: one sinks under the other or mountains rise.",
+        "transform": "Plates slide sideways and build up stress along faults."
+      },
+      "historyTitle": "Seismic history (M ≥ 7 since 1900)",
+      "historySubtitle": "Earthquakes within {km} km of the boundary",
+      "total": "M ≥ 7 earthquakes",
+      "strongest": "Largest",
+      "top": "Top 5",
+      "byDecade": "Earthquakes per decade",
+      "loading": "Loading history…",
+      "empty": "No M ≥ 7 earthquakes recorded.",
+      "viewUsgs": "View on USGS",
+      "plateNames": {
+        "AF": "Africa",
+        "AN": "Antarctica",
+        "SO": "Somalia",
+        "IN": "India",
+        "AU": "Australia",
+        "EU": "Eurasia",
+        "NA": "North America",
+        "SA": "South America",
+        "NZ": "Nazca",
+        "PA": "Pacific",
+        "AR": "Arabia",
+        "SU": "Sunda",
+        "TI": "Timor",
+        "KE": "Kermadec",
+        "TO": "Tonga",
+        "NI": "Niuafo'ou",
+        "WL": "Woodlark",
+        "MO": "Maoke",
+        "SB": "South Bismarck",
+        "SS": "Solomon Sea",
+        "NB": "North Bismarck",
+        "NH": "New Hebrides",
+        "CA": "Caribbean",
+        "CO": "Cocos",
+        "OK": "Okhotsk",
+        "JF": "Juan de Fuca",
+        "AP": "Altiplano",
+        "ND": "North Andes",
+        "ON": "Okinawa",
+        "PS": "Philippine Sea",
+        "AM": "Amur",
+        "CL": "Caroline",
+        "MA": "Mariana",
+        "FT": "Futuna",
+        "SC": "Scotia",
+        "SL": "Shetland",
+        "AS": "Aegean Sea",
+        "AT": "Anatolia",
+        "YA": "Yangtze",
+        "BU": "Burma",
+        "RI": "Rivera",
+        "BH": "Birds Head",
+        "MS": "Molucca Sea",
+        "BS": "Banda Sea",
+        "MN": "Manus",
+        "CR": "Conway Reef",
+        "BR": "Balmoral Reef",
+        "EA": "Easter",
+        "JZ": "Juan Fernandez",
+        "GP": "Galapagos",
+        "SW": "Sandwich",
+        "PM": "Panama"
+      }
     }
   },
   "weatherCodes": {

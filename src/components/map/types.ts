@@ -7,6 +7,8 @@ import type {
   VolcanoGeoJSON,
   ActiveVolcanoGeoJSON,
   CycloneGeoJSON,
+  TectonicBoundaryGeoJSON,
+  TectonicPlateGeoJSON,
 } from "@/lib/types";
 import type { LayerKey } from "@/design-system/tokens";
 import type { MapView } from "@/lib/mapView";
@@ -23,6 +25,7 @@ export interface MapData {
   volcanoCatalog: VolcanoGeoJSON | null;
   airQuality: AirQualityGeoJSON;
   iss: IssGeoJSON;
+  tectonics: { boundaries: TectonicBoundaryGeoJSON; plates: TectonicPlateGeoJSON } | null;
 }
 
 /** Props comunes del mapa 2D y del globo 3D: misma entrada, misma salida. */

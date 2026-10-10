@@ -10,6 +10,8 @@ import type {
   VolcanoGeoJSON,
   ActiveVolcanoGeoJSON,
   CycloneGeoJSON,
+  TectonicBoundaryGeoJSON,
+  TectonicPlateGeoJSON,
 } from "@/lib/types";
 
 // Carga y refresco de todas las fuentes de la web (vía las rutas /api/*,
@@ -66,11 +68,13 @@ export function useLiveData({
   needAir,
   needCatalog,
   needRadar,
+  needTectonics,
 }: {
   needWeek: boolean;
   needAir: boolean;
   needCatalog: boolean;
   needRadar: boolean;
+  needTectonics: boolean;
 }) {
   const [earthquakes, setEarthquakes] = useState<EarthquakeGeoJSON>(EMPTY_QUAKES);
   const [weekQuakes, setWeekQuakes] = useState<EarthquakeGeoJSON | null>(null);
@@ -81,6 +85,7 @@ export function useLiveData({
   const [volcanoes, setVolcanoes] = useState<ActiveVolcanoGeoJSON>(EMPTY as unknown as ActiveVolcanoGeoJSON);
   const [volcanoCatalog, setVolcanoCatalog] = useState<VolcanoGeoJSON | null>(null);
   const [iss, setIss] = useState<IssGeoJSON>(EMPTY as unknown as IssGeoJSON);
+  const [tectonics, setTectonics] = useState<{ boundaries: TectonicBoundaryGeoJSON; plates: TectonicPlateGeoJSON } | null>(null);
   const [radar, setRadar] = useState<RadarFrame[]>([]);
 
   usePolling(async (signal) => {
@@ -133,6 +138,20 @@ export function useLiveData({
     if (d) setIss(d);
   }, ISS_REFRESH_MS);
 
+  // Placas tectónicas (PB2002): estáticas, se cargan una vez al activar la capa.
+  useEffect(() => {
+    if (!needTectonics || tectonics) return;
+    const controller = new AbortController();
+    (async () => {
+      const [boundaries, plates] = await Promise.all([
+        getJson<TectonicBoundaryGeoJSON>("/data/tectonics/boundaries.json", controller.signal),
+        getJson<TectonicPlateGeoJSON>("/data/tectonics/plates.json", controller.signal),
+      ]);
+      if (boundaries && plates) setTectonics({ boundaries, plates });
+    })();
+    return () => controller.abort();
+  }, [needTectonics, tectonics]);
+
   // Radar de lluvia (RainViewer): últimos ~2 h en cuadros de 10 min.
   usePolling(
     async (signal) => {
@@ -148,7 +167,7 @@ export function useLiveData({
     needRadar
   );
 
-  return { earthquakes, weekQuakes, airQuality, fires, disasters, cyclones, volcanoes, volcanoCatalog, iss, radar };
+  return { earthquakes, weekQuakes, airQuality, fires, disasters, cyclones, volcanoes, volcanoCatalog, iss, radar, tectonics };
 }
 
 /** Cuadro de radar más cercano (sin pasarse) al instante de referencia. */

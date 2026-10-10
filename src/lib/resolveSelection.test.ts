@@ -27,6 +27,13 @@ const data = {
   volcanoCatalog: null,
   airQuality: fc([]),
   iss: fc([]),
+  tectonics: {
+    boundaries: fc([
+      { type: "Feature", properties: { id: "b0", plates: "NZ-SA", stepClass: "SUB", type: "convergent", lengthKm: 10, velocityMmYr: 60 }, geometry: { type: "LineString", coordinates: [[0, 0], [1, 0]] } },
+      { type: "Feature", properties: { id: "b1", plates: "NZ-SA", stepClass: "SUB", type: "convergent", lengthKm: 200, velocityMmYr: 60 }, geometry: { type: "LineString", coordinates: [[10, 0], [12, 0]] } },
+    ]),
+    plates: fc([{ type: "Feature", properties: { code: "NZ", name: "Nazca", areaKm2: 1, neighbors: [] }, geometry: { type: "Point", coordinates: [-90, -20] } }]),
+  },
 } as unknown as MapData;
 
 describe("resolveSelection", () => {
@@ -47,5 +54,16 @@ describe("resolveSelection", () => {
 
   it("un punto del mapa siempre se resuelve", () => {
     expect(resolveSelection({ kind: "point", lon: 1, lat: 2 }, data)?.coords).toEqual([1, 2]);
+  });
+
+  it("agrupa las líneas de un par de placas y usa el punto medio de la más larga", () => {
+    const r = resolveSelection({ kind: "boundary", id: "NZ-SA" }, data);
+    expect(r?.item.kind === "boundary" && r.item.lines.length).toBe(2);
+    expect(r?.coords).toEqual([11, 0]);
+    expect(resolveSelection({ kind: "boundary", id: "XX-YY" }, data)).toBeNull();
+  });
+
+  it("resuelve una placa por su etiqueta", () => {
+    expect(resolveSelection({ kind: "plate", id: "NZ" }, data)?.coords).toEqual([-90, -20]);
   });
 });

@@ -9,7 +9,8 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "build:tectonics": "node scripts/build-tectonics.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.48.1",
@@ -28,6 +29,7 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.2.0",
+    "@types/geojson": "^7946.0.16",
     "@types/node": "^22.13.4",
     "@types/react": "^19.0.8",
     "@types/react-dom": "^19.0.3",
@@ -39,5 +41,6 @@
     "tailwindcss": "^3.4.17",
     "typescript": "^5.7.3",
     "vitest": "^3.0.5"
-  }
+  },
+  "packageManager": "pnpm@11.1.1"
 }

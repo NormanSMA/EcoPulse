@@ -22,7 +22,9 @@ const cspHeader = `
 `.replace(/\s{2,}/g, ' ').trim();
 
 const nextConfig: NextConfig = {
-  output: "standalone",
+  // Standalone solo para empaquetar en contenedor (Vercel no lo usa). En Windows
+  // con pnpm falla al crear enlaces simbólicos sin modo desarrollador.
+  output: process.env.BUILD_STANDALONE ? "standalone" : undefined,
   reactStrictMode: true,
   poweredByHeader: false,
   // Cesium (Fase 3.3) necesita sus assets estáticos (Workers/Assets/Widgets)

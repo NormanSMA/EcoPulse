@@ -5,7 +5,7 @@ import * as Cesium from "cesium";
 import "cesium/Build/Cesium/Widgets/widgets.css";
 import { dedupeByKey } from "@/lib/ingest";
 import { DEFAULT_MAP_VIEW, altitudeToZoom, zoomToAltitude } from "@/lib/mapView";
-import { themes, layers, marker, magnitudeColor, aqiColor, stormColor } from "@/design-system/tokens";
+import { themes, layers, marker, magnitudeColor, aqiColor, stormColor, boundaryColor } from "@/design-system/tokens";
 import { getIcon } from "@/lib/mapIcons";
 import { selectionFromEntityId } from "@/lib/selection";
 import type { MapViewProps } from "./types";
@@ -173,7 +173,10 @@ export default function GlobeContainer(props: GlobeContainerProps) {
       for (const p of picked) {
         const raw = p?.id;
         const id: string | undefined = typeof raw === "string" ? raw : raw instanceof Cesium.Entity ? raw.id : undefined;
-        const selection = id ? selectionFromEntityId(id) : null;
+        const selectionId = raw instanceof Cesium.Entity && raw.properties?.plates
+          ? `bnd-${raw.properties.plates.getValue(viewer.clock.currentTime)}`
+          : id;
+        const selection = selectionId ? selectionFromEntityId(selectionId) : null;
         if (selection) {
           propsRef.current.onSelect(selection);
           return;
@@ -307,7 +310,7 @@ export default function GlobeContainer(props: GlobeContainerProps) {
       build((opts) => {
         const entity = viewer.entities.add(opts);
         added.push(entity);
-        const grounded = opts.billboard?.heightReference === GROUND || opts.point?.heightReference === GROUND;
+        const grounded = opts.billboard?.heightReference === GROUND || opts.point?.heightReference === GROUND || opts.label?.heightReference === GROUND;
         if (grounded && opts.position instanceof Cesium.Cartesian3) groundedRef.current.set(entity, opts.position);
       });
     }
@@ -424,6 +427,39 @@ export default function GlobeContainer(props: GlobeContainerProps) {
     pixelOffset: new Cesium.Cartesian2(0, 30),
     ...(grounded && { heightReference: GROUND, disableDepthTestDistance: NO_DEPTH_TEST }),
   });
+
+  useEffect(() => {
+    replaceEntities("tectonics", visibility.tectonics && !!data.tectonics, (add) => {
+      for (const f of data.tectonics?.boundaries.features ?? []) {
+        if (f.geometry.coordinates.length < 2) continue;
+        const color = css(boundaryColor(f.properties.type)).withAlpha(0.85);
+        add({
+          id: `bnd-${f.properties.id}`,
+          properties: { plates: f.properties.plates },
+          polyline: {
+            positions: Cesium.Cartesian3.fromDegreesArray(f.geometry.coordinates.flat()),
+            width: 2,
+            clampToGround: true,
+            material: f.properties.type === "transform"
+              ? new Cesium.PolylineDashMaterialProperty({ color, dashLength: 12 })
+              : color,
+          },
+        });
+      }
+      for (const f of data.tectonics?.plates.features ?? []) {
+        const [lon, lat] = f.geometry.coordinates;
+        add({
+          id: `plate-${f.properties.code}`,
+          position: onPoint(lon, lat),
+          label: {
+            ...label(f.properties.name.toUpperCase()),
+            pixelOffset: Cesium.Cartesian2.ZERO,
+            scaleByDistance: ICON_BY_DISTANCE,
+          },
+        });
+      }
+    });
+  }, [data.tectonics, visibility.tectonics]);
 
   useEffect(() => {
     replaceEntities("disasters", visibility.disasters, (add) => {

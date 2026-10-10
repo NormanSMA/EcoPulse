@@ -11,6 +11,8 @@ describe("selection ids", () => {
     { kind: "volcano", id: 262000 },
     { kind: "volcanoCatalog", id: 211060 },
     { kind: "air", id: 43487 },
+    { kind: "boundary", id: "NZ-SA" },
+    { kind: "plate", id: "NZ" },
     { kind: "iss" },
   ];
   it.each(cases)("ida y vuelta para %o", (s) => {

@@ -198,3 +198,25 @@ export function ForecastChart({ hourly, locale }: { hourly: { t: string; temp: n
     </div>
   );
 }
+
+/** Sismos M ≥ 7 por década a lo largo de un límite de placa. */
+export function DecadeChart({ data, locale }: { data: { decade: number; count: number }[]; locale: string }) {
+  return (
+    <div className="h-40 w-full">
+      <ResponsiveContainer width="100%" height="100%">
+        <ComposedChart data={data} margin={{ top: 8, right: 8, left: -8, bottom: 0 }}>
+          <CartesianGrid stroke={GRID} strokeDasharray="3 3" vertical={false} />
+          <XAxis dataKey="decade" tickFormatter={(d) => `${d}s`} tick={AXIS} axisLine={{ stroke: GRID }} tickLine={false} interval="preserveStartEnd" />
+          <YAxis allowDecimals={false} tick={AXIS} axisLine={{ stroke: GRID }} tickLine={false} width={32} />
+          <Tooltip
+            cursor={{ fill: "rgb(var(--ds-primary) / 0.1)" }}
+            contentStyle={TOOLTIP_STYLE}
+            labelFormatter={(d) => `${d}s`}
+            formatter={(v) => [Number(v).toLocaleString(locale), "M ≥ 7"]}
+          />
+          <Bar dataKey="count" fill={PRIMARY} radius={[3, 3, 0, 0]} isAnimationActive={false} />
+        </ComposedChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}

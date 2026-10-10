@@ -53,6 +53,7 @@ const INITIAL_VISIBILITY: LayerVisibility = {
   radar: false,
   airQuality: false,
   volcanoCatalog: false,
+  tectonics: false,
 };
 
 /** Cabecera de panel flotante: título + cerrar (como "Controls ✕" de Weather Lab). */
@@ -73,6 +74,7 @@ function HomePageContent() {
   const t = useTranslations("events");
   const tPanel = useTranslations("panel");
   const tTime = useTranslations("timeControl");
+  const tPlates = useTranslations("detail.tectonics.plateNames");
   const { locale } = useLocale();
 
   const [visibility, setVisibility] = useState<LayerVisibility>(INITIAL_VISIBILITY);
@@ -93,6 +95,7 @@ function HomePageContent() {
     needAir: visibility.airQuality,
     needCatalog: visibility.volcanoCatalog,
     needRadar: visibility.radar,
+    needTectonics: visibility.tectonics,
   });
 
   const setLayer = useCallback((key: LayerKey, value: boolean) => {
@@ -171,8 +174,18 @@ function HomePageContent() {
       volcanoCatalog: live.volcanoCatalog,
       airQuality: live.airQuality,
       iss: live.iss,
+      // Nombres de placa en el idioma de la interfaz (PB2002 los trae en inglés).
+      tectonics: live.tectonics && {
+        ...live.tectonics,
+        plates: {
+          ...live.tectonics.plates,
+          features: live.tectonics.plates.features.map((f) =>
+            tPlates.has(f.properties.code) ? { ...f, properties: { ...f.properties, name: tPlates(f.properties.code) } } : f
+          ),
+        },
+      },
     };
-  }, [live, timeWindow, rangeStart, rangeEnd, visibility.cyclones]);
+  }, [live, timeWindow, rangeStart, rangeEnd, visibility.cyclones, tPlates]);
 
   const radarTiles = visibility.radar ? radarFrameAt(live.radar, refTime)?.tiles ?? null : null;
   const feedStatus = useFreshness(live.earthquakes.metadata.generated || null);
@@ -288,7 +301,7 @@ function HomePageContent() {
         {eventsOpen && isDesktop ? (
           <aside aria-label={selection ? tPanel("detail") : t("title")} className={cn(floatingPanel, "right-4 w-[376px]")}>
             {selection ? (
-              <DetailPanel kind={selection.kind} resolved={resolved} locale={locale} onClose={closeDetail} backToEvents className="h-full" />
+              <DetailPanel kind={selection.kind} resolved={resolved} tectonics={data.tectonics} locale={locale} onClose={closeDetail} backToEvents className="h-full" />
             ) : (
               <>
                 <PanelHeader title={t("title")} icon={Inbox} meta={feedBadge} onClose={() => setEventsOpen(false)} closeLabel={tPanel("close")} />
@@ -357,7 +370,7 @@ function HomePageContent() {
             >
               <div className="mx-auto mt-3 h-1 w-8 shrink-0 rounded-full bg-ds-outline" aria-hidden="true" />
               {mobileSheet === "detail" && selection ? (
-                <DetailPanel kind={selection.kind} resolved={resolved} locale={locale} onClose={closeDetail} className="min-h-0 flex-1 pb-[env(safe-area-inset-bottom)]" />
+                <DetailPanel kind={selection.kind} resolved={resolved} tectonics={data.tectonics} locale={locale} onClose={closeDetail} className="min-h-0 flex-1 pb-[env(safe-area-inset-bottom)]" />
               ) : (
                 <>
                   <PanelHeader

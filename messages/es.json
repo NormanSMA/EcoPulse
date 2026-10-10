@@ -47,7 +47,8 @@
     "cyclones": "Trayectorias de ciclones",
     "dayNight": "Día y noche",
     "volcanoCatalog": "Catálogo de volcanes",
-    "radar": "Radar de lluvia"
+    "radar": "Radar de lluvia",
+    "tectonics": "Placas tectónicas"
   },
   "nearby": {
     "title": "Sismos cerca de mí",
@@ -118,7 +119,13 @@
     },
     "radar": "Radar de lluvia",
     "light": "Débil",
-    "heavy": "Intensa"
+    "heavy": "Intensa",
+    "boundary": "Límites de placa",
+    "boundaryTypes": {
+      "divergent": "Divergente",
+      "convergent": "Convergente",
+      "transform": "Transformante"
+    }
   },
   "detail": {
     "back": "Volver a eventos",
@@ -133,7 +140,9 @@
       "volcanoCatalog": "Volcán (catálogo)",
       "air": "Calidad del aire",
       "iss": "Estación Espacial Internacional",
-      "point": "Punto seleccionado"
+      "point": "Punto seleccionado",
+      "boundary": "Límite de placas",
+      "plate": "Placa tectónica"
     },
     "magnitude": "Magnitud",
     "depth": "Profundidad",
@@ -261,6 +270,100 @@
       "loading": "Cargando pronóstico…",
       "unavailable": "No hay datos meteorológicos para este punto.",
       "ocean": "Océano / sin nombre"
+    },
+    "tectonics": {
+      "stepClasses": {
+        "OSR": "Dorsal oceánica",
+        "CRB": "Rift continental",
+        "SUB": "Subducción",
+        "OCB": "Convergencia oceánica",
+        "CCB": "Colisión continental",
+        "OTF": "Falla transformante oceánica",
+        "CTF": "Falla transformante continental"
+      },
+      "types": {
+        "divergent": "Divergente",
+        "convergent": "Convergente",
+        "transform": "Transformante"
+      },
+      "velocity": "Velocidad relativa",
+      "mmYr": "mm/año",
+      "length": "Longitud",
+      "area": "Área",
+      "neighbors": "Placas vecinas",
+      "nearest": "Límite más cercano",
+      "dominantClass": "Clase dominante",
+      "totalLength": "Longitud total",
+      "boundaryCount": "Límites",
+      "byType": "Límites por tipo",
+      "explain": {
+        "divergent": "Las placas se separan y se forma corteza nueva.",
+        "convergent": "Las placas chocan: una se hunde bajo la otra o se levantan montañas.",
+        "transform": "Las placas se deslizan de lado y acumulan tensión en fallas."
+      },
+      "historyTitle": "Historia sísmica (M ≥ 7 desde 1900)",
+      "historySubtitle": "Sismos a menos de {km} km del límite",
+      "total": "Sismos M ≥ 7",
+      "strongest": "El mayor",
+      "top": "Los 5 mayores",
+      "byDecade": "Sismos por década",
+      "loading": "Cargando historia…",
+      "empty": "Sin sismos M ≥ 7 registrados.",
+      "viewUsgs": "Ver en USGS",
+      "plateNames": {
+        "AF": "Africana",
+        "AN": "Antártica",
+        "SO": "Somalí",
+        "IN": "India",
+        "AU": "Australiana",
+        "EU": "Euroasiática",
+        "NA": "Norteamericana",
+        "SA": "Sudamericana",
+        "NZ": "Nazca",
+        "PA": "Pacífica",
+        "AR": "Arábiga",
+        "SU": "Sonda",
+        "TI": "Timor",
+        "KE": "Kermadec",
+        "TO": "Tonga",
+        "NI": "Niuafo'ou",
+        "WL": "Woodlark",
+        "MO": "Maoke",
+        "SB": "Bismarck del Sur",
+        "SS": "Mar de Salomón",
+        "NB": "Bismarck del Norte",
+        "NH": "Nuevas Hébridas",
+        "CA": "Caribe",
+        "CO": "Cocos",
+        "OK": "Ojotsk",
+        "JF": "Juan de Fuca",
+        "AP": "Altiplano",
+        "ND": "Andes del Norte",
+        "ON": "Okinawa",
+        "PS": "Filipina",
+        "AM": "Amuria",
+        "CL": "Carolinas",
+        "MA": "Marianas",
+        "FT": "Futuna",
+        "SC": "Scotia",
+        "SL": "Shetland",
+        "AS": "Mar Egeo",
+        "AT": "Anatolia",
+        "YA": "Yangtsé",
+        "BU": "Birmania",
+        "RI": "Rivera",
+        "BH": "Cabeza de Pájaro",
+        "MS": "Mar de Molucas",
+        "BS": "Mar de Banda",
+        "MN": "Manus",
+        "CR": "Arrecife Conway",
+        "BR": "Arrecife Balmoral",
+        "EA": "Pascua",
+        "JZ": "Juan Fernández",
+        "GP": "Galápagos",
+        "SW": "Sandwich",
+        "PM": "Panamá"
+      }
     }
   },
   "weatherCodes": {

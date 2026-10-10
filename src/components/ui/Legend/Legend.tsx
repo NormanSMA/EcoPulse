@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import { scales, layers, marker, type LayerKey } from "@/design-system/tokens";
+import { boundaryColor } from "@/design-system/tokens";
 import { cn } from "@/design-system/utils/cn";
 
 export interface LegendProps {
@@ -134,7 +135,30 @@ export function Legend({ variant = "inline", visibility, className }: LegendProp
     </Block>
   );
 
-  const empty = ![magnitude, storms, fires, aqi, alerts, volcanoes, radar].some(Boolean);
+  const boundaries = on("tectonics") && (
+    <Block title={t("boundary")}>
+      <ul className="flex flex-col gap-2">
+        {(["divergent", "convergent", "transform"] as const).map((k) => (
+          <li key={k} className="flex items-center gap-2 text-xs text-ds-text-primary">
+            <svg width="24" height="4" className="shrink-0" aria-hidden>
+              <line
+                x1="0"
+                y1="2"
+                x2="24"
+                y2="2"
+                stroke={boundaryColor(k)}
+                strokeWidth="3"
+                strokeDasharray={k === "transform" ? "5 3" : undefined}
+              />
+            </svg>
+            {t(`boundaryTypes.${k}`)}
+          </li>
+        ))}
+      </ul>
+    </Block>
+  );
+
+  const empty = ![magnitude, storms, fires, aqi, alerts, volcanoes, radar, boundaries].some(Boolean);
   return (
     <div className={cn("flex flex-col gap-4 px-3", className)}>
       {magnitude}
@@ -144,6 +168,7 @@ export function Legend({ variant = "inline", visibility, className }: LegendProp
       {alerts}
       {volcanoes}
       {radar}
+      {boundaries}
       {empty && <p className="text-xs text-ds-text-muted">{t("empty")}</p>}
     </div>
   );

@@ -1,21 +1,32 @@
 'use client';
 
 import { useEffect, useState, type ReactNode } from "react";
+import dynamic from "next/dynamic";
 import { useTranslations } from "next-intl";
-import { ArrowLeft, X, ExternalLink, Waves, Flame, AlertTriangle, Mountain, Wind, Satellite, MapPin, Tornado, TriangleAlert } from "lucide";
+import { ArrowLeft, X, ExternalLink, Waves, Flame, AlertTriangle, Mountain, Wind, Satellite, MapPin, Tornado, TriangleAlert, Layers, Activity } from "lucide";
 import type { IconNode } from "lucide";
 import { MorphIcon } from "morphicons/react";
 import { IconButton } from "@/components/ui/Button";
 import { cn } from "@/design-system/utils/cn";
-import { layers, marker, magnitudeColor, alertColor, aqiColor, stormColor, scales } from "@/design-system/tokens";
+import { layers, marker, boundaryColor, magnitudeColor, alertColor, aqiColor, stormColor, scales } from "@/design-system/tokens";
 import type { ResolvedSelection } from "@/lib/resolveSelection";
 import type { SelectionKind } from "@/lib/selection";
-import type { EarthquakeFeature } from "@/lib/types";
+import type { EarthquakeFeature, TectonicBoundaryFeature, TectonicPlateFeature, TectonicBoundaryType, TectonicStepClass } from "@/lib/types";
+import type { MapData } from "@/components/map/types";
+import { nearestBoundary, plateName, splitPlates } from "@/lib/tectonics";
 import type { PointInfo } from "@/lib/pointInfo";
 import { relativeTime, formatDateTime, depthClass, compass, formatCoords, formatReportPeriod, saffirSimpson } from "@/lib/format";
 import { footprintRadiusKm } from "@/lib/geoShapes";
 import { getAQICategory } from "@/lib/openaq";
-import { QuakeHistoryChart, AirHistoryChart, ForecastChart } from "./DetailCharts";
+
+// Gráficos con carga diferida: recharts no entra en el bundle inicial.
+const ChartPlaceholder = ({ h }: { h: string }) => <div className={cn("w-full animate-pulse rounded-ds-xl bg-ds-surface-container", h)} aria-hidden="true" />;
+const QuakeHistoryChart = dynamic(() => import("./DetailCharts").then((m) => m.QuakeHistoryChart), { ssr: false, loading: () => <ChartPlaceholder h="h-44" /> });
+const AirHistoryChart = dynamic(() => import("./DetailCharts").then((m) => m.AirHistoryChart), { ssr: false, loading: () => <ChartPlaceholder h="h-40" /> });
+const ForecastChart = dynamic(() => import("./DetailCharts").then((m) => m.ForecastChart), { ssr: false, loading: () => <ChartPlaceholder h="h-44" /> });
+const DecadeChart = dynamic(() => import("./DetailCharts").then((m) => m.DecadeChart), { ssr: false, loading: () => <ChartPlaceholder h="h-40" /> });
+
+type Tectonics = MapData["tectonics"];
 
 // ---------- Datos bajo demanda ----------
 
@@ -176,23 +187,28 @@ const KIND_ICON: Record<SelectionKind, IconNode> = {
   air: Wind,
   iss: Satellite,
   point: MapPin,
+  boundary: Activity,
+  plate: Layers,
 };
 
 export interface DetailPanelProps {
   kind: SelectionKind;
   resolved: ResolvedSelection | null;
   locale: string;
+  /** Datos de placas (nombres y límite más cercano de un sismo). */
+  tectonics?: Tectonics;
   onClose: () => void;
   /** Variante de escritorio: muestra "volver a eventos" en vez de cerrar. */
   backToEvents?: boolean;
   className?: string;
 }
 
-export function DetailPanel({ kind, resolved, locale, onClose, backToEvents, className }: DetailPanelProps) {
+export function DetailPanel({ kind, resolved, locale, tectonics, onClose, backToEvents, className }: DetailPanelProps) {
   const t = useTranslations("detail");
   const tTypes = useTranslations("disasterTypes");
   const tAlert = useTranslations("legend.alertLevels");
   const tStorm = useTranslations("stormCategories");
+  const tTect = useTranslations("detail.tectonics");
   const item = resolved?.item;
   const coords = resolved?.coords;
 
@@ -222,6 +238,10 @@ export function DetailPanel({ kind, resolved, locale, onClose, backToEvents, cla
         return layers.iss;
       case "point":
         return marker.selected;
+      case "boundary":
+        return boundaryColor(item.lines[0].properties.type);
+      case "plate":
+        return marker.selected;
     }
   })();
 
@@ -243,6 +263,10 @@ export function DetailPanel({ kind, resolved, locale, onClose, backToEvents, cla
         return pm25Title(item.f.properties.pm25);
       case "iss":
         return "ISS";
+      case "boundary":
+        return platesLabel(item.plates, tTect, tectonics);
+      case "plate":
+        return plateLabel(item.f.properties.code, tTect, tectonics);
       case "point": {
         const p = pointInfo?.place;
         return item.name ?? p?.name ?? (pointLoading ? formatCoords(item.lon, item.lat) : t("point.ocean"));
@@ -281,7 +305,11 @@ export function DetailPanel({ kind, resolved, locale, onClose, backToEvents, cla
       <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain p-4">
         {!item && <Muted>{t("unavailable")}</Muted>}
 
-        {item?.kind === "quake" && <QuakeDetail f={item.f} locale={locale} />}
+        {item?.kind === "quake" && <QuakeDetail f={item.f} locale={locale} tectonics={tectonics} />}
+
+        {item?.kind === "boundary" && <BoundaryDetail plates={item.plates} lines={item.lines} locale={locale} />}
+
+        {item?.kind === "plate" && <PlateDetail f={item.f} tectonics={tectonics} locale={locale} />}
 
         {item?.kind === "fire" && (
           <>
@@ -428,11 +456,13 @@ function pm25Title(v: number) {
   return `${v.toFixed(1)} µg/m³`;
 }
 
-function QuakeDetail({ f, locale }: { f: EarthquakeFeature; locale: string }) {
+function QuakeDetail({ f, locale, tectonics }: { f: EarthquakeFeature; locale: string; tectonics?: Tectonics }) {
   const t = useTranslations("detail");
   const p = f.properties;
   const [lon, lat, depth] = f.geometry.coordinates;
   const src = p.source ?? "USGS";
+  const tt = useTranslations("detail.tectonics");
+  const nearest = tectonics ? nearestBoundary(lon, lat, tectonics.boundaries) : null;
   return (
     <>
       <div className="flex flex-wrap gap-2">
@@ -449,6 +479,13 @@ function QuakeDetail({ f, locale }: { f: EarthquakeFeature; locale: string }) {
         <Stat label={t("depth")} value={`${Math.round(depth ?? 0)} km`} hint={t(`depthClass.${depthClass(depth ?? 0)}`)} />
         <Stat label={t("time")} value={relativeTime(p.time, locale)} hint={formatDateTime(p.time, locale)} />
         {p.felt ? <Stat label={t("felt")} value={t("feltValue", { n: p.felt.toLocaleString(locale) })} /> : <Stat label={t("source")} value={src} />}
+        {nearest && (
+          <Stat
+            label={t("tectonics.nearest")}
+            value={`${platesLabel(nearest.plates, tt, tectonics)} · ${Math.round(nearest.distanceKm).toLocaleString(locale)} km`}
+            hint={`${t(`tectonics.types.${nearest.type}`)} · ${t(`tectonics.stepClasses.${nearest.stepClass}`)}`}
+          />
+        )}
       </Stats>
       <SourceLink href={p.url}>{t("viewSource", { source: src })}</SourceLink>
       <QuakeHistory lat={lat} lon={lon} selectedId={String(f.id)} locale={locale} />
@@ -493,6 +530,134 @@ function AirDetail({
       <Block title={t("history")} subtitle={t("who")}>
         {loading ? <Muted>{t("loading")}</Muted> : station?.history.length ? <AirHistoryChart history={station.history} locale={locale} /> : <Muted>{t("noHistory")}</Muted>}
       </Block>
+    </>
+  );
+}
+
+// ---------- Tectónica ----------
+
+type TectonicsT = ReturnType<typeof useTranslations<"detail.tectonics">>;
+
+/** Nombre de placa: traducción por código, luego datos, luego el código. */
+function plateLabel(code: string, tt: TectonicsT, tectonics?: Tectonics) {
+  return tt.has(`plateNames.${code}`) ? tt(`plateNames.${code}`) : plateName(code, tectonics?.plates);
+}
+
+/** "NZ-SA" -> "Nazca – Sudamérica". */
+function platesLabel(pair: string, tt: TectonicsT, tectonics?: Tectonics) {
+  return splitPlates(pair)
+    .map((c) => plateLabel(c, tt, tectonics))
+    .join(" – ");
+}
+
+interface BoundaryHistory {
+  features: EarthquakeFeature[];
+  total: number;
+  strongest: EarthquakeFeature | null;
+  byDecade: { decade: number; count: number }[];
+}
+
+/** Nombre del sismo sin el año inicial ("1960 Great Chilean…" ya muestra el año aparte). */
+const placeWithoutYear = (place: string, time: number) => place.replace(new RegExp(`^${new Date(time).getUTCFullYear()}\\s+`), "");
+
+function BoundaryHistoryBlock({ plates, convergent, locale }: { plates: string; convergent: boolean; locale: string }) {
+  const t = useTranslations("detail.tectonics");
+  const { data, loading } = useJson<BoundaryHistory>(`/api/boundary-history?plates=${encodeURIComponent(plates)}`);
+  const top = [...(data?.features ?? [])].sort((a, b) => (b.properties.mag ?? 0) - (a.properties.mag ?? 0)).slice(0, 5);
+  const s = data?.strongest;
+  return (
+    <Block title={t("historyTitle")} subtitle={t("historySubtitle", { km: convergent ? 250 : 100 })}>
+      {loading ? (
+        <Muted>{t("loading")}</Muted>
+      ) : !data || data.total === 0 ? (
+        <Muted>{t("empty")}</Muted>
+      ) : (
+        <>
+          <Stats>
+            <Stat label={t("total")} value={data.total.toLocaleString(locale)} />
+            {s && (
+              <Stat
+                label={t("strongest")}
+                value={`M ${s.properties.mag?.toFixed(1) ?? "?"} · ${new Date(s.properties.time).getUTCFullYear()}`}
+                hint={placeWithoutYear(s.properties.place, s.properties.time)}
+              />
+            )}
+          </Stats>
+          {s && <SourceLink href={s.properties.url}>{t("viewUsgs")}</SourceLink>}
+          <p className="text-xs text-ds-text-muted">{t("byDecade")}</p>
+          <DecadeChart data={data.byDecade} locale={locale} />
+          <p className="text-xs text-ds-text-muted">{t("top")}</p>
+          <ol className="flex flex-col gap-1 text-sm text-ds-text-primary">
+            {top.map((q) => (
+              <li key={String(q.id)} className="flex gap-2">
+                <span className="shrink-0 font-medium tabular-nums">M {q.properties.mag?.toFixed(1)}</span>
+                <span className="shrink-0 tabular-nums text-ds-text-secondary">{new Date(q.properties.time).getUTCFullYear()}</span>
+                <span className="min-w-0 truncate text-ds-text-muted">{placeWithoutYear(q.properties.place, q.properties.time)}</span>
+              </li>
+            ))}
+          </ol>
+        </>
+      )}
+    </Block>
+  );
+}
+
+/** Clave con mayor longitud acumulada. */
+function topByLength<K extends string>(lines: TectonicBoundaryFeature[], key: (l: TectonicBoundaryFeature) => K): K | undefined {
+  const acc = new Map<K, number>();
+  for (const l of lines) acc.set(key(l), (acc.get(key(l)) ?? 0) + l.properties.lengthKm);
+  return [...acc.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
+}
+
+function BoundaryDetail({ plates, lines, locale }: { plates: string; lines: TectonicBoundaryFeature[]; locale: string }) {
+  const t = useTranslations("detail.tectonics");
+  const totalKm = lines.reduce((a, l) => a + l.properties.lengthKm, 0);
+  const dominant: TectonicStepClass | undefined = topByLength(lines, (l) => l.properties.stepClass);
+  const type: TectonicBoundaryType = topByLength(lines, (l) => l.properties.type) ?? lines[0].properties.type;
+  // Velocidad media ponderada por longitud.
+  const velocity = totalKm > 0 ? lines.reduce((a, l) => a + l.properties.velocityMmYr * l.properties.lengthKm, 0) / totalKm : 0;
+  return (
+    <>
+      <div className="flex flex-wrap gap-2">
+        <Badge color={boundaryColor(type)}>{t(`types.${type}`)}</Badge>
+      </div>
+      <Stats>
+        {dominant && <Stat label={t("dominantClass")} value={t(`stepClasses.${dominant}`)} />}
+        <Stat label={t("velocity")} value={`${velocity.toFixed(1)} ${t("mmYr")}`} />
+        <Stat label={t("totalLength")} value={`${Math.round(totalKm).toLocaleString(locale)} km`} />
+      </Stats>
+      <Muted>{t(`explain.${type}`)}</Muted>
+      <BoundaryHistoryBlock plates={plates} convergent={lines.some((l) => l.properties.type === "convergent")} locale={locale} />
+    </>
+  );
+}
+
+function PlateDetail({ f, tectonics, locale }: { f: TectonicPlateFeature; tectonics?: Tectonics; locale: string }) {
+  const t = useTranslations("detail.tectonics");
+  const p = f.properties;
+  const own = tectonics?.boundaries.features.filter((b) => splitPlates(b.properties.plates).includes(p.code)) ?? [];
+  const counts = new Map<TectonicBoundaryType, number>();
+  for (const b of own) counts.set(b.properties.type, (counts.get(b.properties.type) ?? 0) + 1);
+  return (
+    <>
+      <Stats>
+        <Stat label={t("area")} value={`${new Intl.NumberFormat(locale).format(Math.round(p.areaKm2))} km²`} />
+        <Stat label={t("boundaryCount")} value={own.length.toLocaleString(locale)} />
+      </Stats>
+      <Block title={t("neighbors")}>
+        <p className="text-sm text-ds-text-primary">{p.neighbors.map((c) => plateLabel(c, t, tectonics)).join(", ") || "—"}</p>
+      </Block>
+      {counts.size > 0 && (
+        <Block title={t("byType")}>
+          <div className="flex flex-wrap gap-2">
+            {[...counts.entries()].map(([type, n]) => (
+              <Badge key={type} color={boundaryColor(type)}>
+                {t(`types.${type}`)} · {n}
+              </Badge>
+            ))}
+          </div>
+        </Block>
+      )}
     </>
   );
 }

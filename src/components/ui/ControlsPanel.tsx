@@ -26,6 +26,7 @@ const GROUPS: { id: "geo" | "atmosphere" | "hazards" | "space"; icon: IconNode; 
       { key: "earthquakes", tag: "USGS · EMSC" },
       { key: "volcanoes", tag: "GVP" },
       { key: "volcanoCatalog", tag: "GVP", ring: true },
+      { key: "tectonics", tag: "PB2002" },
     ],
   },
   {
