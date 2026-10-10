@@ -1,0 +1,25 @@
+name: Scheduled Push Dispatch
+
+on:
+  schedule:
+    - cron: '*/10 * * * *' # Ejecuta cada 10 minutos
+  workflow_dispatch: # Permite ejecución manual desde la web de GitHub
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call push dispatch endpoint
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+          INGEST_SECRET: ${{ secrets.INGEST_SECRET }}
+        run: |
+          response=$(curl -s -w "\n%{http_code}" "$APP_URL/api/push/dispatch" \
+            -H "Authorization: Bearer $INGEST_SECRET")
+          http_code=$(echo "$response" | tail -n1)
+          body=$(echo "$response" | sed '$d')
+          echo "$body"
+          if [ "$http_code" -ne 200 ]; then
+            echo "Push dispatch failed with HTTP $http_code"
+            exit 1
+          fi

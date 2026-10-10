@@ -5,6 +5,8 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "EcoPulse — Global Environmental & Seismic Monitor",
   description: "Plataforma en tiempo real de monitoreo de sismos mundiales y calidad del aire.",
+  manifest: "/manifest.webmanifest",
+  icons: { apple: "/icons/icon-192.png" },
 };
 
 export const viewport: Viewport = {

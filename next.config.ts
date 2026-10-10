@@ -51,6 +51,10 @@ const nextConfig: NextConfig = {
     }
     return config;
   },
+  // Algunos navegadores piden /favicon.ico aunque el HTML declare otro icono.
+  async rewrites() {
+    return [{ source: "/favicon.ico", destination: "/icons/icon-192.png" }];
+  },
   async headers() {
     return [
       {

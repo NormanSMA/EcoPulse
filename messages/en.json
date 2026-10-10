@@ -4,6 +4,27 @@
     "tagline": "Global Earthquake & Air Quality Monitor",
     "liveMonitor": "Live"
   },
+  "alerts": {
+    "title": "Alerts",
+    "status": {
+      "loading": "Checking status...",
+      "unsupported": "This browser does not support push alerts.",
+      "denied": "Permission denied. Enable it in the browser settings.",
+      "off": "Alerts are off.",
+      "on": "Alerts are on for this device."
+    },
+    "enable": "Enable alerts",
+    "disable": "Disable alerts",
+    "minMagnitude": "Minimum earthquake magnitude",
+    "cyclones": "Cyclones",
+    "volcanoes": "New eruptions",
+    "disasters": "GDACS orange and red disasters",
+    "test": "Send test",
+    "testTitle": "EcoPulse",
+    "testBody": "Alerts work on this device.",
+    "error": "The action could not be completed. Try again.",
+    "iphoneNote": "On iPhone, add EcoPulse to the home screen to receive alerts."
+  },
   "metrics": {
     "earthquakes24h": "Earthquakes 24h",
     "maxMagnitude": "Max magnitude",

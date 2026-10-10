@@ -13,7 +13,7 @@ import { cn } from "@/design-system/utils/cn";
 import { DEFAULT_MAP_VIEW, type MapView } from "@/lib/mapView";
 import { useLiveData, radarFrameAt } from "@/lib/useLiveData";
 import { resolveSelection } from "@/lib/resolveSelection";
-import type { Selection } from "@/lib/selection";
+import { selectionFromEntityId, type Selection } from "@/lib/selection";
 import type { GeocodeResult } from "@/lib/pointInfo";
 import type { MapData, LayerVisibility } from "@/components/map/types";
 import Header, { type MapMode } from "@/components/ui/Header";
@@ -222,6 +222,26 @@ function HomePageContent() {
     },
     [select]
   );
+
+  // Deep link ?sel=<entityId>: selecciona y centra cuando el evento resuelve.
+  const [pendingSel, setPendingSel] = useState<Selection | null>(null);
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get("sel");
+    if (id) setPendingSel(selectionFromEntityId(id));
+  }, []);
+  const pendingResolved = useMemo(
+    () => resolveSelection(pendingSel, data, live.weekQuakes?.features),
+    [pendingSel, data, live.weekQuakes]
+  );
+  useEffect(() => {
+    if (!pendingSel || !pendingResolved) return;
+    setFocus({ lng: pendingResolved.coords[0], lat: pendingResolved.coords[1], key: Date.now() });
+    select(pendingSel);
+    setPendingSel(null);
+    const url = new URL(window.location.href);
+    url.searchParams.delete("sel");
+    window.history.replaceState(null, "", url.pathname + url.search + url.hash);
+  }, [pendingSel, pendingResolved, select]);
 
   const changeMapMode = useCallback((mode: MapMode) => {
     setFocus(null);

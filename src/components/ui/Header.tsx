@@ -1,11 +1,13 @@
 'use client';
 
 import { useEffect, useRef, useState } from "react";
-import { Activity, Sun, Moon, Languages, Search, Layers, Check, X } from "lucide";
+import { Activity, Sun, Moon, Languages, Search, Layers, Check, X, Bell, BellRing } from "lucide";
 import { MorphIcon } from "morphicons/react";
 import { useTranslations } from "next-intl";
 import { IconButton } from "@/components/ui/Button";
 import { PlaceSearch } from "@/components/ui/PlaceSearch";
+import AlertsPanel from "@/components/ui/AlertsPanel";
+import { usePushAlerts } from "@/lib/usePushAlerts";
 import type { GeocodeResult } from "@/lib/pointInfo";
 import type { Theme } from "@/design-system/hooks";
 import { useLocale, type Locale } from "@/design-system/i18n/I18nProvider";
@@ -113,6 +115,57 @@ function BasemapMenu({ value, onChange, disabled }: { value: Basemap; onChange: 
   );
 }
 
+/** Campana de alertas push: popover en escritorio, hoja inferior en móvil. */
+function AlertsMenu({ locale }: { locale: Locale }) {
+  const t = useTranslations("alerts");
+  const push = usePushAlerts(locale);
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function onDown(e: PointerEvent) {
+      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpen(false);
+    }
+    window.addEventListener("pointerdown", onDown);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("pointerdown", onDown);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  return (
+    <div ref={rootRef} className="md:relative">
+      <IconButton
+        aria-label={t("title")}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        selected={open}
+        onClick={() => setOpen((o) => !o)}
+      >
+        <MorphIcon icon={push.status === "on" ? BellRing : Bell} size={20} reducedMotion="user" />
+      </IconButton>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40 animate-ds-fade-in bg-ds-scrim md:hidden" aria-hidden="true" />
+          <div
+            role="dialog"
+            aria-label={t("title")}
+            className="fixed inset-x-0 bottom-0 z-50 max-h-[85dvh] animate-ds-sheet-in overflow-y-auto rounded-t-ds-sheet bg-ds-surface-container pb-[env(safe-area-inset-bottom)] shadow-ds-3 md:absolute md:inset-x-auto md:bottom-auto md:right-0 md:top-12 md:max-h-[80dvh] md:w-[340px] md:origin-top-right md:animate-ds-pop-in md:rounded-ds-xl md:border md:border-ds-outline-variant md:pb-0"
+          >
+            <p className="px-4 pt-4 text-base font-medium text-ds-text-primary">{t("title")}</p>
+            <AlertsPanel push={push} />
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 export default function Header({
   onPlace,
   mapMode,
@@ -192,6 +245,8 @@ export default function Header({
             {locale}
           </span>
         </IconButton>
+
+        <AlertsMenu locale={locale} />
 
         <IconButton aria-label={theme === "dark" ? tTheme("toLight") : tTheme("toDark")} onClick={onToggleTheme}>
           <MorphIcon icon={theme === "dark" ? Sun : Moon} size={20} reducedMotion="user" />

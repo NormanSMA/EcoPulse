@@ -4,6 +4,27 @@
     "tagline": "Plataforma Global de Sismos y Calidad del Aire",
     "liveMonitor": "En vivo"
   },
+  "alerts": {
+    "title": "Alertas",
+    "status": {
+      "loading": "Comprobando estado...",
+      "unsupported": "Este navegador no admite alertas push.",
+      "denied": "Permiso denegado. Actívalo en los ajustes del navegador.",
+      "off": "Alertas desactivadas.",
+      "on": "Alertas activas en este dispositivo."
+    },
+    "enable": "Activar alertas",
+    "disable": "Desactivar alertas",
+    "minMagnitude": "Magnitud mínima de sismos",
+    "cyclones": "Ciclones",
+    "volcanoes": "Nuevas erupciones",
+    "disasters": "Desastres GDACS naranja y rojo",
+    "test": "Enviar prueba",
+    "testTitle": "EcoPulse",
+    "testBody": "Las alertas funcionan en este dispositivo.",
+    "error": "No se pudo completar la acción. Inténtalo de nuevo.",
+    "iphoneNote": "En iPhone, añade EcoPulse a la pantalla de inicio para recibir alertas."
+  },
   "metrics": {
     "earthquakes24h": "Sismos 24h",
     "maxMagnitude": "Magnitud máx.",

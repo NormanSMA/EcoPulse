@@ -34,6 +34,7 @@ La idea es sencilla: los datos ambientales públicos existen, pero están disper
   - **Ciclón:** fase, alerta y viento máximo con su categoría Saffir-Simpson.
   - **Cualquier punto:** tiempo actual y pronóstico de 24 h.
 - **Ver las placas tectónicas**: límites coloreados por tipo, velocidad relativa y la historia sísmica de cada límite (sismos M ≥ 7 desde 1900, por década, con los 5 mayores). Cada sismo indica el límite de placa más cercano.
+- **Recibir alertas push en el navegador** (aunque la web esté cerrada): sismos desde la magnitud que elijas, nuevos ciclones, nuevas erupciones y desastres GDACS naranja o rojo. Se configuran desde la campana; al tocar la alerta se abre el evento en el mapa.
 - **Buscar lugares** (Ctrl+K) y volar hasta ellos para ver su tiempo, su aire y su actividad sísmica.
 - **Seguir ciclones tropicales** con su trayectoria observada, pronóstico y cono de incertidumbre (GDACS / JTWC).
 - **Ver la ISS en su órbita real**: trayectoria pasada y futura calculada desde las efemérides de NASA. Incluye la línea día/noche.
@@ -152,6 +153,9 @@ Luego abre [http://localhost:3000](http://localhost:3000).
 | `NEXT_PUBLIC_CESIUM_TOKEN` | Token de Cesium Ion (terreno e imágenes 3D) |
 | `DISCORD_WEBHOOK_URL` | Webhook para las alertas (opcional) |
 | `INGEST_SECRET` | Secreto Bearer que protege `/api/ingest` (**obligatorio en producción**) |
+| `NEXT_PUBLIC_VAPID_PUBLIC_KEY` | Clave pública VAPID para las alertas push (`pnpm dlx web-push generate-vapid-keys`) |
+| `VAPID_PRIVATE_KEY` | Clave privada VAPID, solo en el servidor |
+| `VAPID_SUBJECT` | Contacto VAPID: URL pública de la app o `mailto:` |
 | `APP_URL` | URL pública de la app. La usa el cron de GitHub Actions y genera los enlaces de las alertas de Discord |
 
 ### Scripts
