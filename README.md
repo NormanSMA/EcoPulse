@@ -35,6 +35,7 @@ La idea es sencilla: los datos ambientales públicos existen, pero están disper
   - **Cualquier punto:** tiempo actual y pronóstico de 24 h.
 - **Ver las placas tectónicas**: límites coloreados por tipo, velocidad relativa y la historia sísmica de cada límite (sismos M ≥ 7 desde 1900, por década, con los 5 mayores). Cada sismo indica el límite de placa más cercano.
 - **Recibir alertas push en el navegador** (aunque la web esté cerrada): sismos desde la magnitud que elijas, nuevos ciclones, nuevas erupciones y desastres GDACS naranja o rojo. Se configuran desde la campana; al tocar la alerta se abre el evento en el mapa.
+- **Widgets en el móvil**: widget para iPhone (Scriptable) y Android (KWGT) con el sismo más fuerte o el más cercano, ciclones, erupciones y alertas. Ver [widgets/](widgets/README.md).
 - **Buscar lugares** (Ctrl+K) y volar hasta ellos para ver su tiempo, su aire y su actividad sísmica.
 - **Seguir ciclones tropicales** con su trayectoria observada, pronóstico y cono de incertidumbre (GDACS / JTWC).
 - **Ver la ISS en su órbita real**: trayectoria pasada y futura calculada desde las efemérides de NASA. Incluye la línea día/noche.
