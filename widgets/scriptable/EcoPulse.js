@@ -1,11 +1,17 @@
-// EcoPulse para Scriptable (iPhone): widget pequeño o mediano.
-// Instalación: copia este archivo en un script nuevo de Scriptable y añade un
-// widget de Scriptable en la pantalla de inicio eligiendo este script.
-// Parámetro del widget (opcional): "cerca" para mostrar el sismo más cercano
-// a tu ubicación (pide permiso de ubicación la primera vez).
+// EcoPulse para Scriptable (iPhone): widget cuadrado (pequeño).
+// Instalación: copia este archivo en un script nuevo de Scriptable llamado
+// "EcoPulse", añade un widget pequeño de Scriptable y elige este script.
+// Parámetro del widget (opcional): "cerca" muestra el sismo más cercano a tu
+// ubicación (pide permiso de ubicación la primera vez).
 
 const APP = "https://ecopulse-eta-two.vercel.app";
-const COLORS = { bg: new Color("#121317"), card: new Color("#1f2024"), text: new Color("#f8f9fc"), muted: new Color("#b2bbc5"), primary: new Color("#a8c7fa") };
+const C = {
+  bg: new Color("#0f1013"),
+  track: new Color("#ffffff", 0.12),
+  text: new Color("#ffffff"),
+  muted: new Color("#ffffff", 0.6),
+  brand: new Color("#a8c7fa"),
+};
 
 async function load() {
   let url = `${APP}/api/widget`;
@@ -23,6 +29,11 @@ async function load() {
   return req.loadJSON();
 }
 
+// "12 km WSW of Pitaloza Arriba, Panama" -> "Pitaloza Arriba, Panama"
+function cleanPlace(place) {
+  return place.replace(/^\d+\s*km\s+[NSEW]{1,3}\s+of\s+/i, "");
+}
+
 function ago(ms) {
   const min = Math.max(0, Math.round((Date.now() - ms) / 60000));
   if (min < 60) return `hace ${min} min`;
@@ -30,85 +41,88 @@ function ago(ms) {
   return h < 24 ? `hace ${h} h` : `hace ${Math.round(h / 24)} d`;
 }
 
-function text(stack, value, size, color, weight = "regular") {
+// Anillo de magnitud (escala 0-9) dibujado como en los widgets del sistema.
+function ring(mag, color) {
+  const size = 120;
+  const lw = 13;
+  const r = (size - lw) / 2;
+  const cx = size / 2;
+  const ctx = new DrawContext();
+  ctx.size = new Size(size, size);
+  ctx.opaque = false;
+  ctx.respectScreenScale = true;
+
+  const arc = (from, to, col) => {
+    const steps = Math.max(2, Math.round((to - from) * 90));
+    for (let i = 0; i < steps; i++) {
+      const a = -Math.PI / 2 + (from + (to - from) * (i / steps)) * 2 * Math.PI;
+      const p = new Path();
+      p.addEllipse(new Rect(cx + r * Math.cos(a) - lw / 2, cx + r * Math.sin(a) - lw / 2, lw, lw));
+      ctx.addPath(p);
+      ctx.setFillColor(col);
+      ctx.fillPath();
+    }
+  };
+  arc(0, 1, C.track);
+  arc(0, Math.min(1, Math.max(0.04, mag / 9)), color);
+
+  ctx.setFont(Font.boldRoundedSystemFont(36));
+  ctx.setTextColor(C.text);
+  ctx.setTextAlignedCenter();
+  ctx.drawTextInRect(mag.toFixed(1), new Rect(0, size / 2 - 23, size, 46));
+  return ctx.getImage();
+}
+
+function addText(stack, value, font, color, lines = 1) {
   const t = stack.addText(value);
-  t.font = weight === "bold" ? Font.boldSystemFont(size) : weight === "medium" ? Font.mediumSystemFont(size) : Font.systemFont(size);
+  t.font = font;
   t.textColor = color;
-  t.lineLimit = 1;
-  t.minimumScaleFactor = 0.7;
+  t.lineLimit = lines;
+  t.minimumScaleFactor = 0.75;
   return t;
 }
 
-function quakeBlock(stack, q, label) {
-  const row = stack.addStack();
-  row.centerAlignContent();
-  const badge = row.addStack();
-  badge.size = new Size(38, 38);
-  badge.cornerRadius = 19;
-  badge.backgroundColor = new Color(q.color, 0.25);
-  badge.centerAlignContent();
-  badge.addSpacer();
-  text(badge, q.mag.toFixed(1), 14, new Color(q.color), "bold");
-  badge.addSpacer();
-  row.addSpacer(8);
-  const col = row.addStack();
-  col.layoutVertically();
-  text(col, label, 10, COLORS.muted, "medium");
-  text(col, q.place, 13, COLORS.text, "medium");
-  const extra = q.distanceKm != null ? ` · a ${q.distanceKm} km` : "";
-  text(col, `${q.depthKm} km prof. · ${ago(q.time)}${extra}`, 10, COLORS.muted);
-}
-
 async function build() {
-  const data = await load();
   const w = new ListWidget();
-  w.backgroundColor = COLORS.bg;
-  w.setPadding(12, 12, 12, 12);
+  w.backgroundColor = C.bg;
+  w.setPadding(14, 14, 14, 14);
   w.refreshAfterDate = new Date(Date.now() + 15 * 60000);
 
-  const head = w.addStack();
-  head.centerAlignContent();
-  text(head, "EcoPulse", 12, COLORS.primary, "bold");
-  head.addSpacer();
-  text(head, `${data.quakes.count24h} sismos 24 h`, 10, COLORS.muted);
-  w.addSpacer(8);
+  let data;
+  try {
+    data = await load();
+  } catch (e) {
+    addText(w, "EcoPulse", Font.semiboldSystemFont(13), C.brand);
+    w.addSpacer();
+    addText(w, "Sin conexión", Font.semiboldSystemFont(17), C.text);
+    addText(w, "Se reintentará pronto", Font.systemFont(12), C.muted);
+    return w;
+  }
 
-  const main = data.quakes.nearest || data.quakes.strongest;
-  if (main) {
-    quakeBlock(w, main, data.quakes.nearest ? "MÁS CERCANO" : "MÁS FUERTE 24 H");
-    w.url = main.url;
-  } else {
-    text(w, "Sin sismos en 24 h", 13, COLORS.muted);
+  const q = data.quakes.nearest || data.quakes.strongest;
+  if (!q) {
+    addText(w, "EcoPulse", Font.semiboldSystemFont(13), C.brand);
+    w.addSpacer();
+    addText(w, "Sin sismos", Font.semiboldSystemFont(20), C.text);
+    addText(w, "en las últimas 24 h", Font.systemFont(12), C.muted);
     w.url = data.url;
+    return w;
   }
+  w.url = q.url;
 
-  if (config.widgetFamily !== "small") {
-    w.addSpacer(8);
-    const row = w.addStack();
-    const items = [
-      ...data.cyclones.map((c) => ({ label: `${c.name} (${c.category})`, color: c.color })),
-      ...data.eruptions.map((v) => ({ label: `Erupción: ${v.name}`, color: v.color })),
-      ...data.alerts.map((a) => ({ label: `${a.name}`, color: a.color })),
-    ].slice(0, 2);
-    if (!items.length) text(row, `${data.quakes.countM5} sismos M ≥ 5 · sin alertas activas`, 11, COLORS.muted);
-    const col = row.addStack();
-    col.layoutVertically();
-    for (const it of items) {
-      const line = col.addStack();
-      line.centerAlignContent();
-      const dot = line.addStack();
-      dot.size = new Size(8, 8);
-      dot.cornerRadius = 4;
-      dot.backgroundColor = new Color(it.color);
-      line.addSpacer(6);
-      text(line, it.label, 11, COLORS.text);
-    }
-  }
+  const img = w.addImage(ring(q.mag, new Color(q.color)));
+  img.imageSize = new Size(62, 62);
   w.addSpacer();
+
+  const label = data.quakes.nearest ? `Más cercano · ${q.distanceKm} km` : "Sismo más fuerte";
+  addText(w, label, Font.mediumSystemFont(12), C.muted);
+  addText(w, cleanPlace(q.place), Font.semiboldSystemFont(16), C.text, 2);
+  w.addSpacer(2);
+  addText(w, `${ago(q.time)} · ${q.depthKm} km prof.`, Font.systemFont(11), C.muted);
   return w;
 }
 
 const widget = await build();
 if (config.runsInWidget) Script.setWidget(widget);
-else await widget.presentMedium();
+else await widget.presentSmall();
 Script.complete();

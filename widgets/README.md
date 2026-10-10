@@ -15,7 +15,7 @@ que se actualiza cada 5 minutos:
 2. Pega el contenido de [`scriptable/EcoPulse.js`](scriptable/EcoPulse.js) y nombra el script `EcoPulse`.
 3. Pulsa ▶ para probarlo. Debe mostrar la vista previa mediana.
 4. En la pantalla de inicio, mantén pulsado, pulsa **+**, elige **Scriptable** y el tamaño pequeño o mediano.
-5. Mantén pulsado el widget, pulsa **Editar widget** y en **Script** elige `EcoPulse`.
+5. Elige el tamaño **pequeño** (cuadrado). Mantén pulsado el widget, pulsa **Editar widget** y en **Script** elige `EcoPulse`.
 6. Opcional: en **Parameter** escribe `cerca` para ver el sismo más cercano a tu ubicación.
 7. Al tocar el widget se abre EcoPulse en ese evento.
 
