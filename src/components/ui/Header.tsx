@@ -38,7 +38,7 @@ function ModeToggle({ mode, onChange, label }: { mode: MapMode; onChange: (m: Ma
           aria-checked={mode === m}
           onClick={() => onChange(m)}
           className={cn(
-            "grid min-w-[44px] place-items-center rounded-ds-full px-3 text-[13px] font-medium uppercase transition-colors duration-ds-fast",
+            "grid min-w-9 place-items-center rounded-ds-full px-2 text-[13px] sm:min-w-[44px] sm:px-3 font-medium uppercase transition-colors duration-ds-fast",
             mode === m
               ? "bg-ds-secondary-container text-ds-secondary-on-container"
               : "text-ds-text-secondary hover:bg-ds-hover hover:text-ds-text-primary"
@@ -191,11 +191,11 @@ export default function Header({
   return (
     <header className="relative z-30 flex w-full shrink-0 flex-wrap items-center gap-x-2 gap-y-2 border-b border-ds-outline-variant bg-ds-canvas px-3 py-2 pt-[max(0.5rem,env(safe-area-inset-top))] sm:gap-x-3 sm:px-4 md:h-16 md:flex-nowrap md:py-0">
       {/* Marca: logo circular + nombre + tag "En vivo", como "Google Weather Lab · Experimental". */}
-      <div className="flex min-w-0 shrink-0 items-center gap-3">
+      <div className="flex min-w-0 shrink-0 items-center gap-2 min-[431px]:gap-3">
         <span className="grid h-10 w-10 shrink-0 place-items-center rounded-ds-full border-2 border-ds-primary/60 text-ds-primary">
           <MorphIcon icon={Activity} size={20} strokeWidth={2.25} reducedMotion="user" />
         </span>
-        <h1 className="hidden text-xl font-normal tracking-tight text-ds-text-primary min-[400px]:block">
+        <h1 className="hidden text-xl font-normal tracking-tight text-ds-text-primary min-[431px]:block">
           {tApp("title")}
         </h1>
         <span
@@ -223,7 +223,7 @@ export default function Header({
         />
       </div>
 
-      <div className="ml-auto flex shrink-0 items-center gap-1 sm:gap-2 md:ml-0">
+      <div className="ml-auto flex shrink-0 items-center gap-0 sm:gap-2 md:ml-0">
         <IconButton
           aria-label={tSearch("toggle")}
           selected={searchOpen}

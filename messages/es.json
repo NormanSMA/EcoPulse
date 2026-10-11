@@ -85,7 +85,17 @@
     "live": "En vivo",
     "playback": "Reproducir",
     "window": "Ventana temporal",
-    "weekNote": "Sismos: últimos 7 días"
+    "weekNote": "Sismos: últimos 7 días",
+    "lastHours": "Últimas {n} h",
+    "lastDays": "Últimos {n} días",
+    "summary": "{label} · {count, plural, one {# sismo} other {# sismos}} · M máx {max}",
+    "speed": "Velocidad de reproducción",
+    "seek": "Posición de la reproducción",
+    "since": "Desde {day}",
+    "from": "Desde",
+    "today": "Hoy",
+    "yesterday": "Ayer",
+    "loading": "Cargando…"
   },
   "events": {
     "title": "Eventos recientes",

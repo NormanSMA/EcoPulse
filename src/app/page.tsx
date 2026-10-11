@@ -36,9 +36,10 @@ const MapContainer = dynamic(() => import("@/components/map/MapContainer"), { ss
 const GlobeContainer = dynamic(() => import("@/components/map/GlobeContainer"), { ssr: false, loading: () => MAP_LOADING });
 
 const HOUR_MS = 3_600_000;
-const WINDOW_MS: Record<TimeWindow, number | null> = { live: null, "1h": HOUR_MS, "6h": 6 * HOUR_MS, "24h": 24 * HOUR_MS, "7d": 7 * 24 * HOUR_MS };
+const WINDOW_MS: Record<Exclude<TimeWindow, "custom">, number | null> = { live: null, "1h": HOUR_MS, "6h": 6 * HOUR_MS, "24h": 24 * HOUR_MS, "7d": 7 * 24 * HOUR_MS };
 const PLAYBACK_DURATION_MS = 20_000;
 const PLAYBACK_TICK_MS = 100;
+const SPEEDS = [1, 2, 4];
 const LG_QUERY = "(min-width: 1024px)";
 
 // Por defecto solo lo más relevante (sin sobrecargar el mapa).
@@ -90,8 +91,10 @@ function HomePageContent() {
   const [selection, setSelection] = useState<Selection | null>(null);
   const [focus, setFocus] = useState<{ lng: number; lat: number; key: number } | null>(null);
 
+  // Dia elegido en "Desde" (inicio local, ms). Se carga la semana si pasa de 24 h.
+  const [customStart, setCustomStart] = useState<number | null>(null);
   const live = useLiveData({
-    needWeek: timeWindow === "7d",
+    needWeek: timeWindow === "7d" || (timeWindow === "custom" && customStart != null && customStart < Date.now() - WINDOW_MS["24h"]!),
     needAir: visibility.airQuality,
     needCatalog: visibility.volcanoCatalog,
     needRadar: visibility.radar,
@@ -125,16 +128,17 @@ function HomePageContent() {
   }, []);
 
   const [playhead, setPlayhead] = useState<number | null>(null);
-  const windowMs = WINDOW_MS[timeWindow];
-  const span = windowMs ?? WINDOW_MS["24h"]!;
+  const [speed, setSpeed] = useState(1);
+  const windowMs = timeWindow === "custom" ? now - (customStart ?? now) : WINDOW_MS[timeWindow];
+  const span = Math.max(windowMs ?? WINDOW_MS["24h"]!, HOUR_MS / 4);
 
   useEffect(() => {
     if (!playing) return;
-    const step = (span * PLAYBACK_TICK_MS) / PLAYBACK_DURATION_MS;
+    const step = (span * PLAYBACK_TICK_MS * speed) / PLAYBACK_DURATION_MS;
     setPlayhead((p) => p ?? Date.now() - span);
     const id = setInterval(() => setPlayhead((p) => (p ?? Date.now() - span) + step), PLAYBACK_TICK_MS);
     return () => clearInterval(id);
-  }, [playing, span]);
+  }, [playing, span, speed]);
 
   useEffect(() => {
     if (playhead != null && playhead >= Date.now()) {
@@ -149,15 +153,33 @@ function HomePageContent() {
     setPlayhead(null);
   }, []);
 
+  const pickDay = useCallback((startMs: number) => {
+    setNow(Date.now());
+    setCustomStart(startMs);
+    setTimeWindow("custom");
+    setPlaying(false);
+    setPlayhead(null);
+  }, []);
+
+  // Arrastre de la barra: mueve el cursor aunque esté en pausa.
+  const seek = useCallback(
+    (fraction: number) => {
+      setPlayhead(Math.min(Date.now() - 1, Date.now() - span + fraction * span));
+    },
+    [span]
+  );
+  const cycleSpeed = useCallback(() => setSpeed((s) => SPEEDS[(SPEEDS.indexOf(s) + 1) % SPEEDS.length]), []);
+
   const refTime = playhead ?? now;
-  const rangeStart = windowMs != null || playhead != null ? now - span : -Infinity;
+  const rangeStart = timeWindow === "custom" && customStart != null ? customStart : windowMs != null || playhead != null ? now - span : -Infinity;
   const rangeEnd = playhead ?? Infinity;
   const playProgress = playhead != null ? (playhead - (now - span)) / span : null;
+  const usesWeek = timeWindow === "7d" || timeWindow === "custom";
 
   // ---------- Datos filtrados por tiempo (idénticos para 2D y 3D) ----------
   const data: MapData = useMemo(() => {
     const inRange = (ts: number) => ts >= rangeStart && ts <= rangeEnd;
-    const quakes = timeWindow === "7d" && live.weekQuakes ? live.weekQuakes : live.earthquakes;
+    const quakes = usesWeek && live.weekQuakes ? live.weekQuakes : live.earthquakes;
     // Un ciclón con trayectoria visible no se repite como icono de desastre.
     const tracked = new Set(visibility.cyclones ? live.cyclones.features.map((f) => f.properties.eventId) : []);
     return {
@@ -185,7 +207,21 @@ function HomePageContent() {
         },
       },
     };
-  }, [live, timeWindow, rangeStart, rangeEnd, visibility.cyclones, tPlates]);
+  }, [live, usesWeek, rangeStart, rangeEnd, visibility.cyclones, tPlates]);
+
+  // Resumen del periodo con los sismos ya filtrados (hasta el playhead).
+  const summary = useMemo(() => {
+    const label = timeWindow === "custom" && customStart != null
+      ? tTime("since", { day: new Date(customStart).toLocaleDateString(locale, { weekday: "short", day: "numeric", month: "short" }) })
+      : windowMs == null || timeWindow === "24h" ? tTime("lastHours", { n: 24 }) : timeWindow === "7d" ? tTime("lastDays", { n: 7 }) : tTime("lastHours", { n: parseInt(timeWindow, 10) });
+    if (timeWindow === "live" && playhead == null) return label;
+    // La semana de sismos aún se descarga: no mostrar "0 sismos".
+    if (usesWeek && !live.weekQuakes) return `${label} · ${tTime("loading")}`;
+    const mags = data.earthquakes.features.map((f) => f.properties.mag).filter((m): m is number => typeof m === "number");
+    if (mags.length === 0) return tTime("summary", { label, count: 0, max: "-" });
+    const max = new Intl.NumberFormat(locale, { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(Math.max(...mags));
+    return tTime("summary", { label, count: mags.length, max });
+  }, [data.earthquakes, timeWindow, customStart, windowMs, playhead, tTime, locale, usesWeek, live.weekQuakes]);
 
   const radarTiles = visibility.radar ? radarFrameAt(live.radar, refTime)?.tiles ?? null : null;
   const feedStatus = useFreshness(live.earthquakes.metadata.generated || null);
@@ -362,6 +398,17 @@ function HomePageContent() {
             locale={locale}
             playhead={playhead}
             playProgress={playProgress}
+            summary={summary}
+            onSeek={seek}
+            speed={speed}
+            onCycleSpeed={cycleSpeed}
+            speedLabel={tTime("speed")}
+            seekLabel={tTime("seek")}
+            customStart={customStart}
+            onCustomStart={pickDay}
+            fromLabel={tTime("from")}
+            todayLabel={tTime("today")}
+            yesterdayLabel={tTime("yesterday")}
             note={timeWindow === "7d" ? tTime("weekNote") : undefined}
             className="pointer-events-auto w-full"
           />

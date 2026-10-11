@@ -85,7 +85,17 @@
     "live": "Live",
     "playback": "Playback",
     "window": "Time window",
-    "weekNote": "Earthquakes: last 7 days"
+    "weekNote": "Earthquakes: last 7 days",
+    "lastHours": "Last {n} h",
+    "lastDays": "Last {n} days",
+    "summary": "{label} · {count, plural, one {# earthquake} other {# earthquakes}} · max M {max}",
+    "speed": "Playback speed",
+    "seek": "Playback position",
+    "since": "Since {day}",
+    "from": "From",
+    "today": "Today",
+    "yesterday": "Yesterday",
+    "loading": "Loading…"
   },
   "events": {
     "title": "Recent events",
