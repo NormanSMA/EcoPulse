@@ -11,6 +11,10 @@ import { collectCandidateEvents, matchesPrefs, normalizePrefs, textFor, type Pus
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
+// Fuentes externas y servicios push lentos no deben agotar los 60 s de la funcion.
+const UPSTREAM_TIMEOUT_MS = 20_000;
+const PUSH_TIMEOUT_MS = 15_000;
+
 const NO_STORE = { "Cache-Control": "no-store" };
 const SENT_RETENTION_MS = 14 * 24 * 3_600_000;
 
@@ -41,13 +45,14 @@ async function handle(request: Request) {
     webpush.setVapidDetails(subject, publicKey, privateKey);
     const db = getSupabaseAdmin();
     const now = Date.now();
+    const signal = AbortSignal.timeout(UPSTREAM_TIMEOUT_MS);
     const appUrl = process.env.APP_URL || new URL(request.url).origin;
 
     const [quakes, cyclones, volcanoes, disasters] = await Promise.all([
-      fetchMergedEarthquakes("day"),
-      fetchActiveCyclones(),
-      fetchActiveVolcanoes(),
-      fetchLiveDisasters(),
+      fetchMergedEarthquakes("day", signal),
+      fetchActiveCyclones(signal),
+      fetchActiveVolcanoes(signal),
+      fetchLiveDisasters(signal),
     ]);
     const candidates = collectCandidateEvents(
       {
@@ -103,6 +108,7 @@ async function handle(request: Request) {
           webpush
             .sendNotification({ endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } }, payload, {
               TTL: 3600,
+              timeout: PUSH_TIMEOUT_MS,
               urgency: (ev.magnitude ?? 0) >= 7 ? "high" : "normal",
             })
             .then(() => {

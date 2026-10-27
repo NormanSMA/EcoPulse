@@ -16,6 +16,10 @@ import { processEarthquakeAlerts, processAirQualityAlerts } from "@/lib/discordA
 // serverless a los 10s por defecto.
 export const maxDuration = 60;
 
+// Una fuente externa lenta no debe agotar los 60 s de la funcion: cada una
+// devuelve su respaldo vacio al cumplirse este limite.
+const UPSTREAM_TIMEOUT_MS = 20_000;
+
 export async function GET(request: Request) {
   if (!isIngestAuthorized(request, process.env.INGEST_SECRET)) {
     return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
@@ -23,19 +27,20 @@ export async function GET(request: Request) {
 
   try {
     const supabaseAdmin = getSupabaseAdmin();
+    const signal = AbortSignal.timeout(UPSTREAM_TIMEOUT_MS);
 
     // Las 8 fuentes externas son independientes entre si: se piden en
     // paralelo en vez de una por una.
     const [earthquakes, airQuality, fires, weather, disasters, iss, volcanoes, airQualityModel] =
       await Promise.all([
-        fetchLiveEarthquakes(),
-        fetchLiveAirQuality(),
-        fetchLiveFires(),
-        fetchLiveWeather(),
-        fetchLiveDisasters(),
-        fetchLiveIssPosition(),
-        fetchVolcanoes(),
-        fetchModeledAirQuality(),
+        fetchLiveEarthquakes(signal),
+        fetchLiveAirQuality(signal),
+        fetchLiveFires(signal),
+        fetchLiveWeather(signal),
+        fetchLiveDisasters(signal),
+        fetchLiveIssPosition(signal),
+        fetchVolcanoes(signal),
+        fetchModeledAirQuality(signal),
       ]);
 
     const earthquakeRows = earthquakes.features.map(toEarthquakeRow);
