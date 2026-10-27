@@ -9,7 +9,7 @@ import { PlaceSearch } from "@/components/ui/PlaceSearch";
 import AlertsPanel from "@/components/ui/AlertsPanel";
 import { usePushAlerts } from "@/lib/usePushAlerts";
 import type { GeocodeResult } from "@/lib/pointInfo";
-import type { Theme } from "@/design-system/hooks";
+import { useMediaQuery, type Theme } from "@/design-system/hooks";
 import { useLocale, type Locale } from "@/design-system/i18n/I18nProvider";
 import { BASEMAP_ORDER, type Basemap } from "@/lib/mapStyles";
 import { cn } from "@/design-system/utils/cn";
@@ -29,13 +29,27 @@ interface HeaderProps {
 /** Selector segmentado 2D / 3D (segmented button Material 3). */
 function ModeToggle({ mode, onChange, label }: { mode: MapMode; onChange: (m: MapMode) => void; label: string }) {
   return (
-    <div role="radiogroup" aria-label={label} className="flex h-10 shrink-0 rounded-ds-full border border-ds-outline p-0.5">
+    <div
+      role="radiogroup"
+      aria-label={label}
+      onKeyDown={(e) => {
+        if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+        e.preventDefault();
+        const radios = Array.from(e.currentTarget.querySelectorAll<HTMLButtonElement>('[role="radio"]'));
+        const index = radios.findIndex((radio) => radio === e.target);
+        const next = radios[(index + (e.key === "ArrowRight" ? 1 : -1) + radios.length) % radios.length];
+        next?.focus();
+        next?.click();
+      }}
+      className="flex h-10 shrink-0 rounded-ds-full border border-ds-outline p-0.5"
+    >
       {(["2d", "3d"] as const).map((m) => (
         <button
           key={m}
           type="button"
           role="radio"
           aria-checked={mode === m}
+          tabIndex={mode === m ? 0 : -1}
           onClick={() => onChange(m)}
           className={cn(
             "grid min-w-9 place-items-center rounded-ds-full px-2 text-[13px] sm:min-w-[44px] sm:px-3 font-medium uppercase transition-colors duration-ds-fast",
@@ -118,29 +132,56 @@ function BasemapMenu({ value, onChange, disabled }: { value: Basemap; onChange: 
 /** Campana de alertas push: popover en escritorio, hoja inferior en móvil. */
 function AlertsMenu({ locale }: { locale: Locale }) {
   const t = useTranslations("alerts");
+  const tPanel = useTranslations("panel");
   const push = usePushAlerts(locale);
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const mobile = useMediaQuery("(max-width: 767px)");
 
   useEffect(() => {
     if (!open) return;
+    const trigger = triggerRef.current;
+    const dialog = dialogRef.current;
+    const focusable = () => Array.from(dialog?.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), a[href], [tabindex="0"]') ?? [])
+      .filter((element) => element.getClientRects().length > 0);
+    (focusable()[0] ?? dialog)?.focus();
     function onDown(e: PointerEvent) {
       if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
     }
     function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") setOpen(false);
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setOpen(false);
+      }
+      if (!mobile || e.key !== "Tab") return;
+      const items = focusable();
+      const first = items[0];
+      const last = items[items.length - 1];
+      if (!first || !dialog?.contains(document.activeElement) || (e.shiftKey ? document.activeElement === first : document.activeElement === last)) {
+        e.preventDefault();
+        (e.shiftKey ? last ?? dialog : first ?? dialog)?.focus();
+      }
+    }
+    function onFocus(e: FocusEvent) {
+      if (mobile && !dialog?.contains(e.target as Node)) (focusable()[0] ?? dialog)?.focus();
     }
     window.addEventListener("pointerdown", onDown);
     window.addEventListener("keydown", onKey);
+    document.addEventListener("focusin", onFocus);
     return () => {
       window.removeEventListener("pointerdown", onDown);
       window.removeEventListener("keydown", onKey);
+      document.removeEventListener("focusin", onFocus);
+      trigger?.focus();
     };
-  }, [open]);
+  }, [open, mobile]);
 
   return (
     <div ref={rootRef} className="md:relative">
       <IconButton
+        ref={triggerRef}
         aria-label={t("title")}
         aria-haspopup="dialog"
         aria-expanded={open}
@@ -153,11 +194,19 @@ function AlertsMenu({ locale }: { locale: Locale }) {
         <>
           <div className="fixed inset-0 z-40 animate-ds-fade-in bg-ds-scrim md:hidden" aria-hidden="true" />
           <div
+            ref={dialogRef}
             role="dialog"
+            aria-modal={mobile || undefined}
             aria-label={t("title")}
+            tabIndex={-1}
             className="fixed inset-x-0 bottom-0 z-50 max-h-[85dvh] animate-ds-sheet-in overflow-y-auto rounded-t-ds-sheet bg-ds-surface-container pb-[env(safe-area-inset-bottom)] shadow-ds-3 md:absolute md:inset-x-auto md:bottom-auto md:right-0 md:top-12 md:max-h-[80dvh] md:w-[340px] md:origin-top-right md:animate-ds-pop-in md:rounded-ds-xl md:border md:border-ds-outline-variant md:pb-0"
           >
-            <p className="px-4 pt-4 text-base font-medium text-ds-text-primary">{t("title")}</p>
+            <div className="flex items-center justify-between px-4 pt-4">
+              <p className="text-base font-medium text-ds-text-primary">{t("title")}</p>
+              <IconButton aria-label={tPanel("close")} onClick={() => setOpen(false)}>
+                <MorphIcon icon={X} size={20} reducedMotion="user" />
+              </IconButton>
+            </div>
             <AlertsPanel push={push} />
           </div>
         </>

@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import * as Cesium from "cesium";
+import { useTranslations } from "next-intl";
 import "cesium/Build/Cesium/Widgets/widgets.css";
 import { dedupeByKey } from "@/lib/ingest";
 import { DEFAULT_MAP_VIEW, altitudeToZoom, zoomToAltitude } from "@/lib/mapView";
@@ -64,6 +65,7 @@ const LABEL_FONT = "600 12px 'Google Sans Flex', Roboto, sans-serif";
 
 export default function GlobeContainer(props: GlobeContainerProps) {
   const { data, visibility, refTime, radarTiles, selectedPoint, focus, theme, initialView = DEFAULT_MAP_VIEW } = props;
+  const tGlobe = useTranslations("globe");
   const containerRef = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<Cesium.Viewer | null>(null);
   const propsRef = useRef(props);
@@ -80,6 +82,8 @@ export default function GlobeContainer(props: GlobeContainerProps) {
   const horizonDirtyRef = useRef(true);
   const pointsRef = useRef<Record<string, Cesium.PointPrimitiveCollection>>({});
   const radarLayerRef = useRef<Cesium.ImageryLayer | null>(null);
+  const retryBaseRef = useRef<() => void>(() => {});
+  const [baseError, setBaseError] = useState(false);
 
   // 1. Inicialización única del Viewer.
   useEffect(() => {
@@ -114,17 +118,35 @@ export default function GlobeContainer(props: GlobeContainerProps) {
     viewer.clock.currentTime = Cesium.JulianDate.fromDate(new Date(propsRef.current.refTime));
     // Los créditos de Cesium Ion se dejan visibles: lo exigen sus términos.
 
-    Cesium.createWorldTerrainAsync()
-      .then((terrain) => {
-        if (!viewer.isDestroyed()) viewer.scene.terrainProvider = terrain;
-      })
-      .catch((err) => console.error("Error cargando terreno de Cesium Ion:", err));
-    Cesium.createWorldImageryAsync()
-      .then((imagery) => {
-        // Índice 0: la imagería base siempre queda debajo del radar.
-        if (!viewer.isDestroyed()) viewer.imageryLayers.addImageryProvider(imagery, 0);
-      })
-      .catch((err) => console.error("Error cargando imagería de Cesium Ion:", err));
+    // Terreno e imagería se cargan por separado; cada fallo se registra y
+    // se avisa en pantalla, y el reintento repite solo lo que falló.
+    const failed = new Set<string>();
+    const loadBase = (what: "terrain" | "imagery") => {
+      const task =
+        what === "terrain"
+          ? Cesium.createWorldTerrainAsync().then((terrain) => {
+              if (!viewer.isDestroyed()) viewer.scene.terrainProvider = terrain;
+            })
+          : Cesium.createWorldImageryAsync().then((imagery) => {
+              // Índice 0: la imagería base siempre queda debajo del radar.
+              if (!viewer.isDestroyed()) viewer.imageryLayers.addImageryProvider(imagery, 0);
+            });
+      task
+        .then(() => {
+          failed.delete(what);
+          if (!viewer.isDestroyed()) setBaseError(failed.size > 0);
+        })
+        .catch((err) => {
+          console.error(`Error cargando ${what} de Cesium Ion:`, err);
+          failed.add(what);
+          if (!viewer.isDestroyed()) setBaseError(true);
+        });
+    };
+    retryBaseRef.current = () => {
+      for (const what of [...failed] as ("terrain" | "imagery")[]) loadBase(what);
+    };
+    loadBase("terrain");
+    loadBase("imagery");
 
     for (const key of ["air", "fires", "quakes", "volcanoCatalog"]) {
       pointsRef.current[key] = viewer.scene.primitives.add(new Cesium.PointPrimitiveCollection());
@@ -286,7 +308,8 @@ export default function GlobeContainer(props: GlobeContainerProps) {
   useEffect(() => {
     const viewer = viewerRef.current;
     if (!viewer || !focus) return;
-    viewer.camera.flyTo({ destination: Cesium.Cartesian3.fromDegrees(focus.lng, focus.lat, 2500000), duration: 1.5 });
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    viewer.camera.flyTo({ destination: Cesium.Cartesian3.fromDegrees(focus.lng, focus.lat, 2500000), duration: reduceMotion ? 0 : 1.5 });
   }, [focus]);
 
   // 2. Color de fondo según tema.
@@ -623,6 +646,17 @@ export default function GlobeContainer(props: GlobeContainerProps) {
   return (
     <div className="relative h-full w-full">
       <div ref={containerRef} className="h-full w-full" />
+      {baseError && (
+        <div
+          role="status"
+          className="absolute bottom-4 left-1/2 z-10 flex -translate-x-1/2 items-center gap-3 rounded-lg bg-black/70 px-3 py-2 text-sm text-white"
+        >
+          <span>{tGlobe("baseError")}</span>
+          <button type="button" onClick={() => retryBaseRef.current()} className="rounded px-2 py-0.5 font-semibold underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-white">
+            {tGlobe("retry")}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

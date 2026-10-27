@@ -280,11 +280,24 @@ export function TimeControl({
             value={Math.round(Math.min(1, Math.max(0, playProgress ?? 1)) * 1000)}
             onChange={(e) => onSeek(Number(e.target.value) / 1000)}
             aria-label={seekLabel}
-            className="h-5 w-full cursor-pointer accent-[var(--ds-highlight,currentColor)]"
+            className="h-5 w-full cursor-pointer accent-[rgb(var(--ds-highlight))]"
           />
         )}
 
-        <div role="radiogroup" aria-label={windowLabel} className="relative">
+        <div
+          role="radiogroup"
+          aria-label={windowLabel}
+          onKeyDown={(e) => {
+            if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+            e.preventDefault();
+            const radios = Array.from(e.currentTarget.querySelectorAll<HTMLButtonElement>('[role="radio"]'));
+            const index = radios.findIndex((radio) => radio === e.target);
+            const next = radios[(index + (e.key === "ArrowRight" ? 1 : -1) + radios.length) % radios.length];
+            next?.focus();
+            next?.click();
+          }}
+          className="relative"
+        >
           {/* Pista + progreso */}
           <div className="absolute left-3 right-3 sm:left-4 sm:right-4 top-[9px] h-1 rounded-full bg-ds-surface-highest" aria-hidden="true">
             <div
@@ -303,6 +316,7 @@ export function TimeControl({
                   type="button"
                   role="radio"
                   aria-checked={active}
+                  tabIndex={active || (activeIndex < 0 && w === "live") ? 0 : -1}
                   onClick={() => onWindowChange(w)}
                   className="group flex w-6 flex-col items-center gap-1 sm:w-8"
                 >

@@ -12,7 +12,7 @@ import { NearbyEarthquakeRow } from "@/lib/types";
 
 const RADIUS_OPTIONS_KM = [50, 100, 250, 500] as const;
 
-type Status = "idle" | "locating" | "loading" | "error";
+type Status = "idle" | "locating" | "loading" | "done" | "error";
 
 export default function NearbySearch() {
   const t = useTranslations("nearby");
@@ -22,6 +22,7 @@ export default function NearbySearch() {
   const [results, setResults] = useState<NearbyEarthquakeRow[]>([]);
 
   function handleSearch() {
+    setResults([]);
     if (!navigator.geolocation) {
       setStatus("error");
       setErrorMessage(t("geoNotSupported"));
@@ -36,20 +37,20 @@ export default function NearbySearch() {
         setStatus("loading");
         const { latitude, longitude } = position.coords;
 
-        const { data, error } = await supabase.rpc("get_earthquakes_near", {
-          lat: latitude,
-          lon: longitude,
-          radius_meters: radiusKm * 1000,
-        });
-
-        if (error) {
+        try {
+          const { data, error } = await supabase.rpc("get_earthquakes_near", {
+            lat: latitude,
+            lon: longitude,
+            radius_meters: radiusKm * 1000,
+          });
+          if (error) throw error;
+          setResults((data ?? []) as NearbyEarthquakeRow[]);
+          setStatus("done");
+        } catch {
+          setResults([]);
           setStatus("error");
-          setErrorMessage(error.message);
-          return;
+          setErrorMessage(t("error"));
         }
-
-        setResults((data ?? []) as NearbyEarthquakeRow[]);
-        setStatus("idle");
       },
       () => {
         setStatus("error");
@@ -59,10 +60,30 @@ export default function NearbySearch() {
   }
 
   const busy = status === "locating" || status === "loading";
+  const statusMessage = {
+    idle: "",
+    locating: t("locating"),
+    loading: t("loading"),
+    error: errorMessage,
+    done: results.length === 0 ? t("noResults") : `${results.length} ${t("resultsFound")}`,
+  }[status];
 
   return (
     <div className="flex flex-col gap-3 px-3">
-      <div role="radiogroup" aria-label={t("radiusLabel")} className="flex flex-wrap items-center gap-2">
+      <div
+        role="radiogroup"
+        aria-label={t("radiusLabel")}
+        onKeyDown={(e) => {
+          if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+          e.preventDefault();
+          const radios = Array.from(e.currentTarget.querySelectorAll<HTMLButtonElement>('[role="radio"]'));
+          const index = radios.findIndex((radio) => radio === e.target);
+          const next = radios[(index + (e.key === "ArrowRight" ? 1 : -1) + radios.length) % radios.length];
+          next?.focus();
+          next?.click();
+        }}
+        className="flex flex-wrap items-center gap-2"
+      >
         <span className="mr-1 text-xs text-ds-text-secondary">{t("radiusLabel")}</span>
         {RADIUS_OPTIONS_KM.map((km) => {
           const active = km === radiusKm;
@@ -72,6 +93,7 @@ export default function NearbySearch() {
               type="button"
               role="radio"
               aria-checked={active}
+              tabIndex={active ? 0 : -1}
               onClick={() => setRadiusKm(km)}
               className={cn(
                 "inline-flex h-8 items-center gap-1 rounded-ds-md border px-3 text-[13px] font-medium transition-colors duration-ds-fast",
@@ -92,18 +114,21 @@ export default function NearbySearch() {
         {status === "locating" ? t("locating") : status === "loading" ? t("loading") : t("useLocation")}
       </Button>
 
-      {status === "error" && (
-        <div role="alert" className="flex items-start gap-2 rounded-ds-control bg-ds-error/10 px-3 py-2 text-xs text-ds-error">
-          <MorphIcon icon={AlertTriangle} size={16} reducedMotion="user" className="mt-px shrink-0" />
-          <span>{errorMessage}</span>
-        </div>
-      )}
+      <div role="status" aria-atomic="true" className={status === "idle" ? "sr-only" : undefined}>
+        {status === "error" ? (
+          <div className="flex items-start gap-2 rounded-ds-control bg-ds-error/10 px-3 py-2 text-xs text-ds-error">
+            <MorphIcon icon={AlertTriangle} size={16} reducedMotion="user" className="mt-px shrink-0" />
+            <span>{errorMessage}</span>
+          </div>
+        ) : (
+          <p className="text-xs text-ds-text-secondary">
+            {statusMessage}
+          </p>
+        )}
+      </div>
 
       {results.length > 0 && (
         <div className="flex flex-col gap-1">
-          <p className="text-xs text-ds-text-secondary">
-            {results.length} {t("resultsFound")}
-          </p>
           <ul className="flex max-h-48 flex-col gap-0.5 overflow-y-auto overscroll-contain">
             {results.map((eq) => (
               <li key={eq.id} className="flex items-center justify-between gap-3 rounded-ds-control px-3 py-2 hover:bg-ds-hover">

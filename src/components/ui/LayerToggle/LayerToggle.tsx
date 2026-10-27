@@ -27,6 +27,7 @@ export function Switch({
       onClick={() => onChange(!checked)}
       className={cn(
         "group relative inline-flex h-8 w-[52px] shrink-0 items-center rounded-ds-full border-2 transition-colors duration-ds-base ease-ds-standard",
+        "after:absolute after:left-1/2 after:top-1/2 after:h-full after:w-full after:min-h-11 after:min-w-11 after:-translate-x-1/2 after:-translate-y-1/2",
         "disabled:opacity-40 disabled:pointer-events-none",
         on ? "bg-ds-primary border-ds-primary" : "bg-ds-surface-highest border-ds-outline",
         className
@@ -34,11 +35,11 @@ export function Switch({
     >
       <span
         className={cn(
-          "absolute rounded-ds-full transition-all duration-ds-base ease-ds-out",
+          "absolute left-0.5 h-6 w-6 rounded-ds-full transition-transform duration-ds-base ease-ds-out",
           "before:absolute before:-inset-2 before:rounded-full before:bg-current before:opacity-0 group-hover:before:opacity-[0.08]",
           on
-            ? "left-[22px] h-6 w-6 bg-ds-primary-on text-ds-primary"
-            : "left-[6px] h-4 w-4 bg-ds-outline text-ds-text-primary"
+            ? "translate-x-5 bg-ds-primary-on text-ds-primary"
+            : "scale-[0.666667] bg-ds-outline text-ds-text-primary"
         )}
       />
     </button>
@@ -84,8 +85,8 @@ export function LayerToggle({ label, swatch, swatchRing, tag, checked, onChange,
   return (
     <label
       className={cn(
-        "relative flex min-h-11 cursor-pointer items-center gap-3 rounded-ds-control px-3 py-2",
-        "transition-colors duration-ds-fast hover:bg-ds-hover has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-ds-primary",
+        "relative flex min-h-11 min-w-11 cursor-pointer items-center gap-3 rounded-ds-control px-3 py-2",
+        "transition-colors duration-ds-fast hover:bg-ds-hover active:bg-ds-press has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-ds-primary",
         disabled && "opacity-40 cursor-not-allowed",
         className
       )}

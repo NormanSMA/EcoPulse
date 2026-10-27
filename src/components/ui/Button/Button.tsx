@@ -9,11 +9,14 @@ const stateLayer =
   "before:absolute before:inset-0 before:rounded-[inherit] before:bg-current before:opacity-0 " +
   "before:transition-opacity before:duration-ds-fast hover:before:opacity-[0.08] active:before:opacity-[0.12]";
 
+const touchTarget =
+  "after:absolute after:left-1/2 after:top-1/2 after:h-full after:w-full after:min-h-11 after:min-w-11 after:-translate-x-1/2 after:-translate-y-1/2";
+
 const buttonVariants = cva(
   "relative isolate inline-flex items-center justify-center gap-2 rounded-ds-full font-medium select-none whitespace-nowrap " +
     "transition-[background-color,color,box-shadow] duration-ds-fast ease-ds-standard " +
     "disabled:opacity-40 disabled:pointer-events-none " +
-    stateLayer,
+    stateLayer + " " + touchTarget,
   {
     variants: {
       variant: {
@@ -68,7 +71,7 @@ const iconButtonVariants = cva(
   "relative isolate inline-flex shrink-0 items-center justify-center rounded-ds-full select-none " +
     "transition-[background-color,color] duration-ds-fast ease-ds-standard " +
     "disabled:opacity-40 disabled:pointer-events-none " +
-    stateLayer,
+    stateLayer + " " + touchTarget,
   {
     variants: {
       variant: {

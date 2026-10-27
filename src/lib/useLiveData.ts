@@ -77,6 +77,7 @@ export function useLiveData({
   needTectonics: boolean;
 }) {
   const [earthquakes, setEarthquakes] = useState<EarthquakeGeoJSON>(EMPTY_QUAKES);
+  const [quakesStatus, setQuakesStatus] = useState<"loading" | "ready" | "error">("loading");
   const [weekQuakes, setWeekQuakes] = useState<EarthquakeGeoJSON | null>(null);
   const [airQuality, setAirQuality] = useState<AirQualityGeoJSON>(EMPTY as unknown as AirQualityGeoJSON);
   const [fires, setFires] = useState<FireGeoJSON>(EMPTY as unknown as FireGeoJSON);
@@ -90,7 +91,10 @@ export function useLiveData({
 
   usePolling(async (signal) => {
     const d = await getJson<EarthquakeGeoJSON>("/api/earthquakes", signal);
-    if (d) setEarthquakes(d);
+    if (d) {
+      setEarthquakes(d);
+      setQuakesStatus("ready");
+    } else if (!signal.aborted) setQuakesStatus("error");
   }, QUAKES_REFRESH_MS);
 
   usePolling(
@@ -167,7 +171,7 @@ export function useLiveData({
     needRadar
   );
 
-  return { earthquakes, weekQuakes, airQuality, fires, disasters, cyclones, volcanoes, volcanoCatalog, iss, radar, tectonics };
+  return { earthquakes, quakesStatus, weekQuakes, airQuality, fires, disasters, cyclones, volcanoes, volcanoCatalog, iss, radar, tectonics };
 }
 
 /** Cuadro de radar más cercano (sin pasarse) al instante de referencia. */

@@ -4,9 +4,12 @@ import type { IconNode } from "lucide";
 import { MorphIcon } from "morphicons/react";
 import { layers, type LayerKey } from "@/design-system/tokens";
 import { LayerToggle, Switch } from "@/components/ui/LayerToggle";
+import { cn } from "@/design-system/utils/cn";
 import { Section } from "@/components/ui/Section";
 import { Legend } from "@/components/ui/Legend";
 import NearbySearch from "@/components/ui/NearbySearch";
+
+export const MAG_STEPS = [0, 3, 4, 5, 6, 7] as const;
 
 export type LayerVisibility = Record<LayerKey, boolean>;
 
@@ -61,13 +64,16 @@ export interface ControlsPanelProps {
   onChange: (key: LayerKey, value: boolean) => void;
   /** La leyenda flotante ya se muestra aparte (xl+): se omite aquí. */
   showLegend?: boolean;
+  /** Magnitud mínima de los sismos mostrados (0 = todos). */
+  minMag: number;
+  onMinMagChange: (value: number) => void;
 }
 
 /**
  * Contenido del panel "Controles" (izquierda en escritorio, bottom sheet en
  * móvil): grupos de capas con switch maestro, leyenda y búsqueda cercana.
  */
-export default function ControlsPanel({ visibility, onChange, showLegend = true }: ControlsPanelProps) {
+export default function ControlsPanel({ visibility, onChange, showLegend = true, minMag, onMinMagChange }: ControlsPanelProps) {
   const t = useTranslations("layers");
   const tPanel = useTranslations("panel");
   const tNearby = useTranslations("nearby");
@@ -105,6 +111,29 @@ export default function ControlsPanel({ visibility, onChange, showLegend = true 
                 />
               ))}
             </div>
+            {group.id === "geo" && visibility.earthquakes && (
+              <div role="group" aria-label={t("minMag")} className="mt-2 flex flex-col gap-1.5 pl-4 pr-2">
+                <span className="text-xs text-ds-text-secondary">{t("minMag")}</span>
+                <div className="flex flex-wrap gap-1.5">
+                  {MAG_STEPS.map((m) => (
+                    <button
+                      key={m}
+                      type="button"
+                      aria-pressed={minMag === m}
+                      onClick={() => onMinMagChange(m)}
+                      className={cn(
+                        "h-8 min-w-11 rounded-ds-full border px-3 text-xs font-medium tabular-nums transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ds-primary",
+                        minMag === m
+                          ? "border-transparent bg-ds-secondary-container text-ds-text-primary"
+                          : "border-ds-outline text-ds-text-secondary hover:bg-ds-hover"
+                      )}
+                    >
+                      {m === 0 ? t("minMagAll") : `${m}+`}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </Section>
         );
       })}

@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useCallback, type CSSProperties, type ReactNode } from "react";
 import dynamic from "next/dynamic";
 import { useTranslations } from "next-intl";
-import { Inbox, SlidersHorizontal, X } from "lucide";
+import { ChevronDown, Clock, Inbox, SlidersHorizontal, X } from "lucide";
 import type { IconNode } from "lucide";
 import { MorphIcon } from "morphicons/react";
 import { I18nProvider, useLocale } from "@/design-system/i18n/I18nProvider";
@@ -41,6 +41,8 @@ const PLAYBACK_DURATION_MS = 20_000;
 const PLAYBACK_TICK_MS = 100;
 const SPEEDS = [1, 2, 4];
 const LG_QUERY = "(min-width: 1024px)";
+// Bajo xl los dos paneles flotantes (360 + 376 px) casi cubren el mapa.
+const XL_QUERY = "(min-width: 1280px)";
 
 // Por defecto solo lo más relevante (sin sobrecargar el mapa).
 const INITIAL_VISIBILITY: LayerVisibility = {
@@ -79,6 +81,7 @@ function HomePageContent() {
   const { locale } = useLocale();
 
   const [visibility, setVisibility] = useState<LayerVisibility>(INITIAL_VISIBILITY);
+  const [minMag, setMinMag] = useState(0);
   const [timeWindow, setTimeWindow] = useState<TimeWindow>("live");
   const [playing, setPlaying] = useState(false);
   const [mapMode, setMapMode] = useState<MapMode>("2d");
@@ -87,6 +90,7 @@ function HomePageContent() {
   const { basemap, setBasemap } = useBasemap(theme);
   const [controlsOpen, setControlsOpen] = useState(true);
   const [eventsOpen, setEventsOpen] = useState(true);
+  const [timeOpen, setTimeOpen] = useState(true);
   const [mobileSheet, setMobileSheet] = useState<"layers" | "events" | "detail" | null>(null);
   const [selection, setSelection] = useState<Selection | null>(null);
   const [focus, setFocus] = useState<{ lng: number; lat: number; key: number } | null>(null);
@@ -183,7 +187,10 @@ function HomePageContent() {
     // Un ciclón con trayectoria visible no se repite como icono de desastre.
     const tracked = new Set(visibility.cyclones ? live.cyclones.features.map((f) => f.properties.eventId) : []);
     return {
-      earthquakes: { ...quakes, features: quakes.features.filter((f) => inRange(f.properties.time)) },
+      earthquakes: {
+        ...quakes,
+        features: quakes.features.filter((f) => inRange(f.properties.time) && (minMag === 0 || (f.properties.mag ?? -1) >= minMag)),
+      },
       fires: { ...live.fires, features: live.fires.features.filter((f) => inRange(Date.parse(f.properties.acquiredAt))) },
       disasters: {
         ...live.disasters,
@@ -207,7 +214,7 @@ function HomePageContent() {
         },
       },
     };
-  }, [live, usesWeek, rangeStart, rangeEnd, visibility.cyclones, tPlates]);
+  }, [live, usesWeek, rangeStart, rangeEnd, visibility.cyclones, tPlates, minMag]);
 
   // Resumen del periodo con los sismos ya filtrados (hasta el playhead).
   const summary = useMemo(() => {
@@ -234,8 +241,24 @@ function HomePageContent() {
 
   const select = useCallback((s: Selection) => {
     setSelection(s);
-    if (window.matchMedia(LG_QUERY).matches) setEventsOpen(true);
-    else setMobileSheet("detail");
+    if (window.matchMedia(LG_QUERY).matches) {
+      setEventsOpen(true);
+      if (!window.matchMedia(XL_QUERY).matches) setControlsOpen(false);
+    } else setMobileSheet("detail");
+  }, []);
+
+  const openControls = useCallback(() => {
+    setControlsOpen(true);
+    if (!window.matchMedia(XL_QUERY).matches) setEventsOpen(false);
+  }, []);
+  const openEvents = useCallback(() => {
+    setEventsOpen(true);
+    if (!window.matchMedia(XL_QUERY).matches) setControlsOpen(false);
+  }, []);
+
+  // En pantallas medianas arranca solo el panel de eventos.
+  useEffect(() => {
+    if (!window.matchMedia(XL_QUERY).matches) setControlsOpen(false);
   }, []);
 
   const closeDetail = useCallback(() => {
@@ -296,7 +319,7 @@ function HomePageContent() {
   };
 
   const events = (className?: string) => (
-    <EventsPanel data={data} visibility={visibility} locale={locale} selected={selection} onPick={pickEvent} className={className} />
+    <EventsPanel data={data} visibility={visibility} locale={locale} selected={selection} onPick={pickEvent} loading={live.quakesStatus === "loading"} error={live.quakesStatus === "error"} className={className} />
   );
 
   // Desplazamientos de los controles nativos del mapa para no quedar bajo los paneles.
@@ -308,7 +331,7 @@ function HomePageContent() {
   // Los paneles de escritorio solo se montan en escritorio: ocultos por CSS
   // seguirían pidiendo datos del detalle y recalculando la lista de eventos.
   const floatingPanel =
-    "absolute bottom-[128px] top-4 z-10 hidden animate-ds-pop-in flex-col overflow-hidden rounded-ds-panel border border-ds-outline-variant bg-ds-panel shadow-ds-2 backdrop-blur-ds-panel lg:flex";
+    `absolute ${timeOpen ? "bottom-[128px]" : "bottom-[80px]"} top-4 z-10 hidden animate-ds-pop-in flex-col overflow-hidden rounded-ds-panel border border-ds-outline-variant bg-ds-panel shadow-ds-2 backdrop-blur-ds-panel lg:flex`;
 
   return (
     <main className="relative flex h-dvh w-full flex-col overflow-hidden bg-ds-canvas">
@@ -326,7 +349,8 @@ function HomePageContent() {
         style={stageStyle}
         className={cn(
           "ep-map-stage relative min-h-0 flex-1 overflow-hidden",
-          "[--ep-inset-bottom:172px] [--ep-inset-left:12px] [--ep-inset-right:12px] [--ep-inset-top:12px]",
+          timeOpen ? "[--ep-inset-bottom:172px]" : "[--ep-inset-bottom:72px]",
+          "[--ep-inset-left:12px] [--ep-inset-right:12px] [--ep-inset-top:12px]",
           "lg:[--ep-inset-bottom:16px] lg:[--ep-inset-left:16px] lg:[--ep-inset-right:var(--ep-inset-right-lg)] lg:[--ep-inset-top:var(--ep-inset-top-lg)]"
         )}
       >
@@ -343,11 +367,11 @@ function HomePageContent() {
           <aside aria-label={tPanel("controls")} className={cn(floatingPanel, "left-4 w-[360px]")}>
             <PanelHeader title={tPanel("controls")} icon={SlidersHorizontal} onClose={() => setControlsOpen(false)} closeLabel={tPanel("close")} />
             <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain py-2">
-              <ControlsPanel visibility={visibility} onChange={setLayer} />
+              <ControlsPanel visibility={visibility} onChange={setLayer} minMag={minMag} onMinMagChange={setMinMag} />
             </div>
           </aside>
         ) : (
-          <Button variant="elevated" size="lg" onClick={() => setControlsOpen(true)} className="absolute left-4 top-4 z-10 hidden lg:inline-flex">
+          <Button variant="elevated" size="lg" onClick={openControls} className="absolute left-4 top-4 z-10 hidden lg:inline-flex">
             <MorphIcon icon={SlidersHorizontal} size={20} reducedMotion="user" />
             {tPanel("controls")}
           </Button>
@@ -366,7 +390,7 @@ function HomePageContent() {
             )}
           </aside>
         ) : (
-          <Button variant="elevated" size="lg" onClick={() => setEventsOpen(true)} className="absolute right-4 top-4 z-10 hidden lg:inline-flex">
+          <Button variant="elevated" size="lg" onClick={openEvents} className="absolute right-4 top-4 z-10 hidden lg:inline-flex">
             <MorphIcon icon={Inbox} size={20} reducedMotion="user" />
             {t("title")}
           </Button>
@@ -375,18 +399,42 @@ function HomePageContent() {
         {/* ---------- Fila inferior: accesos móviles + timeline + leyenda ---------- */}
         <div className="pointer-events-none absolute inset-x-3 bottom-3 z-10 flex flex-col gap-2 pb-[env(safe-area-inset-bottom)] lg:inset-x-4 lg:bottom-4 lg:grid lg:grid-cols-[1fr_minmax(0,640px)_1fr] lg:items-end lg:gap-4">
           <div className="pointer-events-auto flex gap-2 lg:hidden">
-            <Button variant="elevated" onClick={() => setMobileSheet("layers")} className="flex-1 sm:flex-none">
+            <Button variant="elevated" onClick={() => setMobileSheet("layers")} className="min-w-0 flex-1 px-3 sm:flex-none">
               <MorphIcon icon={SlidersHorizontal} size={18} reducedMotion="user" />
               {tPanel("controls")}
             </Button>
-            <Button variant="elevated" onClick={() => setMobileSheet(selection ? "detail" : "events")} className="flex-1 sm:flex-none">
+            <Button variant="elevated" onClick={() => setMobileSheet(selection ? "detail" : "events")} className="min-w-0 flex-1 px-3 sm:flex-none">
               <MorphIcon icon={Inbox} size={18} reducedMotion="user" />
               {selection ? tPanel("detail") : t("title")}
             </Button>
+            {!timeOpen && (
+              <Button variant="elevated" onClick={() => setTimeOpen(true)} aria-label={tTime("show")} className="shrink-0">
+                <MorphIcon icon={Clock} size={18} reducedMotion="user" />
+              </Button>
+            )}
           </div>
 
           <span className="hidden lg:block" aria-hidden="true" />
 
+          {!timeOpen && (
+            <div className="pointer-events-auto hidden justify-self-center lg:block">
+              <Button variant="elevated" size="lg" onClick={() => setTimeOpen(true)}>
+                <MorphIcon icon={Clock} size={20} reducedMotion="user" />
+                {tTime("show")}
+              </Button>
+            </div>
+          )}
+
+          <div className={cn("pointer-events-auto relative w-full", !timeOpen && "hidden")}>
+          <button
+            type="button"
+            onClick={() => setTimeOpen(false)}
+            aria-label={tTime("hide")}
+            title={tTime("hide")}
+            className="absolute -top-3 left-1/2 z-10 grid h-7 w-12 -translate-x-1/2 place-items-center rounded-ds-full border border-ds-outline-variant bg-ds-panel text-ds-text-secondary shadow-ds-1 backdrop-blur-ds-panel hover:text-ds-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ds-primary"
+          >
+            <MorphIcon icon={ChevronDown} size={18} reducedMotion="user" />
+          </button>
           <TimeControl
             window={timeWindow}
             onWindowChange={changeWindow}
@@ -410,8 +458,9 @@ function HomePageContent() {
             todayLabel={tTime("today")}
             yesterdayLabel={tTime("yesterday")}
             note={timeWindow === "7d" ? tTime("weekNote") : undefined}
-            className="pointer-events-auto w-full"
+            className="w-full"
           />
+          </div>
 
           {/* Con el panel derecho abierto la leyenda flotante lo taparía: sigue
               disponible dentro de Controles. */}
@@ -451,7 +500,7 @@ function HomePageContent() {
                   <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain pb-[max(1rem,env(safe-area-inset-bottom))]">
                     {mobileSheet === "layers" ? (
                       <div className="py-2">
-                        <ControlsPanel visibility={visibility} onChange={setLayer} />
+                        <ControlsPanel visibility={visibility} onChange={setLayer} minMag={minMag} onMinMagChange={setMinMag} />
                       </div>
                     ) : (
                       events("min-h-[60vh] p-3")
