@@ -41,7 +41,10 @@ async function getJson<T>(url: string, signal: AbortSignal): Promise<T | null> {
     if (!res.ok) throw new Error(`${url} HTTP ${res.status}`);
     return (await res.json()) as T;
   } catch (err) {
-    if (!(err instanceof DOMException && err.name === "AbortError")) console.error("Error de datos:", err);
+    if (err instanceof DOMException && err.name === "AbortError") return null;
+    // Sin red o servidor reiniciando: se reintenta en el siguiente ciclo, no es un fallo de la app.
+    if (err instanceof TypeError) console.warn("Sin conexion con los datos, se reintenta:", url);
+    else console.error("Error de datos:", err);
     return null;
   }
 }
