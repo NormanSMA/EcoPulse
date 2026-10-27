@@ -1,4 +1,22 @@
 {
+  "mapKeyboard": {
+    "mapLabel": "Interactive map. Press Enter or Space to select the element nearest the center or the center point.",
+    "globeLabel": "Interactive globe. Press Enter or Space to select the element nearest the center or the center point.",
+    "selected": "Selected: {name}",
+    "kinds": {
+      "point": "center point",
+      "quake": "earthquake",
+      "fire": "fire",
+      "disaster": "disaster",
+      "cyclone": "cyclone",
+      "volcano": "volcano",
+      "volcanoCatalog": "catalog volcano",
+      "air": "air quality station",
+      "boundary": "plate boundary",
+      "plate": "tectonic plate",
+      "iss": "International Space Station"
+    }
+  },
   "app": {
     "title": "EcoPulse",
     "tagline": "Global Earthquake & Air Quality Monitor",

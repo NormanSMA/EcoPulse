@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 import maplibregl, {
   GeoJSONSource,
   Map as MapLibreMap,
@@ -16,6 +17,7 @@ import { layers, scales, marker, withAlpha, type LayerKey } from "@/design-syste
 import { registerMapIcons } from "@/lib/mapIcons";
 import { nightPolygon, footprintRing, unwrapLongitudes } from "@/lib/geoShapes";
 import type { Selection } from "@/lib/selection";
+import { resolveSelection } from "@/lib/resolveSelection";
 import type { MapViewProps } from "./types";
 
 interface MapContainerProps extends MapViewProps {
@@ -41,6 +43,7 @@ const LAYER_GROUPS: Record<LayerKey, string[]> = {
 // Margen de búsqueda alrededor de un toque o click que no cae justo en un elemento.
 const TOUCH_HIT_PX = 14;
 const MOUSE_HIT_PX = 4;
+const KEYBOARD_HIT_PX = 48;
 const INTERACTIVE = ["iss", "cyclone-position", "disasters", "volcanoes", "quakes", "quake-clusters", "fires", "volcano-catalog", "air-quality", "tectonic-plates", "tectonic-boundaries", "tectonic-boundaries-transform"];
 
 const EMPTY: GeoJSON.FeatureCollection = { type: "FeatureCollection", features: [] };
@@ -154,6 +157,15 @@ function toSelection(layerId: string, f: MapGeoJSONFeature): Selection | null {
 
 export default function MapContainer(props: MapContainerProps) {
   const { data, visibility, refTime, radarTiles, selectedPoint, focus, basemap, initialView = DEFAULT_MAP_VIEW } = props;
+  const tKeyboard = useTranslations("mapKeyboard");
+  const [announcement, setAnnouncement] = useState<{ selection: Selection; count: number } | null>(null);
+  const item = resolveSelection(announcement?.selection ?? null, data)?.item;
+  let selectionText = announcement ? tKeyboard(`kinds.${announcement.selection.kind}`) : "";
+  if (item && "f" in item) {
+    const properties = item.f.properties;
+    const text = "name" in properties ? properties.name : "place" in properties ? properties.place : "station" in properties ? properties.station : null;
+    if (text) selectionText = text;
+  } else if (item?.kind === "boundary") selectionText = item.plates;
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const isMapLoadedRef = useRef<boolean>(false);
@@ -611,6 +623,49 @@ export default function MapContainer(props: MapContainerProps) {
       map.getCanvas().style.cursor = hit ? "pointer" : "";
     });
 
+    const canvas = map.getCanvas();
+    canvas.tabIndex = 0;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.target !== canvas || (e.key !== "Enter" && e.key !== " ")) return;
+      e.preventDefault();
+      if (e.repeat || !isMapLoadedRef.current) return;
+      const center = new maplibregl.Point(canvas.clientWidth / 2, canvas.clientHeight / 2);
+      const present = INTERACTIVE.filter((id) => id !== "quake-clusters" && map.getLayer(id));
+      const hits = present.length ? map.queryRenderedFeatures([
+        [center.x - KEYBOARD_HIT_PX, center.y - KEYBOARD_HIT_PX],
+        [center.x + KEYBOARD_HIT_PX, center.y + KEYBOARD_HIT_PX],
+      ], { layers: present }) : [];
+      const { lng, lat } = map.unproject(center).wrap();
+      let selection: Selection = { kind: "point", lon: lng, lat };
+      let nearest = KEYBOARD_HIT_PX;
+      for (const feature of hits) {
+        const candidate = toSelection(feature.layer.id, feature);
+        if (!candidate) continue;
+        const geometry = feature.geometry;
+        const lines = geometry.type === "Point" ? [[geometry.coordinates]]
+          : geometry.type === "LineString" ? [geometry.coordinates]
+          : geometry.type === "MultiLineString" ? geometry.coordinates : [];
+        for (const line of lines) {
+          const points = line.map(([lon, lat]) => map.project([lon, lat]));
+          for (let i = 0; i < points.length; i++) {
+            const start = points[i];
+            const end = points[i + 1] ?? start;
+            const dx = end.x - start.x, dy = end.y - start.y;
+            const length = dx * dx + dy * dy;
+            const fraction = length ? Math.max(0, Math.min(1, ((center.x - start.x) * dx + (center.y - start.y) * dy) / length)) : 0;
+            const distance = Math.hypot(start.x + fraction * dx - center.x, start.y + fraction * dy - center.y);
+            if (distance <= nearest) {
+              nearest = distance;
+              selection = candidate;
+            }
+          }
+        }
+      }
+      propsRef.current.onSelect(selection);
+      setAnnouncement((previous) => ({ selection, count: (previous?.count ?? 0) + 1 }));
+    };
+    canvas.addEventListener("keydown", onKeyDown);
+
     // Onda de los sismos recientes (se respeta prefers-reduced-motion).
     let raf = 0;
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -631,11 +686,16 @@ export default function MapContainer(props: MapContainerProps) {
     return () => {
       cancelAnimationFrame(raf);
       resizeObserver.disconnect();
+      canvas.removeEventListener("keydown", onKeyDown);
       isMapLoadedRef.current = false;
       map.remove();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- inicialización única; los cambios se aplican en los effects de abajo.
   }, []);
+
+  useEffect(() => {
+    mapRef.current?.getCanvas().setAttribute("aria-label", tKeyboard("mapLabel"));
+  }, [tKeyboard]);
 
   // 1b. Cambio de basemap: setStyle() borra fuentes/capas/iconos.
   const isFirstBasemapRenderRef = useRef(true);
@@ -736,6 +796,9 @@ export default function MapContainer(props: MapContainerProps) {
   return (
     <div className="relative h-full w-full bg-ds-canvas">
       <div ref={mapContainerRef} className="h-full w-full" />
+      <div role="status" className="sr-only" aria-atomic="true">
+        {announcement && <span key={announcement.count}>{tKeyboard("selected", { name: selectionText })}</span>}
+      </div>
     </div>
   );
 }

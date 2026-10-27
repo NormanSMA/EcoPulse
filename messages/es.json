@@ -1,4 +1,22 @@
 {
+  "mapKeyboard": {
+    "mapLabel": "Mapa interactivo. Pulsa Enter o Espacio para seleccionar el elemento más cercano al centro o el punto central.",
+    "globeLabel": "Globo interactivo. Pulsa Enter o Espacio para seleccionar el elemento más cercano al centro o el punto central.",
+    "selected": "Seleccionado: {name}",
+    "kinds": {
+      "point": "punto central",
+      "quake": "sismo",
+      "fire": "incendio",
+      "disaster": "desastre",
+      "cyclone": "ciclón",
+      "volcano": "volcán",
+      "volcanoCatalog": "volcán del catálogo",
+      "air": "estación de calidad del aire",
+      "boundary": "límite de placas",
+      "plate": "placa tectónica",
+      "iss": "Estación Espacial Internacional"
+    }
+  },
   "app": {
     "title": "EcoPulse",
     "tagline": "Plataforma Global de Sismos y Calidad del Aire",

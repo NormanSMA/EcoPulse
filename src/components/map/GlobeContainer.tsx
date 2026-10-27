@@ -8,7 +8,8 @@ import { dedupeByKey } from "@/lib/ingest";
 import { DEFAULT_MAP_VIEW, altitudeToZoom, zoomToAltitude } from "@/lib/mapView";
 import { themes, layers, marker, magnitudeColor, aqiColor, stormColor, boundaryColor } from "@/design-system/tokens";
 import { getIcon } from "@/lib/mapIcons";
-import { selectionFromEntityId } from "@/lib/selection";
+import { selectionFromEntityId, type Selection } from "@/lib/selection";
+import { resolveSelection } from "@/lib/resolveSelection";
 import type { MapViewProps } from "./types";
 
 interface GlobeContainerProps extends MapViewProps {
@@ -35,6 +36,7 @@ const TAP_MAX_MS = 800;
 const TOUCH_PICK_PX = 28;
 const MOUSE_PICK_PX = 6;
 const PICK_LIMIT = 8;
+const KEYBOARD_HIT_PX = 48;
 
 /** Opacidad por antigüedad, misma curva que el mapa 2D. */
 function ageAlpha(refTime: number, t: number): number {
@@ -66,6 +68,15 @@ const LABEL_FONT = "600 12px 'Google Sans Flex', Roboto, sans-serif";
 export default function GlobeContainer(props: GlobeContainerProps) {
   const { data, visibility, refTime, radarTiles, selectedPoint, focus, theme, initialView = DEFAULT_MAP_VIEW } = props;
   const tGlobe = useTranslations("globe");
+  const tKeyboard = useTranslations("mapKeyboard");
+  const [announcement, setAnnouncement] = useState<{ selection: Selection; count: number } | null>(null);
+  const item = resolveSelection(announcement?.selection ?? null, data)?.item;
+  let selectionText = announcement ? tKeyboard(`kinds.${announcement.selection.kind}`) : "";
+  if (item && "f" in item) {
+    const properties = item.f.properties;
+    const text = "name" in properties ? properties.name : "place" in properties ? properties.place : "station" in properties ? properties.station : null;
+    if (text) selectionText = text;
+  } else if (item?.kind === "boundary") selectionText = item.plates;
   const containerRef = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<Cesium.Viewer | null>(null);
   const propsRef = useRef(props);
@@ -209,6 +220,60 @@ export default function GlobeContainer(props: GlobeContainerProps) {
       const carto = Cesium.Cartographic.fromCartesian(cartesian);
       propsRef.current.onSelect({ kind: "point", lon: Cesium.Math.toDegrees(carto.longitude), lat: Cesium.Math.toDegrees(carto.latitude) });
     };
+
+    canvas.tabIndex = 0;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.target !== canvas || (e.key !== "Enter" && e.key !== " ")) return;
+      e.preventDefault();
+      if (e.repeat) return;
+      const center = new Cesium.Cartesian2(canvas.clientWidth / 2, canvas.clientHeight / 2);
+      const width = Math.ceil((KEYBOARD_HIT_PX * 2 + 1) * viewer.scene.drawingBufferWidth / canvas.clientWidth);
+      const height = Math.ceil((KEYBOARD_HIT_PX * 2 + 1) * viewer.scene.drawingBufferHeight / canvas.clientHeight);
+      const picked: { id?: unknown; primitive?: { position?: unknown } } | undefined = viewer.scene.pick(center);
+      const candidates: ({ id?: unknown; primitive?: { position?: unknown } } | undefined)[] = [
+        picked, ...viewer.scene.drillPick(center, undefined, width, height),
+      ];
+      let selection: Selection | null = null;
+      let nearest = KEYBOARD_HIT_PX;
+      for (const candidate of candidates) {
+        const raw: unknown = candidate?.id;
+        const entity = raw instanceof Cesium.Entity ? raw : null;
+        const id = entity?.properties?.plates
+          ? `bnd-${entity.properties.plates.getValue(viewer.clock.currentTime)}`
+          : typeof raw === "string" ? raw : entity?.id;
+        const selected = id ? selectionFromEntityId(id) : null;
+        if (!selected) continue;
+        const position: unknown = entity?.position?.getValue(viewer.clock.currentTime) ?? candidate?.primitive?.position;
+        const positions: unknown = position instanceof Cesium.Cartesian3 ? [position]
+          : entity?.polyline?.positions?.getValue(viewer.clock.currentTime) ?? [];
+        if (!Array.isArray(positions)) continue;
+        const points = positions.map((p: unknown) => p instanceof Cesium.Cartesian3
+          ? Cesium.SceneTransforms.worldToWindowCoordinates(viewer.scene, p) : undefined);
+        for (let i = 0; i < points.length; i++) {
+          const start = points[i];
+          const end = points[i + 1] ?? start;
+          if (!start || !end) continue;
+          const dx = end.x - start.x, dy = end.y - start.y;
+          const length = dx * dx + dy * dy;
+          const fraction = length ? Math.max(0, Math.min(1, ((center.x - start.x) * dx + (center.y - start.y) * dy) / length)) : 0;
+          const distance = Math.hypot(start.x + fraction * dx - center.x, start.y + fraction * dy - center.y);
+          if (distance <= nearest) {
+            nearest = distance;
+            selection = selected;
+          }
+        }
+      }
+      if (!selection) {
+        const cartesian = viewer.camera.pickEllipsoid(center, viewer.scene.globe.ellipsoid);
+        if (!cartesian) return;
+        const carto = Cesium.Cartographic.fromCartesian(cartesian);
+        selection = { kind: "point", lon: Cesium.Math.toDegrees(carto.longitude), lat: Cesium.Math.toDegrees(carto.latitude) };
+      }
+      propsRef.current.onSelect(selection);
+      const selected = selection;
+      setAnnouncement((previous) => ({ selection: selected, count: (previous?.count ?? 0) + 1 }));
+    };
+    canvas.addEventListener("keydown", onKeyDown);
     // Duración medida con la marca de tiempo de los eventos (no con la hora
     // en que se procesan): con el hilo ocupado renderizando, el pointerup puede
     // atenderse tarde y un toque corto parecería largo.
@@ -294,6 +359,7 @@ export default function GlobeContainer(props: GlobeContainerProps) {
       canvas.removeEventListener("pointerup", onPointerUp);
       canvas.removeEventListener("pointercancel", onPointerCancel);
       canvas.removeEventListener("touchend", onTouchEnd);
+      canvas.removeEventListener("keydown", onKeyDown);
       if (!viewer.isDestroyed()) viewer.destroy();
       viewerRef.current = null;
       pointsRef.current = {};
@@ -303,6 +369,10 @@ export default function GlobeContainer(props: GlobeContainerProps) {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    viewerRef.current?.scene.canvas.setAttribute("aria-label", tKeyboard("globeLabel"));
+  }, [tKeyboard]);
 
   // 1b. Centrar en un elemento elegido desde la lista o el buscador.
   useEffect(() => {
@@ -646,6 +716,9 @@ export default function GlobeContainer(props: GlobeContainerProps) {
   return (
     <div className="relative h-full w-full">
       <div ref={containerRef} className="h-full w-full" />
+      <div role="status" className="sr-only" aria-atomic="true">
+        {announcement && <span key={announcement.count}>{tKeyboard("selected", { name: selectionText })}</span>}
+      </div>
       {baseError && (
         <div
           role="status"
