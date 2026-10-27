@@ -58,6 +58,8 @@
     "disasters": "Global disasters",
     "iss": "Space Station (ISS)",
     "volcanoes": "Active volcanoes (week)",
+    "minMag": "Minimum magnitude",
+    "minMagAll": "All",
     "hint": "Tap a marker for details, or any point on the map for local weather and seismicity.",
     "groups": {
       "geo": "Geophysics",
@@ -79,7 +81,9 @@
     "useLocation": "Use my location",
     "geoNotSupported": "Your browser does not support geolocation.",
     "geoDenied": "Could not get your location. Check your browser permissions.",
-    "resultsFound": "earthquake(s) found:"
+    "resultsFound": "earthquake(s) found:",
+    "noResults": "No earthquakes within the selected radius.",
+    "error": "Could not search earthquakes. Try again."
   },
   "timeControl": {
     "live": "Live",
@@ -428,6 +432,8 @@
     "99": "Severe thunderstorm with hail"
   },
   "eventsPanel": {
+    "loading": "Loading events…",
+    "error": "Some events could not be loaded.",
     "filter": "Filter by place or name",
     "sort": {
       "label": "Sort",
@@ -451,7 +457,9 @@
     "searching": "Searching…",
     "noResults": "No results",
     "label": "Search a place on the map",
-    "clear": "Clear search"
+    "clear": "Clear search",
+    "error": "Could not search places. Try again.",
+    "resultsFound": "{count, plural, one {# place found} other {# places found}}"
   },
   "disasterTypes": {
     "FL": "Flood",

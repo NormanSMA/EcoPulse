@@ -24,7 +24,7 @@ export function PlaceSearch({ locale, onPick, focusWhen, className }: PlaceSearc
   const t = useTranslations("placeSearch");
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<GeocodeResult[]>([]);
-  const [status, setStatus] = useState<"idle" | "loading" | "done">("idle");
+  const [status, setStatus] = useState<"idle" | "loading" | "done" | "error">("idle");
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -41,17 +41,25 @@ export function PlaceSearch({ locale, onPick, focusWhen, className }: PlaceSearc
       setStatus("idle");
       return;
     }
+    setResults([]);
+    setActive(0);
     setStatus("loading");
     const controller = new AbortController();
     const handle = setTimeout(async () => {
       try {
         const res = await fetch(`/api/geocode?q=${encodeURIComponent(q)}&lang=${locale}`, { signal: controller.signal });
-        const data: { results?: GeocodeResult[] } = res.ok ? await res.json() : {};
+        if (!res.ok) throw new Error("Geocode request failed");
+        const data: { results?: GeocodeResult[] } = await res.json();
+        if (controller.signal.aborted) return;
         setResults(data.results ?? []);
         setActive(0);
         setStatus("done");
       } catch (err) {
-        if (!(err instanceof DOMException && err.name === "AbortError")) setStatus("done");
+        if (!controller.signal.aborted && !(err instanceof DOMException && err.name === "AbortError")) {
+          setResults([]);
+          setActive(0);
+          setStatus("error");
+        }
       }
     }, 300);
     return () => {
@@ -86,11 +94,19 @@ export function PlaceSearch({ locale, onPick, focusWhen, className }: PlaceSearc
     onPick(r);
     pickedRef.current = r.name;
     setQuery(r.name);
+    setStatus("idle");
     setOpen(false);
     inputRef.current?.blur();
   }
 
   const showList = open && query.trim().length >= 2;
+  const statusMessage = {
+    idle: "",
+    loading: t("searching"),
+    error: t("error"),
+    done: results.length === 0 ? t("noResults") : t("resultsFound", { count: results.length }),
+  }[status];
+  const showMessage = showList && status !== "idle" && (status !== "done" || results.length === 0);
 
   return (
     <div ref={rootRef} className={cn("relative", className)}>
@@ -101,14 +117,17 @@ export function PlaceSearch({ locale, onPick, focusWhen, className }: PlaceSearc
           type="search"
           role="combobox"
           aria-label={t("label")}
-          aria-expanded={showList}
-          aria-controls={listId}
+          aria-expanded={showList && results.length > 0}
+          aria-controls={showList && results.length > 0 ? listId : undefined}
           aria-autocomplete="list"
           aria-activedescendant={showList && results[active] ? `${listId}-${active}` : undefined}
           value={query}
           placeholder={t("placeholder")}
           onChange={(e) => {
             pickedRef.current = null;
+            setResults([]);
+            setActive(0);
+            setStatus(e.target.value.trim().length >= 2 ? "loading" : "idle");
             setQuery(e.target.value);
             setOpen(true);
           }}
@@ -116,11 +135,12 @@ export function PlaceSearch({ locale, onPick, focusWhen, className }: PlaceSearc
           onKeyDown={(e) => {
             if (e.key === "ArrowDown") {
               e.preventDefault();
-              setActive((a) => Math.min(a + 1, results.length - 1));
+              setOpen(true);
+              setActive((a) => Math.max(0, Math.min(a + 1, results.length - 1)));
             } else if (e.key === "ArrowUp") {
               e.preventDefault();
               setActive((a) => Math.max(a - 1, 0));
-            } else if (e.key === "Enter" && results[active]) {
+            } else if (e.key === "Enter" && showList && results[active]) {
               e.preventDefault();
               pick(results[active]);
             } else if (e.key === "Escape") {
@@ -136,6 +156,8 @@ export function PlaceSearch({ locale, onPick, focusWhen, className }: PlaceSearc
             aria-label={t("clear")}
             onClick={() => {
               setQuery("");
+              setResults([]);
+              setStatus("idle");
               inputRef.current?.focus();
             }}
             className="-mr-2 grid h-8 w-8 shrink-0 place-items-center rounded-ds-full text-ds-text-secondary hover:bg-ds-hover hover:text-ds-text-primary"
@@ -147,14 +169,17 @@ export function PlaceSearch({ locale, onPick, focusWhen, className }: PlaceSearc
         )}
       </div>
 
-      {showList && (
+      <div role="status" aria-atomic="true" className={showMessage
+        ? "absolute left-0 right-0 top-12 z-50 rounded-ds-xl border border-ds-outline-variant bg-ds-surface-container px-4 py-2 text-sm text-ds-text-secondary shadow-ds-3"
+        : "sr-only"}>
+        {showList ? statusMessage : ""}
+      </div>
+      {showList && results.length > 0 && (
         <ul
           id={listId}
           role="listbox"
           className="absolute left-0 right-0 top-12 z-50 max-h-80 animate-ds-pop-in overflow-y-auto rounded-ds-xl border border-ds-outline-variant bg-ds-surface-container py-2 shadow-ds-3"
         >
-          {status === "loading" && results.length === 0 && <li className="px-4 py-2 text-sm text-ds-text-secondary">{t("searching")}</li>}
-          {status === "done" && results.length === 0 && <li className="px-4 py-2 text-sm text-ds-text-secondary">{t("noResults")}</li>}
           {results.map((r, i) => (
             <li
               key={`${r.name}-${r.lon}-${r.lat}`}

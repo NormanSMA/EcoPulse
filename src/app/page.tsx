@@ -79,6 +79,7 @@ function HomePageContent() {
   const { locale } = useLocale();
 
   const [visibility, setVisibility] = useState<LayerVisibility>(INITIAL_VISIBILITY);
+  const [minMag, setMinMag] = useState(0);
   const [timeWindow, setTimeWindow] = useState<TimeWindow>("live");
   const [playing, setPlaying] = useState(false);
   const [mapMode, setMapMode] = useState<MapMode>("2d");
@@ -183,7 +184,10 @@ function HomePageContent() {
     // Un ciclón con trayectoria visible no se repite como icono de desastre.
     const tracked = new Set(visibility.cyclones ? live.cyclones.features.map((f) => f.properties.eventId) : []);
     return {
-      earthquakes: { ...quakes, features: quakes.features.filter((f) => inRange(f.properties.time)) },
+      earthquakes: {
+        ...quakes,
+        features: quakes.features.filter((f) => inRange(f.properties.time) && (minMag === 0 || (f.properties.mag ?? -1) >= minMag)),
+      },
       fires: { ...live.fires, features: live.fires.features.filter((f) => inRange(Date.parse(f.properties.acquiredAt))) },
       disasters: {
         ...live.disasters,
@@ -207,7 +211,7 @@ function HomePageContent() {
         },
       },
     };
-  }, [live, usesWeek, rangeStart, rangeEnd, visibility.cyclones, tPlates]);
+  }, [live, usesWeek, rangeStart, rangeEnd, visibility.cyclones, tPlates, minMag]);
 
   // Resumen del periodo con los sismos ya filtrados (hasta el playhead).
   const summary = useMemo(() => {
@@ -343,7 +347,7 @@ function HomePageContent() {
           <aside aria-label={tPanel("controls")} className={cn(floatingPanel, "left-4 w-[360px]")}>
             <PanelHeader title={tPanel("controls")} icon={SlidersHorizontal} onClose={() => setControlsOpen(false)} closeLabel={tPanel("close")} />
             <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain py-2">
-              <ControlsPanel visibility={visibility} onChange={setLayer} />
+              <ControlsPanel visibility={visibility} onChange={setLayer} minMag={minMag} onMinMagChange={setMinMag} />
             </div>
           </aside>
         ) : (
@@ -451,7 +455,7 @@ function HomePageContent() {
                   <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain pb-[max(1rem,env(safe-area-inset-bottom))]">
                     {mobileSheet === "layers" ? (
                       <div className="py-2">
-                        <ControlsPanel visibility={visibility} onChange={setLayer} />
+                        <ControlsPanel visibility={visibility} onChange={setLayer} minMag={minMag} onMinMagChange={setMinMag} />
                       </div>
                     ) : (
                       events("min-h-[60vh] p-3")

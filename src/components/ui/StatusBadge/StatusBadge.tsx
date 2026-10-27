@@ -16,7 +16,7 @@ const STATUS_STYLES: Record<SimpleStatus, { dot: string; text: string; bg: strin
   live: { dot: "bg-ds-status-live", text: "text-ds-status-live", bg: "bg-ds-status-live/10 border-ds-status-live/30" },
   recent: { dot: "bg-ds-status-recent", text: "text-ds-status-recent", bg: "bg-ds-status-recent/10 border-ds-status-recent/30" },
   stale: { dot: "bg-ds-status-stale", text: "text-ds-status-stale", bg: "bg-ds-status-stale/10 border-ds-status-stale/30" },
-  unknown: { dot: "bg-ds-status-unknown", text: "text-ds-status-unknown", bg: "bg-ds-status-unknown/10 border-ds-status-unknown/30" },
+  unknown: { dot: "bg-ds-status-unknown", text: "text-ds-text-primary", bg: "bg-ds-status-unknown/10 border-ds-status-unknown/30" },
 };
 
 /** Chip de estado (pill con punto), como los tags "Operational" de Weather Lab. */

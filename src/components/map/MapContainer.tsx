@@ -584,8 +584,16 @@ export default function MapContainer(props: MapContainerProps) {
         if (!f) continue;
         if (layerId === "quake-clusters" && f.geometry.type === "Point") {
           const source = map.getSource("quakes") as GeoJSONSource;
-          const zoom = await source.getClusterExpansionZoom(f.properties.cluster_id as number);
-          map.easeTo({ center: f.geometry.coordinates as [number, number], zoom: zoom + 0.5 });
+          try {
+            const zoom = await source.getClusterExpansionZoom(f.properties.cluster_id as number);
+            // El mapa pudo destruirse o cambiar de estilo mientras se resolvía.
+            if (mapRef.current !== map || !map.getSource("quakes")) return;
+            const target = { center: f.geometry.coordinates as [number, number], zoom: zoom + 0.5 };
+            if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) map.jumpTo(target);
+            else map.easeTo(target);
+          } catch {
+            // Fuente retirada o cluster inexistente: se ignora el click.
+          }
           return;
         }
         const selection = toSelection(layerId, f);
@@ -640,10 +648,15 @@ export default function MapContainer(props: MapContainerProps) {
     if (!map) return;
     isMapLoadedRef.current = false;
     map.setStyle(BASEMAP_STYLES[basemap]);
-    map.once("styledata", () => {
+    const onStyleLoad = () => {
       isMapLoadedRef.current = true;
       setupLayers(map);
-    });
+    };
+    map.once("style.load", onStyleLoad);
+    // Un cambio rápido de estilo no debe dejar el listener anterior activo.
+    return () => {
+      map.off("style.load", onStyleLoad);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [basemap]);
 
@@ -651,7 +664,9 @@ export default function MapContainer(props: MapContainerProps) {
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !focus) return;
-    map.flyTo({ center: [focus.lng, focus.lat], zoom: Math.max(map.getZoom(), 5), duration: 1200, essential: true });
+    const target = { center: [focus.lng, focus.lat] as [number, number], zoom: Math.max(map.getZoom(), 5) };
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) map.jumpTo(target);
+    else map.flyTo({ ...target, duration: 1200, essential: true });
   }, [focus]);
 
   // 2. Datos: setData sin recrear el mapa.

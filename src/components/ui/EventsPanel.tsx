@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type KeyboardEvent } from "react";
 import { useTranslations } from "next-intl";
 import { Waves, Flame, AlertTriangle, Mountain, Tornado, Search, Inbox, Radio, Activity, Siren } from "lucide";
 import type { IconNode } from "lucide";
@@ -159,10 +159,12 @@ export interface EventsPanelProps {
   locale: string;
   selected: Selection | null;
   onPick: (item: EventItem) => void;
+  loading?: boolean;
+  error?: boolean;
   className?: string;
 }
 
-export default function EventsPanel({ data, visibility, locale, selected, onPick, className }: EventsPanelProps) {
+export default function EventsPanel({ data, visibility, locale, selected, onPick, loading = false, error = false, className }: EventsPanelProps) {
   const t = useTranslations("eventsPanel");
   const tEvents = useTranslations("events");
   const tMetrics = useTranslations("metrics");
@@ -203,6 +205,23 @@ export default function EventsPanel({ data, visibility, locale, selected, onPick
 
   const chips: (EventKind | "all")[] = ["all", "quake", "fire", "disaster", "cyclone", "volcano"];
 
+  useEffect(() => {
+    if (kind !== "all" && !counts[kind]) {
+      setKind("all");
+      setLimit(PAGE);
+    }
+  }, [counts, kind]);
+
+  function onArrowKey(e: KeyboardEvent<HTMLDivElement>) {
+    if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+    e.preventDefault();
+    const options = Array.from(e.currentTarget.querySelectorAll<HTMLButtonElement>('button[role="tab"], button[role="radio"]'));
+    const index = options.findIndex((option) => option === e.target);
+    const next = options[(index + (e.key === "ArrowRight" ? 1 : -1) + options.length) % options.length];
+    next?.focus();
+    next?.click();
+  }
+
   return (
     <div className={cn("flex min-h-0 flex-col gap-3", className)}>
       <div className="grid shrink-0 grid-cols-3 gap-2">
@@ -226,7 +245,7 @@ export default function EventsPanel({ data, visibility, locale, selected, onPick
         />
       </label>
 
-      <div className="-mx-1 flex shrink-0 gap-1.5 overflow-x-auto px-1 pb-0.5 [scrollbar-width:none]" role="tablist">
+      <div className="-mx-1 flex shrink-0 gap-1.5 overflow-x-auto px-1 pb-0.5 [scrollbar-width:none]" role="tablist" aria-label={tEvents("title")} onKeyDown={onArrowKey}>
         {chips.map((c) => {
           const n = counts[c] ?? 0;
           if (c !== "all" && n === 0) return null;
@@ -237,6 +256,7 @@ export default function EventsPanel({ data, visibility, locale, selected, onPick
               type="button"
               role="tab"
               aria-selected={activeChip}
+              tabIndex={activeChip ? 0 : -1}
               onClick={() => {
                 setKind(c);
                 setLimit(PAGE);
@@ -255,13 +275,14 @@ export default function EventsPanel({ data, visibility, locale, selected, onPick
         })}
       </div>
 
-      <div role="radiogroup" aria-label={t("sort.label")} className="flex h-8 shrink-0 self-start rounded-ds-full border border-ds-outline p-0.5">
+      <div role="radiogroup" aria-label={t("sort.label")} onKeyDown={onArrowKey} className="flex h-8 shrink-0 self-start rounded-ds-full border border-ds-outline p-0.5">
         {(["relevant", "recent"] as const).map((s) => (
           <button
             key={s}
             type="button"
             role="radio"
             aria-checked={sort === s}
+            tabIndex={sort === s ? 0 : -1}
             onClick={() => setSort(s)}
             className={cn(
               "rounded-ds-full px-3 text-xs font-medium transition-colors",
@@ -273,7 +294,11 @@ export default function EventsPanel({ data, visibility, locale, selected, onPick
         ))}
       </div>
 
-      {list.length === 0 ? (
+      <div role="status" aria-atomic="true" className={loading ? "text-sm text-ds-text-secondary" : "sr-only"}>
+        {loading ? t("loading") : ""}
+      </div>
+      {error && <p role="alert" className="text-sm text-ds-error">{t("error")}</p>}
+      {list.length === 0 ? !loading && !error && (
         <EmptyState icon={Inbox} title={tEvents("empty")} description={tEvents("emptyDescription")} />
       ) : (
         <ul className="-mx-1 flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto overscroll-contain">
@@ -292,8 +317,8 @@ export default function EventsPanel({ data, visibility, locale, selected, onPick
                 >
                   {item.kind === "quake" ? (
                     <span
-                      className="grid h-10 w-10 shrink-0 place-items-center rounded-ds-full text-sm font-medium tabular-nums"
-                      style={{ color: item.color, backgroundColor: `${item.color}26`, boxShadow: `inset 0 0 0 1.5px ${item.color}66` }}
+                      className="grid h-10 w-10 shrink-0 place-items-center rounded-ds-full text-sm font-medium tabular-nums text-ds-text-primary"
+                      style={{ backgroundColor: `${item.color}26`, boxShadow: `inset 0 0 0 1.5px ${item.color}66` }}
                     >
                       {item.mag?.toFixed(1)}
                     </span>

@@ -58,6 +58,8 @@
     "disasters": "Desastres globales",
     "iss": "Estación Espacial (ISS)",
     "volcanoes": "Volcanes activos (semana)",
+    "minMag": "Magnitud mínima",
+    "minMagAll": "Todos",
     "hint": "Toca un marcador para ver su detalle, o cualquier punto del mapa para ver el tiempo y la sismicidad de la zona.",
     "groups": {
       "geo": "Geofísica",
@@ -79,7 +81,9 @@
     "useLocation": "Usar mi ubicación",
     "geoNotSupported": "Tu navegador no soporta geolocalización.",
     "geoDenied": "No se pudo obtener tu ubicación. Revisa los permisos del navegador.",
-    "resultsFound": "sismo(s) encontrados:"
+    "resultsFound": "sismo(s) encontrados:",
+    "noResults": "Sin sismos dentro del radio seleccionado.",
+    "error": "No se pudo buscar sismos. Inténtalo de nuevo."
   },
   "timeControl": {
     "live": "En vivo",
@@ -428,6 +432,8 @@
     "99": "Tormenta con granizo fuerte"
   },
   "eventsPanel": {
+    "loading": "Cargando eventos…",
+    "error": "No se pudieron cargar algunos eventos.",
     "filter": "Filtrar por lugar o nombre",
     "sort": {
       "label": "Orden",
@@ -451,7 +457,9 @@
     "searching": "Buscando…",
     "noResults": "Sin resultados",
     "label": "Buscar un lugar en el mapa",
-    "clear": "Borrar búsqueda"
+    "clear": "Borrar búsqueda",
+    "error": "No se pudo buscar lugares. Inténtalo de nuevo.",
+    "resultsFound": "{count, plural, one {# lugar encontrado} other {# lugares encontrados}}"
   },
   "disasterTypes": {
     "FL": "Inundación",
