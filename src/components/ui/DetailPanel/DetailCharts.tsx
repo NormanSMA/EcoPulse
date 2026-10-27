@@ -54,6 +54,8 @@ function hourTicks(from: number, to: number, step: number): number[] {
 /** Sismicidad de la zona: magnitud vs. tiempo (30 días); el seleccionado resaltado. */
 export function QuakeHistoryChart({ quakes, selectedId, locale }: { quakes: EarthquakeFeature[]; selectedId?: string; locale: string }) {
   const t = useTranslations("detail");
+  const number = new Intl.NumberFormat(locale);
+  const magnitude = new Intl.NumberFormat(locale, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
   const points = quakes.map((q) => ({
     t: q.properties.time,
     mag: q.properties.mag ?? 0,
@@ -67,7 +69,7 @@ export function QuakeHistoryChart({ quakes, selectedId, locale }: { quakes: Eart
         <ScatterChart margin={{ top: 8, right: 8, left: -8, bottom: 0 }}>
           <CartesianGrid stroke={GRID} strokeDasharray="3 3" />
           <XAxis dataKey="t" type="number" domain={["dataMin", "dataMax"]} padding={{ left: 12, right: 12 }} tickFormatter={shortDate(locale)} tick={AXIS} axisLine={{ stroke: GRID }} tickLine={false} />
-          <YAxis dataKey="mag" type="number" domain={[2, (max: number) => Math.ceil(max + 0.5)]} allowDecimals={false} tick={AXIS} axisLine={{ stroke: GRID }} tickLine={false} width={32} />
+          <YAxis dataKey="mag" type="number" domain={[2, (max: number) => Math.ceil(max + 0.5)]} allowDecimals={false} tickFormatter={(v) => number.format(v)} tick={AXIS} axisLine={{ stroke: GRID }} tickLine={false} width={32} />
           <ZAxis dataKey="mag" range={[30, 260]} />
           <Tooltip
             cursor={{ stroke: GRID }}
@@ -78,7 +80,7 @@ export function QuakeHistoryChart({ quakes, selectedId, locale }: { quakes: Eart
               return (
                 <div style={TOOLTIP_STYLE} className="px-3 py-2">
                   <div className="font-medium">
-                    M {p.mag.toFixed(1)} · {Math.round(p.depth)} km
+                    M {magnitude.format(p.mag)} · {number.format(Math.round(p.depth))} km
                   </div>
                   <div className="text-ds-text-secondary">{p.place}</div>
                   <div className="text-ds-text-muted">{new Date(p.t).toLocaleString(locale)}</div>
@@ -106,6 +108,8 @@ export function QuakeHistoryChart({ quakes, selectedId, locale }: { quakes: Eart
 
 /** PM2.5 de las últimas 48 h con la guía de la OMS como referencia. */
 export function AirHistoryChart({ history, locale }: { history: { t: string; v: number }[]; locale: string }) {
+  const t = useTranslations("detail");
+  const number = new Intl.NumberFormat(locale);
   const data = history.map((h) => ({ t: Date.parse(h.t), v: h.v }));
   return (
     <div className="h-40 w-full">
@@ -128,12 +132,12 @@ export function AirHistoryChart({ history, locale }: { history: { t: string; v: 
             axisLine={{ stroke: GRID }}
             tickLine={false}
           />
-          <YAxis tick={AXIS} axisLine={{ stroke: GRID }} tickLine={false} width={32} />
+          <YAxis tickFormatter={(v) => number.format(v)} tick={AXIS} axisLine={{ stroke: GRID }} tickLine={false} width={32} />
           <ReferenceLine y={15} stroke={scales.aqi.moderate} strokeDasharray="4 3" />
           <Tooltip
             contentStyle={TOOLTIP_STYLE}
             labelFormatter={(v) => new Date(Number(v)).toLocaleString(locale)}
-            formatter={(v) => [`${v} µg/m³`, "PM2.5"]}
+            formatter={(v) => [`${number.format(Number(v))} µg/m³`, t("air.pm25")]}
           />
           <Area type="monotone" dataKey="v" stroke={scales.aqi.moderate} strokeWidth={2} fill="url(#air-fill)" isAnimationActive={false} />
         </AreaChart>
@@ -145,6 +149,7 @@ export function AirHistoryChart({ history, locale }: { history: { t: string; v: 
 /** Pronóstico 24 h: temperatura (línea) y probabilidad de lluvia (barras). */
 export function ForecastChart({ hourly, locale }: { hourly: { t: string; temp: number; precipProb: number }[]; locale: string }) {
   const t = useTranslations("detail.point");
+  const number = new Intl.NumberFormat(locale);
   const data = hourly.map((h) => ({ t: Date.parse(h.t), temp: h.temp, rain: h.precipProb }));
   const temps = data.map((d) => d.temp);
   return (
@@ -168,17 +173,18 @@ export function ForecastChart({ hourly, locale }: { hourly: { t: string; temp: n
             yAxisId="temp"
             domain={temps.length ? [Math.floor(Math.min(...temps) - 2), Math.ceil(Math.max(...temps) + 2)] : ["auto", "auto"]}
             allowDecimals={false}
+            tickFormatter={(v) => number.format(v)}
             tick={AXIS}
             axisLine={{ stroke: GRID }}
             tickLine={false}
             width={32}
             unit="°"
           />
-          <YAxis yAxisId="rain" orientation="right" domain={[0, 100]} ticks={[0, 50, 100]} tick={AXIS} axisLine={false} tickLine={false} width={36} unit="%" />
+          <YAxis yAxisId="rain" orientation="right" domain={[0, 100]} ticks={[0, 50, 100]} tickFormatter={(v) => number.format(v)} tick={AXIS} axisLine={false} tickLine={false} width={36} unit="%" />
           <Tooltip
             contentStyle={TOOLTIP_STYLE}
             labelFormatter={(v) => new Date(Number(v)).toLocaleString(locale, { weekday: "short", hour: "2-digit", minute: "2-digit" })}
-            formatter={(v, name) => (name === "temp" ? [`${v} °C`, t("temp")] : [`${v} %`, t("precipProb")])}
+            formatter={(v, name) => (name === "temp" ? [`${number.format(Number(v))} °C`, t("temp")] : [`${number.format(Number(v))} %`, t("precipProb")])}
           />
           <Bar yAxisId="rain" dataKey="rain" fill="rgb(var(--ds-primary) / 0.25)" isAnimationActive={false} />
           <Line yAxisId="temp" type="monotone" dataKey="temp" stroke={TEMP_COLOR} strokeWidth={2} dot={false} isAnimationActive={false} />
@@ -201,18 +207,22 @@ export function ForecastChart({ hourly, locale }: { hourly: { t: string; temp: n
 
 /** Sismos M ≥ 7 por década a lo largo de un límite de placa. */
 export function DecadeChart({ data, locale }: { data: { decade: number; count: number }[]; locale: string }) {
+  const t = useTranslations("detail.tectonics");
+  const year = new Intl.NumberFormat(locale, { useGrouping: false });
+  const number = new Intl.NumberFormat(locale);
+  const formatDecade = (decade: unknown) => t("decade", { year: year.format(Number(decade)) });
   return (
     <div className="h-40 w-full">
       <ResponsiveContainer width="100%" height="100%">
         <ComposedChart data={data} margin={{ top: 8, right: 8, left: -8, bottom: 0 }}>
           <CartesianGrid stroke={GRID} strokeDasharray="3 3" vertical={false} />
-          <XAxis dataKey="decade" tickFormatter={(d) => `${d}s`} tick={AXIS} axisLine={{ stroke: GRID }} tickLine={false} interval="preserveStartEnd" />
-          <YAxis allowDecimals={false} tick={AXIS} axisLine={{ stroke: GRID }} tickLine={false} width={32} />
+          <XAxis dataKey="decade" tickFormatter={formatDecade} tick={AXIS} axisLine={{ stroke: GRID }} tickLine={false} interval="preserveStartEnd" />
+          <YAxis allowDecimals={false} tickFormatter={(v) => number.format(v)} tick={AXIS} axisLine={{ stroke: GRID }} tickLine={false} width={32} />
           <Tooltip
             cursor={{ fill: "rgb(var(--ds-primary) / 0.1)" }}
             contentStyle={TOOLTIP_STYLE}
-            labelFormatter={(d) => `${d}s`}
-            formatter={(v) => [Number(v).toLocaleString(locale), "M ≥ 7"]}
+            labelFormatter={formatDecade}
+            formatter={(v) => [number.format(Number(v)), "M ≥ 7"]}
           />
           <Bar dataKey="count" fill={PRIMARY} radius={[3, 3, 0, 0]} isAnimationActive={false} />
         </ComposedChart>

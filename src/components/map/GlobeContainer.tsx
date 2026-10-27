@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import * as Cesium from "cesium";
+import { useTranslations } from "next-intl";
 import "cesium/Build/Cesium/Widgets/widgets.css";
 import { dedupeByKey } from "@/lib/ingest";
 import { DEFAULT_MAP_VIEW, altitudeToZoom, zoomToAltitude } from "@/lib/mapView";
@@ -64,6 +65,7 @@ const LABEL_FONT = "600 12px 'Google Sans Flex', Roboto, sans-serif";
 
 export default function GlobeContainer(props: GlobeContainerProps) {
   const { data, visibility, refTime, radarTiles, selectedPoint, focus, theme, initialView = DEFAULT_MAP_VIEW } = props;
+  const tGlobe = useTranslations("globe");
   const containerRef = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<Cesium.Viewer | null>(null);
   const propsRef = useRef(props);
@@ -649,9 +651,9 @@ export default function GlobeContainer(props: GlobeContainerProps) {
           role="status"
           className="absolute bottom-4 left-1/2 z-10 flex -translate-x-1/2 items-center gap-3 rounded-lg bg-black/70 px-3 py-2 text-sm text-white"
         >
-          <span>No se pudo cargar el relieve o las imágenes del globo.</span>
+          <span>{tGlobe("baseError")}</span>
           <button type="button" onClick={() => retryBaseRef.current()} className="rounded px-2 py-0.5 font-semibold underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-white">
-            Reintentar
+            {tGlobe("retry")}
           </button>
         </div>
       )}

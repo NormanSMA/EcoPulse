@@ -111,6 +111,10 @@
       "disaster": "Disaster"
     }
   },
+  "globe": {
+    "baseError": "Could not load the globe terrain or imagery.",
+    "retry": "Retry"
+  },
   "mapMode": {
     "label": "Map view"
   },
@@ -165,6 +169,9 @@
   "detail": {
     "back": "Back to events",
     "close": "Close details",
+    "requestError": "Could not load the data.",
+    "retry": "Retry",
+    "notAvailable": "N/A",
     "unavailable": "This item is no longer in the current data (it may be outside the time window).",
     "kinds": {
       "quake": "Earthquake",
@@ -342,6 +349,7 @@
       "strongest": "Largest",
       "top": "Top 5",
       "byDecade": "Earthquakes per decade",
+      "decade": "{year}s",
       "loading": "Loading history…",
       "empty": "No M ≥ 7 earthquakes recorded.",
       "viewUsgs": "View on USGS",

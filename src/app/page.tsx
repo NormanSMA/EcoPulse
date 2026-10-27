@@ -41,6 +41,8 @@ const PLAYBACK_DURATION_MS = 20_000;
 const PLAYBACK_TICK_MS = 100;
 const SPEEDS = [1, 2, 4];
 const LG_QUERY = "(min-width: 1024px)";
+// Bajo xl los dos paneles flotantes (360 + 376 px) casi cubren el mapa.
+const XL_QUERY = "(min-width: 1280px)";
 
 // Por defecto solo lo más relevante (sin sobrecargar el mapa).
 const INITIAL_VISIBILITY: LayerVisibility = {
@@ -238,8 +240,24 @@ function HomePageContent() {
 
   const select = useCallback((s: Selection) => {
     setSelection(s);
-    if (window.matchMedia(LG_QUERY).matches) setEventsOpen(true);
-    else setMobileSheet("detail");
+    if (window.matchMedia(LG_QUERY).matches) {
+      setEventsOpen(true);
+      if (!window.matchMedia(XL_QUERY).matches) setControlsOpen(false);
+    } else setMobileSheet("detail");
+  }, []);
+
+  const openControls = useCallback(() => {
+    setControlsOpen(true);
+    if (!window.matchMedia(XL_QUERY).matches) setEventsOpen(false);
+  }, []);
+  const openEvents = useCallback(() => {
+    setEventsOpen(true);
+    if (!window.matchMedia(XL_QUERY).matches) setControlsOpen(false);
+  }, []);
+
+  // En pantallas medianas arranca solo el panel de eventos.
+  useEffect(() => {
+    if (!window.matchMedia(XL_QUERY).matches) setControlsOpen(false);
   }, []);
 
   const closeDetail = useCallback(() => {
@@ -300,7 +318,7 @@ function HomePageContent() {
   };
 
   const events = (className?: string) => (
-    <EventsPanel data={data} visibility={visibility} locale={locale} selected={selection} onPick={pickEvent} className={className} />
+    <EventsPanel data={data} visibility={visibility} locale={locale} selected={selection} onPick={pickEvent} loading={live.quakesStatus === "loading"} error={live.quakesStatus === "error"} className={className} />
   );
 
   // Desplazamientos de los controles nativos del mapa para no quedar bajo los paneles.
@@ -351,7 +369,7 @@ function HomePageContent() {
             </div>
           </aside>
         ) : (
-          <Button variant="elevated" size="lg" onClick={() => setControlsOpen(true)} className="absolute left-4 top-4 z-10 hidden lg:inline-flex">
+          <Button variant="elevated" size="lg" onClick={openControls} className="absolute left-4 top-4 z-10 hidden lg:inline-flex">
             <MorphIcon icon={SlidersHorizontal} size={20} reducedMotion="user" />
             {tPanel("controls")}
           </Button>
@@ -370,7 +388,7 @@ function HomePageContent() {
             )}
           </aside>
         ) : (
-          <Button variant="elevated" size="lg" onClick={() => setEventsOpen(true)} className="absolute right-4 top-4 z-10 hidden lg:inline-flex">
+          <Button variant="elevated" size="lg" onClick={openEvents} className="absolute right-4 top-4 z-10 hidden lg:inline-flex">
             <MorphIcon icon={Inbox} size={20} reducedMotion="user" />
             {t("title")}
           </Button>

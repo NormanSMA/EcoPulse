@@ -6,7 +6,7 @@ import { useTranslations } from "next-intl";
 import { ArrowLeft, X, ExternalLink, Waves, Flame, AlertTriangle, Mountain, Wind, Satellite, MapPin, Tornado, TriangleAlert, Layers, Activity } from "lucide";
 import type { IconNode } from "lucide";
 import { MorphIcon } from "morphicons/react";
-import { IconButton } from "@/components/ui/Button";
+import { Button, IconButton } from "@/components/ui/Button";
 import { cn } from "@/design-system/utils/cn";
 import { layers, marker, boundaryColor, magnitudeColor, alertColor, aqiColor, stormColor, scales } from "@/design-system/tokens";
 import type { ResolvedSelection } from "@/lib/resolveSelection";
@@ -30,20 +30,33 @@ type Tectonics = MapData["tectonics"];
 
 // ---------- Datos bajo demanda ----------
 
-function useJson<T>(url: string | null): { data: T | null; loading: boolean } {
-  const [state, setState] = useState<{ url: string | null; data: T | null }>({ url: null, data: null });
+function useJson<T>(url: string | null) {
+  const [attempt, setAttempt] = useState(0);
+  const [state, setState] = useState<{ url: string | null; attempt: number; data: T | null; error: boolean; loading: boolean }>({ url: null, attempt: 0, data: null, error: false, loading: false });
   useEffect(() => {
     if (!url) return;
     const controller = new AbortController();
+    setState({ url, attempt, data: null, error: false, loading: true });
     fetch(url, { signal: controller.signal })
-      .then((r) => (r.ok ? (r.json() as Promise<T>) : null))
-      .then((data) => setState({ url, data }))
-      .catch((err) => {
-        if (!(err instanceof DOMException && err.name === "AbortError")) setState({ url, data: null });
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json() as Promise<T>;
+      })
+      .then((data) => {
+        if (!controller.signal.aborted) setState({ url, attempt, data, error: false, loading: false });
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setState({ url, attempt, data: null, error: true, loading: false });
       });
     return () => controller.abort();
-  }, [url]);
-  return { data: state.url === url ? state.data : null, loading: !!url && state.url !== url };
+  }, [url, attempt]);
+  const current = !!url && state.url === url && state.attempt === attempt;
+  return {
+    data: current ? state.data : null,
+    loading: !!url && (!current || state.loading),
+    error: current && state.error,
+    retry: () => setAttempt((value) => value + 1),
+  };
 }
 
 // ---------- Piezas de maquetación ----------
@@ -53,7 +66,7 @@ function Stat({ label, value, hint }: { label: string; value: ReactNode; hint?: 
     <div className="flex min-w-0 flex-col rounded-ds-xl bg-ds-surface-container px-3 py-2">
       <span className="truncate text-xs text-ds-text-secondary">{label}</span>
       <span className="truncate text-base font-medium tabular-nums text-ds-text-primary">{value}</span>
-      {hint && <span className="truncate text-[11px] text-ds-text-muted">{hint}</span>}
+      {hint && <span className="truncate text-[11px] text-ds-text-secondary">{hint}</span>}
     </div>
   );
 }
@@ -105,18 +118,35 @@ function Muted({ children }: { children: ReactNode }) {
   return <p className="text-xs text-ds-text-muted">{children}</p>;
 }
 
+function RequestError({ onRetry }: { onRetry: () => void }) {
+  const t = useTranslations("detail");
+  return (
+    <div role="alert" className="flex flex-col items-start gap-2">
+      <p className="text-xs text-ds-text-secondary">{t("requestError")}</p>
+      <Button variant="outlined" onClick={onRetry}>{t("retry")}</Button>
+    </div>
+  );
+}
+
+function formatNumber(value: number, locale: string, digits?: number) {
+  return new Intl.NumberFormat(locale, { minimumFractionDigits: digits, maximumFractionDigits: digits }).format(value);
+}
+
 // ---------- Bloques reutilizables ----------
 
 /** Sismicidad (30 días, 150 km) alrededor de un punto. */
 function QuakeHistory({ lat, lon, selectedId, locale }: { lat: number; lon: number; selectedId?: string; locale: string }) {
   const t = useTranslations("detail.history");
-  const { data, loading } = useJson<{ features: EarthquakeFeature[] }>(`/api/quake-history?lat=${lat.toFixed(3)}&lon=${lon.toFixed(3)}`);
+  const tDetail = useTranslations("detail");
+  const { data, loading, error, retry } = useJson<{ features: EarthquakeFeature[] }>(`/api/quake-history?lat=${lat.toFixed(3)}&lon=${lon.toFixed(3)}`);
   const quakes = data?.features ?? [];
   const strongest = quakes.reduce<EarthquakeFeature | null>((m, q) => (!m || (q.properties.mag ?? 0) > (m.properties.mag ?? 0) ? q : m), null);
   return (
     <Block title={t("title")} subtitle={t("subtitle")}>
       {loading ? (
         <Muted>{t("loading")}</Muted>
+      ) : error ? (
+        <RequestError onRetry={retry} />
       ) : quakes.length === 0 ? (
         <Muted>{t("empty")}</Muted>
       ) : (
@@ -124,13 +154,13 @@ function QuakeHistory({ lat, lon, selectedId, locale }: { lat: number; lon: numb
           <Stats>
             <Stat
               label={t("count")}
-              value={quakes.length}
+              value={formatNumber(quakes.length, locale)}
               hint={`${t("latest")}: ${relativeTime(Math.max(...quakes.map((q) => q.properties.time)), locale)}`}
             />
             {strongest && (
               <Stat
                 label={t("strongest")}
-                value={`M ${strongest.properties.mag?.toFixed(1)}`}
+                value={`M ${strongest.properties.mag != null ? formatNumber(strongest.properties.mag, locale, 1) : tDetail("notAvailable")}`}
                 hint={formatDateTime(strongest.properties.time, locale)}
               />
             )}
@@ -143,10 +173,11 @@ function QuakeHistory({ lat, lon, selectedId, locale }: { lat: number; lon: numb
 }
 
 /** Tiempo actual y pronóstico 24 h en un punto (+ PM2.5 modelado). */
-function PointWeather({ info, loading, locale }: { info: PointInfo | null; loading: boolean; locale: string }) {
+function PointWeather({ info, loading, error, onRetry, locale }: { info: PointInfo | null; loading: boolean; error: boolean; onRetry: () => void; locale: string }) {
   const t = useTranslations("detail.point");
   const tCodes = useTranslations("weatherCodes");
   if (loading) return <Muted>{t("loading")}</Muted>;
+  if (error) return <RequestError onRetry={onRetry} />;
   if (!info?.current) return <Muted>{t("unavailable")}</Muted>;
   const c = info.current;
   const code = String(c.weatherCode);
@@ -161,9 +192,9 @@ function PointWeather({ info, loading, locale }: { info: PointInfo | null; loadi
         <Stat label={t("feels")} value={`${Math.round(c.apparent)}°C`} />
         <Stat label={t("humidity")} value={`${c.humidity}%`} />
         <Stat label={t("wind")} value={`${Math.round(c.windSpeed)} km/h`} hint={compass(c.windDirection, locale)} />
-        <Stat label={t("precip")} value={`${c.precipitation} mm`} />
+        <Stat label={t("precip")} value={`${formatNumber(c.precipitation, locale)} mm`} />
         {info.pm25 != null && (
-          <Stat label={t("airModel")} value={`${info.pm25.toFixed(1)} µg/m³`} hint={<span style={{ color: aqiColor(getAQICategory(info.pm25)) }}>●</span>} />
+          <Stat label={t("airModel")} value={`${formatNumber(info.pm25, locale, 1)} µg/m³`} hint={<span style={{ color: aqiColor(getAQICategory(info.pm25)) }}>●</span>} />
         )}
       </Stats>
       {info.hourly.length > 0 && (
@@ -215,7 +246,7 @@ export function DetailPanel({ kind, resolved, locale, tectonics, onClose, backTo
   // Pronóstico/aire modelado: para puntos, ciclones y estaciones de aire.
   const wantsPoint = item && (item.kind === "point" || item.kind === "cyclone" || item.kind === "air");
   const pointUrl = wantsPoint && coords ? `/api/point?lat=${coords[1].toFixed(3)}&lon=${coords[0].toFixed(3)}&lang=${locale}` : null;
-  const { data: pointInfo, loading: pointLoading } = useJson<PointInfo>(pointUrl);
+  const { data: pointInfo, loading: pointLoading, error: pointError, retry: retryPoint } = useJson<PointInfo>(pointUrl);
 
   const accent = (() => {
     if (!item) return marker.selected;
@@ -249,7 +280,7 @@ export function DetailPanel({ kind, resolved, locale, tectonics, onClose, backTo
     if (!item) return t(`kinds.${kind}`);
     switch (item.kind) {
       case "quake":
-        return `M ${item.f.properties.mag?.toFixed(1) ?? "?"} · ${item.f.properties.place}`;
+        return `M ${item.f.properties.mag != null ? formatNumber(item.f.properties.mag, locale, 1) : t("notAvailable")} · ${item.f.properties.place}`;
       case "fire":
         return t("kinds.fire");
       case "disaster":
@@ -260,7 +291,7 @@ export function DetailPanel({ kind, resolved, locale, tectonics, onClose, backTo
       case "volcanoCatalog":
         return item.f.properties.name;
       case "air":
-        return pm25Title(item.f.properties.pm25);
+        return pm25Title(item.f.properties.pm25, locale);
       case "iss":
         return "ISS";
       case "boundary":
@@ -314,7 +345,7 @@ export function DetailPanel({ kind, resolved, locale, tectonics, onClose, backTo
         {item?.kind === "fire" && (
           <>
             <Stats>
-              <Stat label={t("fire.frp")} value={`${item.f.properties.frp.toFixed(1)} MW`} />
+              <Stat label={t("fire.frp")} value={`${formatNumber(item.f.properties.frp, locale, 1)} MW`} />
               <Stat
                 label={t("fire.confidence")}
                 value={t.has(`fire.confidenceLevels.${item.f.properties.confidence}`) ? t(`fire.confidenceLevels.${item.f.properties.confidence}`) : String(item.f.properties.confidence)}
@@ -363,7 +394,7 @@ export function DetailPanel({ kind, resolved, locale, tectonics, onClose, backTo
             <Muted>{t("cyclone.trackNote")}</Muted>
             <SourceLink href={`https://www.gdacs.org/report.aspx?eventtype=TC&eventid=${item.f.properties.eventId.replace(/^TC-/, "")}`}>{t("cyclone.report")}</SourceLink>
             <Block title={t("point.now")}>
-              <PointWeather info={pointInfo} loading={pointLoading} locale={locale} />
+              <PointWeather info={pointInfo} loading={pointLoading} error={pointError} onRetry={retryPoint} locale={locale} />
             </Block>
           </>
         )}
@@ -414,15 +445,15 @@ export function DetailPanel({ kind, resolved, locale, tectonics, onClose, backTo
           </>
         )}
 
-        {item?.kind === "air" && <AirDetail item={item} pointInfo={pointInfo} pointLoading={pointLoading} locale={locale} />}
+        {item?.kind === "air" && <AirDetail item={item} pointInfo={pointInfo} pointLoading={pointLoading} pointError={pointError} retryPoint={retryPoint} locale={locale} />}
 
         {item?.kind === "iss" && (
           <>
             <Stats>
-              <Stat label={t("iss.altitude")} value={`${item.f.properties.altitudeKm.toFixed(0)} km`} />
+              <Stat label={t("iss.altitude")} value={`${formatNumber(item.f.properties.altitudeKm, locale, 0)} km`} />
               <Stat
                 label={t("iss.speed")}
-                value={`${item.f.properties.velocityKmS.toFixed(2)} km/s`}
+                value={`${formatNumber(item.f.properties.velocityKmS, locale, 2)} km/s`}
                 hint={`${Math.round(item.f.properties.velocityKmS * 3600).toLocaleString(locale)} km/h`}
               />
               <Stat label={t("iss.visibility")} value={`${Math.round(footprintRadiusKm(item.f.properties.altitudeKm)).toLocaleString(locale)} km`} />
@@ -443,7 +474,7 @@ export function DetailPanel({ kind, resolved, locale, tectonics, onClose, backTo
                 <p className="-mt-2 text-sm text-ds-text-secondary">{[pointInfo.place.region, pointInfo.place.country].filter(Boolean).join(", ")}</p>
               )
             )}
-            <PointWeather info={pointInfo} loading={pointLoading} locale={locale} />
+            <PointWeather info={pointInfo} loading={pointLoading} error={pointError} onRetry={retryPoint} locale={locale} />
             <QuakeHistory lat={item.lat} lon={item.lon} locale={locale} />
           </>
         )}
@@ -452,8 +483,8 @@ export function DetailPanel({ kind, resolved, locale, tectonics, onClose, backTo
   );
 }
 
-function pm25Title(v: number) {
-  return `${v.toFixed(1)} µg/m³`;
+function pm25Title(v: number, locale: string) {
+  return `${formatNumber(v, locale, 1)} µg/m³`;
 }
 
 function QuakeDetail({ f, locale, tectonics }: { f: EarthquakeFeature; locale: string; tectonics?: Tectonics }) {
@@ -475,7 +506,7 @@ function QuakeDetail({ f, locale, tectonics }: { f: EarthquakeFeature; locale: s
         <Badge color={marker.selected}>{src}</Badge>
       </div>
       <Stats>
-        <Stat label={t("magnitude")} value={p.mag != null ? p.mag.toFixed(1) : "—"} hint={p.magType} />
+        <Stat label={t("magnitude")} value={p.mag != null ? formatNumber(p.mag, locale, 1) : t("notAvailable")} hint={p.magType} />
         <Stat label={t("depth")} value={`${Math.round(depth ?? 0)} km`} hint={t(`depthClass.${depthClass(depth ?? 0)}`)} />
         <Stat label={t("time")} value={relativeTime(p.time, locale)} hint={formatDateTime(p.time, locale)} />
         {p.felt ? <Stat label={t("felt")} value={t("feltValue", { n: p.felt.toLocaleString(locale) })} /> : <Stat label={t("source")} value={src} />}
@@ -497,18 +528,23 @@ function AirDetail({
   item,
   pointInfo,
   pointLoading,
+  pointError,
+  retryPoint,
   locale,
 }: {
   item: Extract<NonNullable<ResolvedSelection["item"]>, { kind: "air" }>;
   pointInfo: PointInfo | null;
   pointLoading: boolean;
+  pointError: boolean;
+  retryPoint: () => void;
   locale: string;
 }) {
   const t = useTranslations("detail.air");
   const tLegend = useTranslations("legend.aqiLevels");
+  const tDetail = useTranslations("detail");
   const p = item.f.properties;
   const url = p.locationId && p.sensorId ? `/api/air-quality/station?location=${p.locationId}&sensor=${p.sensorId}` : null;
-  const { data: station, loading } = useJson<{ name: string | null; locality: string | null; country: string | null; history: { t: string; v: number }[] }>(url);
+  const { data: station, loading, error, retry } = useJson<{ name: string | null; locality: string | null; country: string | null; history: { t: string; v: number }[] }>(url);
   const stationName = [station?.name, station?.locality, station?.country].filter(Boolean).join(" · ");
   const model = pointInfo?.pm25;
   return (
@@ -517,18 +553,19 @@ function AirDetail({
         <Badge color={aqiColor(p.category)}>{tLegend(p.category)}</Badge>
       </div>
       <Stats>
-        <Stat label={t("pm25")} value={`${p.pm25.toFixed(1)} µg/m³`} />
+        <Stat label={t("pm25")} value={`${formatNumber(p.pm25, locale, 1)} µg/m³`} />
         <Stat label={t("updated")} value={relativeTime(Date.parse(p.updated), locale)} hint={formatDateTime(Date.parse(p.updated), locale)} />
         <Stat
           label={t("model")}
-          value={pointLoading ? "…" : model != null ? `${model.toFixed(1)} µg/m³` : "—"}
+          value={pointLoading ? "…" : model != null ? `${formatNumber(model, locale, 1)} µg/m³` : tDetail("notAvailable")}
           hint={model != null ? tLegend(getAQICategory(model)) : undefined}
         />
         {stationName && <Stat label={t("station")} value={stationName} />}
       </Stats>
+      {pointError && <RequestError onRetry={retryPoint} />}
       <Muted>{t("modelNote")}</Muted>
       <Block title={t("history")} subtitle={t("who")}>
-        {loading ? <Muted>{t("loading")}</Muted> : station?.history.length ? <AirHistoryChart history={station.history} locale={locale} /> : <Muted>{t("noHistory")}</Muted>}
+        {loading ? <Muted>{t("loading")}</Muted> : error ? <RequestError onRetry={retry} /> : station?.history.length ? <AirHistoryChart history={station.history} locale={locale} /> : <Muted>{t("noHistory")}</Muted>}
       </Block>
     </>
   );
@@ -562,13 +599,16 @@ const placeWithoutYear = (place: string, time: number) => place.replace(new RegE
 
 function BoundaryHistoryBlock({ plates, convergent, locale }: { plates: string; convergent: boolean; locale: string }) {
   const t = useTranslations("detail.tectonics");
-  const { data, loading } = useJson<BoundaryHistory>(`/api/boundary-history?plates=${encodeURIComponent(plates)}`);
+  const tDetail = useTranslations("detail");
+  const { data, loading, error, retry } = useJson<BoundaryHistory>(`/api/boundary-history?plates=${encodeURIComponent(plates)}`);
   const top = [...(data?.features ?? [])].sort((a, b) => (b.properties.mag ?? 0) - (a.properties.mag ?? 0)).slice(0, 5);
   const s = data?.strongest;
   return (
     <Block title={t("historyTitle")} subtitle={t("historySubtitle", { km: convergent ? 250 : 100 })}>
       {loading ? (
         <Muted>{t("loading")}</Muted>
+      ) : error ? (
+        <RequestError onRetry={retry} />
       ) : !data || data.total === 0 ? (
         <Muted>{t("empty")}</Muted>
       ) : (
@@ -578,7 +618,7 @@ function BoundaryHistoryBlock({ plates, convergent, locale }: { plates: string; 
             {s && (
               <Stat
                 label={t("strongest")}
-                value={`M ${s.properties.mag?.toFixed(1) ?? "?"} · ${new Date(s.properties.time).getUTCFullYear()}`}
+                value={`M ${s.properties.mag != null ? formatNumber(s.properties.mag, locale, 1) : tDetail("notAvailable")} · ${new Date(s.properties.time).getUTCFullYear()}`}
                 hint={placeWithoutYear(s.properties.place, s.properties.time)}
               />
             )}
@@ -590,7 +630,7 @@ function BoundaryHistoryBlock({ plates, convergent, locale }: { plates: string; 
           <ol className="flex flex-col gap-1 text-sm text-ds-text-primary">
             {top.map((q) => (
               <li key={String(q.id)} className="flex gap-2">
-                <span className="shrink-0 font-medium tabular-nums">M {q.properties.mag?.toFixed(1)}</span>
+                <span className="shrink-0 font-medium tabular-nums">M {q.properties.mag != null ? formatNumber(q.properties.mag, locale, 1) : tDetail("notAvailable")}</span>
                 <span className="shrink-0 tabular-nums text-ds-text-secondary">{new Date(q.properties.time).getUTCFullYear()}</span>
                 <span className="min-w-0 truncate text-ds-text-muted">{placeWithoutYear(q.properties.place, q.properties.time)}</span>
               </li>
@@ -623,7 +663,7 @@ function BoundaryDetail({ plates, lines, locale }: { plates: string; lines: Tect
       </div>
       <Stats>
         {dominant && <Stat label={t("dominantClass")} value={t(`stepClasses.${dominant}`)} />}
-        <Stat label={t("velocity")} value={`${velocity.toFixed(1)} ${t("mmYr")}`} />
+        <Stat label={t("velocity")} value={`${formatNumber(velocity, locale, 1)} ${t("mmYr")}`} />
         <Stat label={t("totalLength")} value={`${Math.round(totalKm).toLocaleString(locale)} km`} />
       </Stats>
       <Muted>{t(`explain.${type}`)}</Muted>

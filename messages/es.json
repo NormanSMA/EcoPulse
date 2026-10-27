@@ -111,6 +111,10 @@
       "disaster": "Desastre"
     }
   },
+  "globe": {
+    "baseError": "No se pudo cargar el relieve o las imágenes del globo.",
+    "retry": "Reintentar"
+  },
   "mapMode": {
     "label": "Vista del mapa"
   },
@@ -165,6 +169,9 @@
   "detail": {
     "back": "Volver a eventos",
     "close": "Cerrar detalle",
+    "requestError": "No se pudieron cargar los datos.",
+    "retry": "Reintentar",
+    "notAvailable": "N/D",
     "unavailable": "Este elemento ya no está en los datos actuales (puede estar fuera de la ventana de tiempo).",
     "kinds": {
       "quake": "Sismo",
@@ -342,6 +349,7 @@
       "strongest": "El mayor",
       "top": "Los 5 mayores",
       "byDecade": "Sismos por década",
+      "decade": "Década de {year}",
       "loading": "Cargando historia…",
       "empty": "Sin sismos M ≥ 7 registrados.",
       "viewUsgs": "Ver en USGS",
