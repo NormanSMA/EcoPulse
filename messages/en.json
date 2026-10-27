@@ -86,6 +86,8 @@
     "error": "Could not search earthquakes. Try again."
   },
   "timeControl": {
+    "show": "Timeline",
+    "hide": "Hide timeline",
     "live": "Live",
     "playback": "Playback",
     "window": "Time window",

@@ -86,6 +86,8 @@
     "error": "No se pudo buscar sismos. Inténtalo de nuevo."
   },
   "timeControl": {
+    "show": "Línea de tiempo",
+    "hide": "Ocultar línea de tiempo",
     "live": "En vivo",
     "playback": "Reproducir",
     "window": "Ventana temporal",
