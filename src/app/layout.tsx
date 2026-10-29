@@ -1,8 +1,11 @@
 import type { Metadata, Viewport } from "next";
 import { themes } from "@/design-system/tokens";
+import { SITE_URL } from "@/lib/siteUrl";
 import "./globals.css";
 
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
+  alternates: { canonical: "/" },
   title: "EcoPulse — Global Environmental & Seismic Monitor",
   description: "Plataforma en tiempo real de monitoreo de sismos mundiales y calidad del aire.",
   manifest: "/manifest.webmanifest",
