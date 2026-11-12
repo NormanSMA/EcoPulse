@@ -20,7 +20,7 @@ export interface ExplorerState {
 }
 
 export type ExplorerAction =
-  | { type: "layout"; layout: Layout }
+  | { type: "layout"; layout: Layout; previous?: Layout }
   | { type: "select"; selection: Selection; fly?: [lon: number, lat: number]; layout: Layout; now: number }
   | { type: "clearSelection"; layout: Layout }
   | { type: "openLeft"; layout: Layout }
@@ -53,6 +53,8 @@ export function explorerReducer(state: ExplorerState, action: ExplorerAction): E
   switch (action.type) {
     case "layout": {
       if (action.layout === "mobile") return patch(state, { left: false, right: state.selection ? "detail" : null });
+      // Al volver de móvil (giro o ventana más ancha) se recuperan los paneles de escritorio.
+      if (action.previous === "mobile") return patch(state, { left: action.layout === "wide", right: state.selection ? "detail" : "events" });
       const left = action.layout === "medium" && state.left && state.right ? false : state.left;
       const right = state.right === null && state.selection ? "detail" : state.right;
       return patch(state, { left, right });

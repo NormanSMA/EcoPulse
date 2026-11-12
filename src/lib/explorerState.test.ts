@@ -142,3 +142,38 @@ describe("inSpatialFilter", () => {
     expect(inSpatialFilter(f, -80, 12.1)).toBe(false);
   });
 });
+
+describe("layout: vuelta de movil a escritorio", () => {
+  const mobile = explorerReducer(initialExplorerState("wide"), { type: "layout", layout: "mobile" });
+
+  it("en movil no queda ningun panel abierto", () => {
+    expect(mobile.left).toBe(false);
+    expect(mobile.right).toBeNull();
+  });
+
+  it("al pasar a wide reabre capas y eventos", () => {
+    const wide = explorerReducer(mobile, { type: "layout", layout: "wide", previous: "mobile" });
+    expect(wide.left).toBe(true);
+    expect(wide.right).toBe("events");
+  });
+
+  it("al pasar a medium reabre solo eventos", () => {
+    const medium = explorerReducer(mobile, { type: "layout", layout: "medium", previous: "mobile" });
+    expect(medium.left).toBe(false);
+    expect(medium.right).toBe("events");
+  });
+
+  it("con seleccion reabre el detalle", () => {
+    const selected = explorerReducer(mobile, { type: "select", selection: { kind: "iss" }, layout: "mobile", now: 1 });
+    const wide = explorerReducer(selected, { type: "layout", layout: "wide", previous: "mobile" });
+    expect(wide.right).toBe("detail");
+    expect(wide.selection).toEqual({ kind: "iss" });
+  });
+
+  it("sin venir de movil no reabre un panel cerrado por el usuario", () => {
+    const closed = explorerReducer(initialExplorerState("wide"), { type: "closeLeft" });
+    const medium = explorerReducer(closed, { type: "layout", layout: "medium", previous: "wide" });
+    expect(medium.left).toBe(false);
+    expect(explorerReducer(medium, { type: "layout", layout: "wide", previous: "medium" }).left).toBe(false);
+  });
+});
