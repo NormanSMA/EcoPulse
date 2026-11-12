@@ -1,9 +1,9 @@
+import { destination, EARTH_RADIUS_KM } from "./geo";
 import type { TrackPoint } from "./types";
 
 // Geometrías calculadas en el cliente: trayectoria continua de la ISS,
 // huella de visibilidad y la zona nocturna (línea día/noche).
 
-const EARTH_RADIUS_KM = 6371;
 const toRad = (d: number) => (d * Math.PI) / 180;
 const toDeg = (r: number) => (r * 180) / Math.PI;
 
@@ -38,15 +38,6 @@ export function trackLine(track: TrackPoint[], anchor?: [number, number]): [numb
     if (shift) return line.map(([lon, lat]) => [lon + shift, lat]);
   }
   return line;
-}
-
-/** Punto destino desde (lon, lat) con rumbo y ángulo central (radianes). */
-function destination(lon: number, lat: number, bearing: number, angular: number): [number, number] {
-  const φ1 = toRad(lat);
-  const λ1 = toRad(lon);
-  const φ2 = Math.asin(Math.sin(φ1) * Math.cos(angular) + Math.cos(φ1) * Math.sin(angular) * Math.cos(bearing));
-  const λ2 = λ1 + Math.atan2(Math.sin(bearing) * Math.sin(angular) * Math.cos(φ1), Math.cos(angular) - Math.sin(φ1) * Math.sin(φ2));
-  return [toDeg(λ2), toDeg(φ2)];
 }
 
 /**

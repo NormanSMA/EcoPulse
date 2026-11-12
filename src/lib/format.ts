@@ -1,3 +1,5 @@
+import { haversineKm } from "./geo";
+
 // Formatos compartidos por el panel de detalle y la bandeja de eventos.
 
 const UNITS: [Intl.RelativeTimeFormatUnit, number][] = [
@@ -46,13 +48,7 @@ export function formatCoords(lon: number, lat: number): string {
 }
 
 /** Distancia en km (haversine). */
-export function distanceKm(a: [number, number], b: [number, number]): number {
-  const toRad = (d: number) => (d * Math.PI) / 180;
-  const dLat = toRad(b[1] - a[1]);
-  const dLon = toRad(b[0] - a[0]);
-  const h = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(a[1])) * Math.cos(toRad(b[1])) * Math.sin(dLon / 2) ** 2;
-  return 2 * 6371 * Math.asin(Math.sqrt(h));
-}
+export const distanceKm: (a: [number, number], b: [number, number]) => number = haversineKm;
 
 const MONTHS = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"];
 

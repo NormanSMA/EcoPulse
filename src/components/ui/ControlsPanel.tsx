@@ -11,7 +11,7 @@ import NearbySearch from "@/components/ui/NearbySearch";
 
 export const MAG_STEPS = [0, 3, 4, 5, 6, 7] as const;
 
-export type LayerVisibility = Record<LayerKey, boolean>;
+import type { LayerVisibility } from "@/components/map/types";
 
 interface LayerDef {
   key: LayerKey;
