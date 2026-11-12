@@ -67,13 +67,15 @@ export interface ControlsPanelProps {
   /** Magnitud mínima de los sismos mostrados (0 = todos). */
   minMag: number;
   onMinMagChange: (value: number) => void;
+  /** Capas cuya fuente no respondió en el último ciclo. */
+  down?: Partial<Record<LayerKey, boolean>>;
 }
 
 /**
  * Contenido del panel "Controles" (izquierda en escritorio, bottom sheet en
  * móvil): grupos de capas con switch maestro, leyenda y búsqueda cercana.
  */
-export default function ControlsPanel({ visibility, onChange, showLegend = true, minMag, onMinMagChange }: ControlsPanelProps) {
+export default function ControlsPanel({ visibility, onChange, showLegend = true, minMag, onMinMagChange, down }: ControlsPanelProps) {
   const t = useTranslations("layers");
   const tPanel = useTranslations("panel");
   const tNearby = useTranslations("nearby");
@@ -104,6 +106,7 @@ export default function ControlsPanel({ visibility, onChange, showLegend = true,
                   key={l.key}
                   label={t(l.key)}
                   tag={l.tag}
+                  alert={down?.[l.key] ? t("sourceDown") : undefined}
                   swatch={layers[l.key]}
                   swatchRing={l.ring}
                   checked={visibility[l.key]}

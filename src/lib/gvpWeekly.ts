@@ -1,3 +1,4 @@
+import { withTimeout } from "./http";
 import type { ActiveVolcanoFeature, ActiveVolcanoGeoJSON } from "./types";
 
 // Volcanes con actividad esta semana: Weekly Volcanic Activity Report
@@ -79,14 +80,18 @@ export function parseWeeklyRss(xml: string): ActiveVolcanoFeature[] {
   return features;
 }
 
+export async function loadActiveVolcanoes(signal?: AbortSignal): Promise<ActiveVolcanoGeoJSON> {
+  const res = await fetch(WEEKLY_RSS, { signal: withTimeout(8000, signal) });
+  if (!res.ok) throw new Error(`GVP weekly HTTP ${res.status}`);
+  // El feed se sirve en ISO-8859-1.
+  const buf = await res.arrayBuffer();
+  const xml = new TextDecoder("iso-8859-1").decode(buf);
+  return { type: "FeatureCollection", features: parseWeeklyRss(xml) };
+}
+
 export async function fetchActiveVolcanoes(signal?: AbortSignal): Promise<ActiveVolcanoGeoJSON> {
   try {
-    const res = await fetch(WEEKLY_RSS, { signal });
-    if (!res.ok) throw new Error(`GVP weekly HTTP ${res.status}`);
-    // El feed se sirve en ISO-8859-1.
-    const buf = await res.arrayBuffer();
-    const xml = new TextDecoder("iso-8859-1").decode(buf);
-    return { type: "FeatureCollection", features: parseWeeklyRss(xml) };
+    return await loadActiveVolcanoes(signal);
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") throw error;
     console.error("Error obteniendo el reporte semanal de volcanes:", error);

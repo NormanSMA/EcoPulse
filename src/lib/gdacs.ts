@@ -1,3 +1,4 @@
+import { withTimeout } from "./http";
 import { DisasterEventType, AlertLevel, DisasterFeature, DisasterGeoJSON } from "./types";
 
 const GDACS_URL = "https://www.gdacs.org/gdacsapi/api/events/geteventlist/SEARCH";
@@ -79,19 +80,23 @@ export function isRecentDisaster(raw: GdacsRawFeature, now: number = Date.now())
   return Number.isFinite(end) && now - end <= RECENT_WINDOW_MS;
 }
 
+export async function loadDisasters(signal?: AbortSignal): Promise<DisasterGeoJSON> {
+  const res = await fetch(GDACS_URL, { headers: { Accept: "application/json" }, signal: withTimeout(8000, signal) });
+  if (!res.ok) {
+    throw new Error(`GDACS HTTP ${res.status}`);
+  }
+  const data: GdacsResponse = await res.json();
+  const features = data.features
+    .filter((raw) => isRecentDisaster(raw))
+    .map(toDisasterFeature)
+    .filter((f): f is DisasterFeature => f !== null);
+
+  return { type: "FeatureCollection", features };
+}
+
 export async function fetchLiveDisasters(signal?: AbortSignal): Promise<DisasterGeoJSON> {
   try {
-    const res = await fetch(GDACS_URL, { headers: { Accept: "application/json" }, signal });
-    if (!res.ok) {
-      throw new Error(`GDACS HTTP ${res.status}`);
-    }
-    const data: GdacsResponse = await res.json();
-    const features = data.features
-      .filter((raw) => isRecentDisaster(raw))
-      .map(toDisasterFeature)
-      .filter((f): f is DisasterFeature => f !== null);
-
-    return { type: "FeatureCollection", features };
+    return await loadDisasters(signal);
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") throw error;
     console.error("Error obteniendo desastres de GDACS:", error);

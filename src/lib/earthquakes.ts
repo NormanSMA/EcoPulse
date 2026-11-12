@@ -1,4 +1,5 @@
 import { haversineKm, kmToDeg } from "./geo";
+import { withTimeout } from "./http";
 import type { EarthquakeFeature, EarthquakeGeoJSON } from "./types";
 
 // Catálogo sísmico combinado: USGS (referencia mundial, con PAGER, tsunami y
@@ -92,26 +93,24 @@ export function mergeQuakes(usgs: EarthquakeFeature[], emsc: EarthquakeFeature[]
   return merged.sort((a, b) => b.properties.time - a.properties.time);
 }
 
-async function fetchUsgs(period: QuakePeriod, signal?: AbortSignal): Promise<EarthquakeGeoJSON | null> {
-  try {
-    const res = await fetch(USGS_FEEDS[period], { signal });
-    if (!res.ok) throw new Error(`USGS HTTP ${res.status}`);
-    return (await res.json()) as EarthquakeGeoJSON;
-  } catch (err) {
-    if (err instanceof DOMException && err.name === "AbortError") throw err;
-    console.error("Error obteniendo sismos de USGS:", err);
-    return null;
-  }
+async function fetchUsgs(period: QuakePeriod, signal?: AbortSignal): Promise<EarthquakeGeoJSON> {
+  const res = await fetch(USGS_FEEDS[period], { signal: withTimeout(8000, signal) });
+  if (!res.ok) throw new Error(`USGS HTTP ${res.status}`);
+  return (await res.json()) as EarthquakeGeoJSON;
+}
+
+async function loadEmsc(params: Record<string, string | number>, signal?: AbortSignal): Promise<EarthquakeFeature[]> {
+  const qs = new URLSearchParams({ format: "json", limit: "2000", ...Object.fromEntries(Object.entries(params).map(([k, v]) => [k, String(v)])) });
+  const res = await fetch(`${EMSC_FDSN}?${qs}`, { signal });
+  if (res.status === 204) return [];
+  if (!res.ok) throw new Error(`EMSC HTTP ${res.status}`);
+  const data: { features: EmscFeature[] } = await res.json();
+  return data.features.filter((f) => f.properties.evtype !== "qb").map(fromEmsc);
 }
 
 async function fetchEmsc(params: Record<string, string | number>, signal?: AbortSignal): Promise<EarthquakeFeature[]> {
   try {
-    const qs = new URLSearchParams({ format: "json", limit: "2000", ...Object.fromEntries(Object.entries(params).map(([k, v]) => [k, String(v)])) });
-    const res = await fetch(`${EMSC_FDSN}?${qs}`, { signal });
-    if (res.status === 204) return [];
-    if (!res.ok) throw new Error(`EMSC HTTP ${res.status}`);
-    const data: { features: EmscFeature[] } = await res.json();
-    return data.features.filter((f) => f.properties.evtype !== "qb").map(fromEmsc);
+    return await loadEmsc(params, signal);
   } catch (err) {
     if (err instanceof DOMException && err.name === "AbortError") throw err;
     console.error("Error obteniendo sismos de EMSC:", err);
@@ -119,12 +118,24 @@ async function fetchEmsc(params: Record<string, string | number>, signal?: Abort
   }
 }
 
-export async function fetchMergedEarthquakes(period: QuakePeriod, signal?: AbortSignal): Promise<EarthquakeGeoJSON> {
+export async function loadMergedEarthquakes(period: QuakePeriod, signal?: AbortSignal): Promise<EarthquakeGeoJSON> {
   const since = new Date(Date.now() - (period === "week" ? 7 : 1) * 86_400_000).toISOString().slice(0, 19);
-  const [usgs, emsc] = await Promise.all([
+  const results = await Promise.allSettled([
     fetchUsgs(period, signal),
-    fetchEmsc({ start: since, minmag: EMSC_MIN_MAG }, signal),
+    loadEmsc({ start: since, minmag: EMSC_MIN_MAG }, withTimeout(8000, signal)),
   ]);
+  for (const [index, result] of results.entries()) {
+    if (result.status === "fulfilled") continue;
+    const err: unknown = result.reason;
+    if (err instanceof DOMException && err.name === "AbortError") throw err;
+    console.error(`Error obteniendo sismos de ${index === 0 ? "USGS" : "EMSC"}:`, err);
+  }
+  const [usgsResult, emscResult] = results;
+  if (usgsResult.status === "rejected" && emscResult.status === "rejected") {
+    throw new Error("USGS y EMSC no disponibles");
+  }
+  const usgs = usgsResult.status === "fulfilled" ? usgsResult.value : null;
+  const emsc = emscResult.status === "fulfilled" ? emscResult.value : [];
   const features = mergeQuakes(usgs?.features ?? [], emsc);
   return {
     type: "FeatureCollection",
@@ -138,6 +149,26 @@ export async function fetchMergedEarthquakes(period: QuakePeriod, signal?: Abort
     },
     features,
   };
+}
+
+export async function fetchMergedEarthquakes(period: QuakePeriod, signal?: AbortSignal): Promise<EarthquakeGeoJSON> {
+  try {
+    return await loadMergedEarthquakes(period, signal);
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") throw error;
+    return {
+      type: "FeatureCollection",
+      metadata: {
+        generated: Date.now(),
+        url: "",
+        title: "USGS + EMSC",
+        status: 200,
+        api: "merged",
+        count: 0,
+      },
+      features: [],
+    };
+  }
 }
 
 /**

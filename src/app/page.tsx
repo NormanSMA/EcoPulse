@@ -231,6 +231,11 @@ function HomePageContent() {
   }, [data.earthquakes, timeWindow, customStart, windowMs, playhead, tTime, locale, usesWeek, live.weekQuakes]);
 
   const radarTiles = visibility.radar ? radarFrameAt(live.radar, refTime)?.tiles ?? null : null;
+  // Capas cuya fuente falló o agotó el tiempo en el último ciclo.
+  const layersDown = useMemo(
+    () => Object.fromEntries(Object.entries(live.sourceStatus).map(([key, s]) => [key, s.status === "error" || s.status === "timeout"])),
+    [live.sourceStatus]
+  );
   const feedStatus = useFreshness(live.earthquakes.metadata.generated || null);
   const feedBadge = live.earthquakes.metadata.generated ? <StatusBadge status={feedStatus} size="sm" /> : null;
 
@@ -367,7 +372,7 @@ function HomePageContent() {
           <aside aria-label={tPanel("controls")} className={cn(floatingPanel, "left-4 w-[360px]")}>
             <PanelHeader title={tPanel("controls")} icon={SlidersHorizontal} onClose={() => setControlsOpen(false)} closeLabel={tPanel("close")} />
             <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain py-2">
-              <ControlsPanel visibility={visibility} onChange={setLayer} minMag={minMag} onMinMagChange={setMinMag} />
+              <ControlsPanel visibility={visibility} onChange={setLayer} minMag={minMag} onMinMagChange={setMinMag} down={layersDown} />
             </div>
           </aside>
         ) : (
@@ -500,7 +505,7 @@ function HomePageContent() {
                   <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain pb-[max(1rem,env(safe-area-inset-bottom))]">
                     {mobileSheet === "layers" ? (
                       <div className="py-2">
-                        <ControlsPanel visibility={visibility} onChange={setLayer} minMag={minMag} onMinMagChange={setMinMag} />
+                        <ControlsPanel visibility={visibility} onChange={setLayer} minMag={minMag} onMinMagChange={setMinMag} down={layersDown} />
                       </div>
                     ) : (
                       events("min-h-[60vh] p-3")

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { toDisasterFeature, fetchLiveDisasters, isRecentDisaster } from "./gdacs";
+import { toDisasterFeature, fetchLiveDisasters, isRecentDisaster, loadDisasters } from "./gdacs";
 
 const floodRaw = {
   geometry: { type: "Point", coordinates: [116.0, 28.0] as [number, number] },
@@ -87,5 +87,34 @@ describe("isRecentDisaster", () => {
   });
   it("acepta siempre los que GDACS marca como actuales", () => {
     expect(isRecentDisaster({ ...floodRaw, properties: { ...floodRaw.properties, iscurrent: "true" } }, now)).toBe(true);
+  });
+});
+
+describe("loadDisasters", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("lanza con HTTP 500", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 500 }));
+    await expect(loadDisasters()).rejects.toThrow("GDACS HTTP 500");
+  });
+
+  it("lanza cuando fetch rechaza", async () => {
+    const error = new TypeError("sin red");
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(error));
+    await expect(loadDisasters()).rejects.toBe(error);
+  });
+
+  it("conserva la tolerancia del envoltorio ante fallos de red", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("sin red")));
+    await expect(fetchLiveDisasters()).resolves.toEqual({ type: "FeatureCollection", features: [] });
+  });
+
+  it("relanza AbortError en el cargador y el envoltorio", async () => {
+    const error = new DOMException("cancelado", "AbortError");
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(error));
+    await expect(loadDisasters()).rejects.toBe(error);
+    await expect(fetchLiveDisasters()).rejects.toBe(error);
   });
 });

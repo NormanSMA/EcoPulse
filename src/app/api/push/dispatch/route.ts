@@ -2,10 +2,7 @@ import { NextResponse } from "next/server";
 import webpush from "web-push";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { isIngestAuthorized } from "@/lib/ingest";
-import { fetchMergedEarthquakes } from "@/lib/earthquakes";
-import { fetchActiveCyclones } from "@/lib/gdacsCyclones";
-import { fetchActiveVolcanoes } from "@/lib/gvpWeekly";
-import { fetchLiveDisasters } from "@/lib/gdacs";
+import { loadEventSources } from "@/lib/live/sources";
 import { collectCandidateEvents, matchesPrefs, normalizePrefs, textFor, type PushLocale } from "@/lib/push";
 
 export const dynamic = "force-dynamic";
@@ -48,22 +45,8 @@ async function handle(request: Request) {
     const signal = AbortSignal.timeout(UPSTREAM_TIMEOUT_MS);
     const appUrl = process.env.APP_URL || new URL(request.url).origin;
 
-    const [quakes, cyclones, volcanoes, disasters] = await Promise.all([
-      fetchMergedEarthquakes("day", signal),
-      fetchActiveCyclones(signal),
-      fetchActiveVolcanoes(signal),
-      fetchLiveDisasters(signal),
-    ]);
-    const candidates = collectCandidateEvents(
-      {
-        quakes: quakes.features,
-        cyclones: cyclones.features,
-        volcanoes: volcanoes.features,
-        disasters: disasters.features,
-        appUrl,
-      },
-      now
-    );
+    const sources = await loadEventSources(signal);
+    const candidates = collectCandidateEvents({ ...sources, appUrl }, now);
 
     // Limpieza de registros viejos.
     await db.from("push_sent").delete().lt("sent_at", new Date(now - SENT_RETENTION_MS).toISOString());

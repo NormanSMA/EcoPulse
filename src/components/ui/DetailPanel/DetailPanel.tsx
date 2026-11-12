@@ -18,6 +18,7 @@ import type { PointInfo } from "@/lib/pointInfo";
 import { relativeTime, formatDateTime, depthClass, compass, formatCoords, formatReportPeriod, saffirSimpson } from "@/lib/format";
 import { footprintRadiusKm } from "@/lib/geoShapes";
 import { getAQICategory } from "@/lib/openaq";
+import type { SeismicHistory } from "@/lib/seismicHistory";
 
 // Gráficos con carga diferida: recharts no entra en el bundle inicial.
 const ChartPlaceholder = ({ h }: { h: string }) => <div className={cn("w-full animate-pulse rounded-ds-xl bg-ds-surface-container", h)} aria-hidden="true" />;
@@ -138,7 +139,7 @@ function formatNumber(value: number, locale: string, digits?: number) {
 function QuakeHistory({ lat, lon, selectedId, locale }: { lat: number; lon: number; selectedId?: string; locale: string }) {
   const t = useTranslations("detail.history");
   const tDetail = useTranslations("detail");
-  const { data, loading, error, retry } = useJson<{ features: EarthquakeFeature[] }>(`/api/quake-history?lat=${lat.toFixed(3)}&lon=${lon.toFixed(3)}`);
+  const { data, loading, error, retry } = useJson<{ features: EarthquakeFeature[] }>(`/api/seismic-history?mode=point&lat=${lat.toFixed(3)}&lon=${lon.toFixed(3)}`);
   const quakes = data?.features ?? [];
   const strongest = quakes.reduce<EarthquakeFeature | null>((m, q) => (!m || (q.properties.mag ?? 0) > (m.properties.mag ?? 0) ? q : m), null);
   return (
@@ -587,34 +588,28 @@ function platesLabel(pair: string, tt: TectonicsT, tectonics?: Tectonics) {
     .join(" – ");
 }
 
-interface BoundaryHistory {
-  features: EarthquakeFeature[];
-  total: number;
-  strongest: EarthquakeFeature | null;
-  byDecade: { decade: number; count: number }[];
-}
-
 /** Nombre del sismo sin el año inicial ("1960 Great Chilean…" ya muestra el año aparte). */
 const placeWithoutYear = (place: string, time: number) => place.replace(new RegExp(`^${new Date(time).getUTCFullYear()}\\s+`), "");
 
 function BoundaryHistoryBlock({ plates, convergent, locale }: { plates: string; convergent: boolean; locale: string }) {
   const t = useTranslations("detail.tectonics");
   const tDetail = useTranslations("detail");
-  const { data, loading, error, retry } = useJson<BoundaryHistory>(`/api/boundary-history?plates=${encodeURIComponent(plates)}`);
+  const { data, loading, error, retry } = useJson<SeismicHistory>(`/api/seismic-history?mode=boundary&plates=${encodeURIComponent(plates)}`);
   const top = [...(data?.features ?? [])].sort((a, b) => (b.properties.mag ?? 0) - (a.properties.mag ?? 0)).slice(0, 5);
-  const s = data?.strongest;
+  const summary = data?.summary;
+  const s = summary?.strongest;
   return (
-    <Block title={t("historyTitle")} subtitle={t("historySubtitle", { km: convergent ? 250 : 100 })}>
+    <Block title={t("historyTitle")} subtitle={t("historySubtitle", { km: data?.metadata.radiusKm ?? (convergent ? 250 : 100) })}>
       {loading ? (
         <Muted>{t("loading")}</Muted>
       ) : error ? (
         <RequestError onRetry={retry} />
-      ) : !data || data.total === 0 ? (
+      ) : !data || !summary || summary.total === 0 ? (
         <Muted>{t("empty")}</Muted>
       ) : (
         <>
           <Stats>
-            <Stat label={t("total")} value={data.total.toLocaleString(locale)} />
+            <Stat label={t("total")} value={summary.total.toLocaleString(locale)} />
             {s && (
               <Stat
                 label={t("strongest")}
@@ -625,7 +620,7 @@ function BoundaryHistoryBlock({ plates, convergent, locale }: { plates: string; 
           </Stats>
           {s && <SourceLink href={s.properties.url}>{t("viewUsgs")}</SourceLink>}
           <p className="text-xs text-ds-text-muted">{t("byDecade")}</p>
-          <DecadeChart data={data.byDecade} locale={locale} />
+          <DecadeChart data={summary.byDecade} locale={locale} />
           <p className="text-xs text-ds-text-muted">{t("top")}</p>
           <ol className="flex flex-col gap-1 text-sm text-ds-text-primary">
             {top.map((q) => (

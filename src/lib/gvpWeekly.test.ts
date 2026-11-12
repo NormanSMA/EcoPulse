@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
-import { parseWeeklyRss, parseWeeklyTitle, repairText } from "./gvpWeekly";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { fetchActiveVolcanoes, loadActiveVolcanoes, parseWeeklyRss, parseWeeklyTitle, repairText } from "./gvpWeekly";
 
 // Fixture: feed real del Weekly Volcanic Activity Report (17/09/2026).
 const xml = readFileSync(join(__dirname, "__fixtures__", "gvp-weekly.xml"), "latin1");
@@ -48,5 +48,34 @@ describe("repairText", () => {
 
   it("no toca signos de interrogación legítimos", () => {
     expect(repairText("Is it erupting? Yes.")).toBe("Is it erupting? Yes.");
+  });
+});
+
+describe("loadActiveVolcanoes", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("lanza con HTTP 500", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 500 }));
+    await expect(loadActiveVolcanoes()).rejects.toThrow("GVP weekly HTTP 500");
+  });
+
+  it("lanza cuando fetch rechaza", async () => {
+    const error = new TypeError("sin red");
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(error));
+    await expect(loadActiveVolcanoes()).rejects.toBe(error);
+  });
+
+  it("conserva la tolerancia del envoltorio ante fallos de red", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("sin red")));
+    await expect(fetchActiveVolcanoes()).resolves.toEqual({ type: "FeatureCollection", features: [] });
+  });
+
+  it("relanza AbortError en el cargador y el envoltorio", async () => {
+    const error = new DOMException("cancelado", "AbortError");
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(error));
+    await expect(loadActiveVolcanoes()).rejects.toBe(error);
+    await expect(fetchActiveVolcanoes()).rejects.toBe(error);
   });
 });
