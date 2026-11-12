@@ -1,3 +1,4 @@
+import { withTimeout } from "./http";
 import type { AlertLevel, CycloneFeature, CycloneGeoJSON } from "./types";
 import { normalizeStormCategory } from "@/design-system/tokens";
 
@@ -107,37 +108,41 @@ export function toCycloneFeatures(
   return out;
 }
 
+export async function loadCyclones(signal?: AbortSignal): Promise<CycloneGeoJSON> {
+  const res = await fetch(GDACS_TC_LIST, { headers: { Accept: "application/json" }, signal: withTimeout(8000, signal) });
+  if (!res.ok) throw new Error(`GDACS TC HTTP ${res.status}`);
+  const list: { features: GdacsListFeature[] } = await res.json();
+  const active = list.features
+    .filter((f) => f.properties.iscurrent === true || f.properties.iscurrent === "true")
+    .filter((f) => isAlert(f.properties.alertlevel) && f.properties.url.geometry)
+    .slice(0, MAX_ACTIVE);
+
+  const results = await Promise.all(
+    active.map(async (f) => {
+      const p = f.properties;
+      try {
+        const g = await fetch(p.url.geometry!, { headers: { Accept: "application/json" }, signal: withTimeout(8000, signal) });
+        if (!g.ok) return [];
+        const geo: { features: GdacsGeometryFeature[] } = await g.json();
+        return toCycloneFeatures(geo.features, {
+          eventId: `TC-${p.eventid}`,
+          name: p.eventname || p.name.replace(/^Tropical Cyclone\s+/i, ""),
+          alertLevel: p.alertlevel as AlertLevel,
+          advisoryTime: new Date(p.todate + (p.todate.endsWith("Z") ? "" : "Z")).getTime(),
+          maxWindKmh: p.severitydata?.severityunit === "km/h" && Number.isFinite(p.severitydata.severity) ? p.severitydata.severity : undefined,
+        });
+      } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") throw err;
+        return [];
+      }
+    })
+  );
+  return { type: "FeatureCollection", features: results.flat() };
+}
+
 export async function fetchActiveCyclones(signal?: AbortSignal): Promise<CycloneGeoJSON> {
   try {
-    const res = await fetch(GDACS_TC_LIST, { headers: { Accept: "application/json" }, signal });
-    if (!res.ok) throw new Error(`GDACS TC HTTP ${res.status}`);
-    const list: { features: GdacsListFeature[] } = await res.json();
-    const active = list.features
-      .filter((f) => f.properties.iscurrent === true || f.properties.iscurrent === "true")
-      .filter((f) => isAlert(f.properties.alertlevel) && f.properties.url.geometry)
-      .slice(0, MAX_ACTIVE);
-
-    const results = await Promise.all(
-      active.map(async (f) => {
-        const p = f.properties;
-        try {
-          const g = await fetch(p.url.geometry!, { headers: { Accept: "application/json" }, signal });
-          if (!g.ok) return [];
-          const geo: { features: GdacsGeometryFeature[] } = await g.json();
-          return toCycloneFeatures(geo.features, {
-            eventId: `TC-${p.eventid}`,
-            name: p.eventname || p.name.replace(/^Tropical Cyclone\s+/i, ""),
-            alertLevel: p.alertlevel as AlertLevel,
-            advisoryTime: new Date(p.todate + (p.todate.endsWith("Z") ? "" : "Z")).getTime(),
-            maxWindKmh: p.severitydata?.severityunit === "km/h" && Number.isFinite(p.severitydata.severity) ? p.severitydata.severity : undefined,
-          });
-        } catch (err) {
-          if (err instanceof DOMException && err.name === "AbortError") throw err;
-          return [];
-        }
-      })
-    );
-    return { type: "FeatureCollection", features: results.flat() };
+    return await loadCyclones(signal);
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") throw error;
     console.error("Error obteniendo ciclones de GDACS:", error);

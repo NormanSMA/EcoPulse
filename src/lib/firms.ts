@@ -1,4 +1,5 @@
 import { FireConfidence, FireFeature, FireGeoJSON } from "./types";
+import { withTimeout } from "./http";
 
 const FIRMS_BASE = "https://firms.modaps.eosdis.nasa.gov/api/area/csv";
 const SOURCE = "VIIRS_NOAA20_NRT";
@@ -92,31 +93,39 @@ export function isSignificantFire(row: RawFireRow): boolean {
   return row.confidence === "high" && row.frp >= MIN_FRP;
 }
 
-export async function fetchLiveFires(signal?: AbortSignal): Promise<FireGeoJSON> {
+export async function loadFires(signal?: AbortSignal): Promise<FireGeoJSON> {
   const mapKey = process.env.NASA_FIRMS_MAP_KEY;
   if (!mapKey) {
-    console.error("NASA_FIRMS_MAP_KEY no configurada, sin datos de incendios");
-    return { type: "FeatureCollection", features: [] };
+    throw new Error("NASA_FIRMS_MAP_KEY no configurada, sin datos de incendios");
   }
 
   // Sin fecha explicita: FIRMS decide la ventana mas reciente disponible.
   // NRT tiene rezago de procesamiento, "hoy" en UTC suele no tener datos aun.
   const url = `${FIRMS_BASE}/${mapKey}/${SOURCE}/world/2`;
 
+  // El CSV mundial de dos días pesa varios MB: margen mayor que el resto de fuentes.
+  const res = await fetch(url, { signal: withTimeout(12_000, signal) });
+  if (!res.ok) {
+    throw new Error(`FIRMS HTTP ${res.status}`);
+  }
+  const csv = await res.text();
+  const rows = parseFirmsCsv(csv).filter(isSignificantFire);
+  return {
+    type: "FeatureCollection",
+    features: rows.map(toFireFeature),
+  };
+}
+
+export async function fetchLiveFires(signal?: AbortSignal): Promise<FireGeoJSON> {
   try {
-    const res = await fetch(url, { signal });
-    if (!res.ok) {
-      throw new Error(`FIRMS HTTP ${res.status}`);
-    }
-    const csv = await res.text();
-    const rows = parseFirmsCsv(csv).filter(isSignificantFire);
-    return {
-      type: "FeatureCollection",
-      features: rows.map(toFireFeature),
-    };
+    return await loadFires(signal);
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") throw error;
-    console.error("Error obteniendo incendios de NASA FIRMS:", error);
+    if (!process.env.NASA_FIRMS_MAP_KEY) {
+      console.error("NASA_FIRMS_MAP_KEY no configurada, sin datos de incendios");
+    } else {
+      console.error("Error obteniendo incendios de NASA FIRMS:", error);
+    }
     return { type: "FeatureCollection", features: [] };
   }
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type {
   EarthquakeGeoJSON,
   AirQualityGeoJSON,
@@ -13,9 +13,13 @@ import type {
   TectonicBoundaryGeoJSON,
   TectonicPlateGeoJSON,
 } from "@/lib/types";
+import type { LiveBundle, SourceResult, SourceStatus } from "@/lib/live/bundle";
+import type { HazardsBundle, OrbitBundle, PulseBundle } from "@/lib/live/sources";
+import { issAt } from "@/lib/iss";
 
-// Carga y refresco de todas las fuentes de la web (vía las rutas /api/*,
-// que cachean en el CDN). Cada fuente falla por separado sin romper las demás.
+// Carga y refresco de las fuentes de la web. Los eventos llegan en lotes
+// (/api/live/*) agrupados por frecuencia de cambio; cada fuente informa su
+// estado y, si falla, se conserva su último dato válido.
 
 const EMPTY = { type: "FeatureCollection", features: [] } as const;
 const EMPTY_QUAKES: EarthquakeGeoJSON = {
@@ -24,7 +28,9 @@ const EMPTY_QUAKES: EarthquakeGeoJSON = {
   features: [],
 };
 
-const ISS_REFRESH_MS = 15_000;
+// La ISS se mueve en el cliente con la efeméride del lote: sin red entre ticks.
+const ISS_TICK_MS = 15_000;
+const ORBIT_REFRESH_MS = 5 * 60_000;
 const QUAKES_REFRESH_MS = 2 * 60_000;
 const SLOW_REFRESH_MS = 15 * 60_000;
 const RADAR_REFRESH_MS = 5 * 60_000;
@@ -34,6 +40,23 @@ export interface RadarFrame {
   time: number;
   tiles: string;
 }
+
+export type LiveSourceKey = "earthquakes" | "fires" | "disasters" | "cyclones" | "volcanoes" | "iss";
+export interface LiveSourceState {
+  status: SourceStatus | "loading";
+  /** Última respuesta válida de la fuente (ms epoch), o null si aún no hay. */
+  fetchedAt: number | null;
+}
+export type LiveSourceStatus = Record<LiveSourceKey, LiveSourceState>;
+
+const INITIAL_STATUS: LiveSourceStatus = {
+  earthquakes: { status: "loading", fetchedAt: null },
+  fires: { status: "loading", fetchedAt: null },
+  disasters: { status: "loading", fetchedAt: null },
+  cyclones: { status: "loading", fetchedAt: null },
+  volcanoes: { status: "loading", fetchedAt: null },
+  iss: { status: "loading", fetchedAt: null },
+};
 
 async function getJson<T>(url: string, signal: AbortSignal): Promise<T | null> {
   try {
@@ -64,6 +87,29 @@ function usePolling(load: (signal: AbortSignal) => Promise<void>, everyMs: numbe
   }, [everyMs, enabled]);
 }
 
+/**
+ * Estado de cada fuente tras recibir (o no) su lote. Sin lote, todas sus
+ * fuentes quedan en error; `fetchedAt` conserva la última respuesta válida.
+ */
+export function nextSourceStatus<S extends Record<string, unknown>>(
+  previous: LiveSourceStatus,
+  keys: readonly (keyof S & LiveSourceKey)[],
+  bundle: LiveBundle<S> | null,
+): LiveSourceStatus {
+  const next = { ...previous };
+  for (const key of keys) {
+    const result: SourceResult<unknown> | undefined = bundle?.sources[key];
+    next[key] = result && result.data !== null
+      ? { status: result.status, fetchedAt: result.fetchedAt }
+      : { status: result?.status ?? "error", fetchedAt: previous[key].fetchedAt };
+  }
+  return next;
+}
+
+const PULSE_KEYS = ["earthquakes"] as const;
+const HAZARD_KEYS = ["fires", "disasters", "cyclones", "volcanoes"] as const;
+const ORBIT_KEYS = ["iss"] as const;
+
 // Las fuentes pesadas u opcionales (semana de sismos, ~7.600 estaciones de
 // aire, catálogo de volcanes, radar) solo se piden con su capa activa.
 export function useLiveData({
@@ -88,22 +134,34 @@ export function useLiveData({
   const [cyclones, setCyclones] = useState<CycloneGeoJSON>(EMPTY as unknown as CycloneGeoJSON);
   const [volcanoes, setVolcanoes] = useState<ActiveVolcanoGeoJSON>(EMPTY as unknown as ActiveVolcanoGeoJSON);
   const [volcanoCatalog, setVolcanoCatalog] = useState<VolcanoGeoJSON | null>(null);
-  const [iss, setIss] = useState<IssGeoJSON>(EMPTY as unknown as IssGeoJSON);
+  const [issBase, setIssBase] = useState<IssGeoJSON>(EMPTY as unknown as IssGeoJSON);
+  const [issClock, setIssClock] = useState(() => Date.now());
   const [tectonics, setTectonics] = useState<{ boundaries: TectonicBoundaryGeoJSON; plates: TectonicPlateGeoJSON } | null>(null);
   const [radar, setRadar] = useState<RadarFrame[]>([]);
+  const [sourceStatus, setSourceStatus] = useState<LiveSourceStatus>(INITIAL_STATUS);
+
+  const report = useCallback(
+    <S extends Record<string, unknown>>(keys: readonly (keyof S & LiveSourceKey)[], bundle: LiveBundle<S> | null) =>
+      setSourceStatus((previous) => nextSourceStatus(previous, keys, bundle)),
+    []
+  );
 
   usePolling(async (signal) => {
-    const d = await getJson<EarthquakeGeoJSON>("/api/earthquakes", signal);
-    if (d) {
-      setEarthquakes(d);
+    const bundle = await getJson<PulseBundle>("/api/live/pulse", signal);
+    if (signal.aborted) return;
+    report(PULSE_KEYS, bundle);
+    const data = bundle?.sources.earthquakes.data;
+    if (data) {
+      setEarthquakes(data);
       setQuakesStatus("ready");
-    } else if (!signal.aborted) setQuakesStatus("error");
+    } else setQuakesStatus("error");
   }, QUAKES_REFRESH_MS);
 
   usePolling(
     async (signal) => {
-      const d = await getJson<EarthquakeGeoJSON>("/api/earthquakes?period=week", signal);
-      if (d) setWeekQuakes(d);
+      const bundle = await getJson<PulseBundle>("/api/live/pulse?period=week", signal);
+      const data = bundle?.sources.earthquakes.data;
+      if (data) setWeekQuakes(data);
     },
     SLOW_REFRESH_MS,
     needWeek
@@ -119,16 +177,15 @@ export function useLiveData({
   );
 
   usePolling(async (signal) => {
-    const [f, dis, cyc, vol] = await Promise.all([
-      getJson<FireGeoJSON>("/api/fires", signal),
-      getJson<DisasterGeoJSON>("/api/disasters", signal),
-      getJson<CycloneGeoJSON>("/api/cyclones", signal),
-      getJson<ActiveVolcanoGeoJSON>("/api/volcanoes", signal),
-    ]);
-    if (f) setFires(f);
-    if (dis) setDisasters(dis);
-    if (cyc) setCyclones(cyc);
-    if (vol) setVolcanoes(vol);
+    const bundle = await getJson<HazardsBundle>("/api/live/hazards", signal);
+    if (signal.aborted) return;
+    report(HAZARD_KEYS, bundle);
+    if (!bundle) return;
+    const { fires: f, disasters: dis, cyclones: cyc, volcanoes: vol } = bundle.sources;
+    if (f.data) setFires(f.data);
+    if (dis.data) setDisasters(dis.data);
+    if (cyc.data) setCyclones(cyc.data);
+    if (vol.data) setVolcanoes(vol.data);
   }, SLOW_REFRESH_MS);
 
   usePolling(
@@ -141,9 +198,25 @@ export function useLiveData({
   );
 
   usePolling(async (signal) => {
-    const d = await getJson<IssGeoJSON>("/api/iss", signal);
-    if (d) setIss(d);
-  }, ISS_REFRESH_MS);
+    const bundle = await getJson<OrbitBundle>("/api/live/orbit", signal);
+    if (signal.aborted) return;
+    report(ORBIT_KEYS, bundle);
+    const data = bundle?.sources.iss.data;
+    if (data) {
+      setIssBase(data);
+      setIssClock(Date.now());
+    }
+  }, ORBIT_REFRESH_MS);
+
+  useEffect(() => {
+    const id = setInterval(() => setIssClock(Date.now()), ISS_TICK_MS);
+    return () => clearInterval(id);
+  }, []);
+
+  const iss = useMemo<IssGeoJSON>(
+    () => (issBase.features.length ? { ...issBase, features: issBase.features.map((f) => issAt(f, issClock)) } : issBase),
+    [issBase, issClock]
+  );
 
   // Placas tectónicas (PB2002): estáticas, se cargan una vez al activar la capa.
   useEffect(() => {
@@ -174,7 +247,7 @@ export function useLiveData({
     needRadar
   );
 
-  return { earthquakes, quakesStatus, weekQuakes, airQuality, fires, disasters, cyclones, volcanoes, volcanoCatalog, iss, radar, tectonics };
+  return { earthquakes, quakesStatus, weekQuakes, airQuality, fires, disasters, cyclones, volcanoes, volcanoCatalog, iss, radar, tectonics, sourceStatus };
 }
 
 /** Cuadro de radar más cercano (sin pasarse) al instante de referencia. */

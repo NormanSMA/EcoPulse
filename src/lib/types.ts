@@ -159,6 +159,15 @@ export interface IssProperties {
   headingDeg?: number;
   /** Trayectoria real desde las efemérides OEM: pasada y futura. */
   track?: { past: TrackPoint[]; future: TrackPoint[] };
+  /** Posiciones futuras a paso fijo: el cliente mueve la ISS sin volver a pedir datos. */
+  ephemeris?: IssEphemeris;
+}
+
+export interface IssEphemeris {
+  /** Instante del primer punto (ms epoch). */
+  start: number;
+  stepSeconds: number;
+  points: TrackPoint[];
 }
 
 export interface IssFeature {

@@ -1,6 +1,6 @@
 import { normalizeStormCategory, stormColor } from "@/design-system/tokens";
-import { describe, expect, it } from "vitest";
-import { parseTrackLabel, toCycloneFeatures } from "./gdacsCyclones";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { fetchActiveCyclones, loadCyclones, parseTrackLabel, toCycloneFeatures } from "./gdacsCyclones";
 import fixture from "./__fixtures__/gdacs-tc-geometry.json";
 
 // Fixture recortado de una respuesta real de GDACS (ciclón ONE-26, aviso
@@ -49,5 +49,54 @@ describe("normalizeStormCategory", () => {
 
   it("el color de un huracán sin número no cae en el de tormenta", () => {
     expect(stormColor("HU")).not.toBe(stormColor("TS"));
+  });
+});
+
+describe("loadCyclones", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it.each(["http", "red"])("tolera el fallo de geometría individual: %s", async (failure) => {
+    const fetchMock = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ features: [{ properties: {
+        eventid: 1,
+        episodeid: 1,
+        name: "ONE-26",
+        alertlevel: "Orange",
+        iscurrent: true,
+        todate: "2026-09-23T18:00:00Z",
+        url: { geometry: "https://www.gdacs.org/geometry/1" },
+      } }] }),
+    });
+    if (failure === "http") fetchMock.mockResolvedValueOnce({ ok: false, status: 500 });
+    else fetchMock.mockRejectedValueOnce(new TypeError("sin red"));
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(loadCyclones()).resolves.toEqual({ type: "FeatureCollection", features: [] });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("lanza con HTTP 500", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 500 }));
+    await expect(loadCyclones()).rejects.toThrow("GDACS TC HTTP 500");
+  });
+
+  it("lanza cuando fetch rechaza", async () => {
+    const error = new TypeError("sin red");
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(error));
+    await expect(loadCyclones()).rejects.toBe(error);
+  });
+
+  it("conserva la tolerancia del envoltorio ante fallos de red", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("sin red")));
+    await expect(fetchActiveCyclones()).resolves.toEqual({ type: "FeatureCollection", features: [] });
+  });
+
+  it("relanza AbortError en el cargador y el envoltorio", async () => {
+    const error = new DOMException("cancelado", "AbortError");
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(error));
+    await expect(loadCyclones()).rejects.toBe(error);
+    await expect(fetchActiveCyclones()).rejects.toBe(error);
   });
 });

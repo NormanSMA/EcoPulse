@@ -71,7 +71,7 @@ Además, bajo demanda:
 - **Nombres de lugares:** [Photon / OpenStreetMap](https://photon.komoot.io/) para la geocodificación inversa y el geocoder de Open-Meteo (GeoNames) para el buscador.
 - **Historial sísmico de una zona:** USGS, 30 días.
 
-Todas estas consultas pasan por rutas propias del servidor (`/api/point`, `/api/geocode`, `/api/quake-history`, `/api/air-quality/station`, `/api/boundary-history`).
+Todas estas consultas pasan por rutas propias del servidor (`/api/point`, `/api/geocode`, `/api/seismic-history`, `/api/air-quality/station`). Los eventos en vivo llegan agrupados en `/api/live/pulse`, `/api/live/hazards` y `/api/live/orbit`.
 
 ## Arquitectura
 

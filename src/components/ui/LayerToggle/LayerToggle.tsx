@@ -70,6 +70,8 @@ export interface LayerToggleProps {
   swatchRing?: boolean;
   /** Etiqueta de fuente (USGS, OpenAQ…), estilo "Operational" de Weather Lab. */
   tag?: string;
+  /** Aviso que sustituye a la etiqueta de fuente (p.ej. fuente caída). */
+  alert?: string;
   checked: boolean;
   onChange: (checked: boolean) => void;
   disabled?: boolean;
@@ -81,7 +83,7 @@ export interface LayerToggleProps {
  * que la lista de modelos del panel "Controls" de Weather Lab. Toda la fila
  * es el área táctil (≥ 44px de alto).
  */
-export function LayerToggle({ label, swatch, swatchRing, tag, checked, onChange, disabled, className }: LayerToggleProps) {
+export function LayerToggle({ label, swatch, swatchRing, tag, alert, checked, onChange, disabled, className }: LayerToggleProps) {
   return (
     <label
       className={cn(
@@ -99,7 +101,11 @@ export function LayerToggle({ label, swatch, swatchRing, tag, checked, onChange,
         />
       )}
       <span className="min-w-0 flex-1 truncate text-sm text-ds-text-primary">{label}</span>
-      {tag && (
+      {alert ? (
+        <span role="status" className="inline-flex h-6 shrink-0 items-center rounded-ds-full border border-ds-warning px-2 text-[11px] font-medium text-ds-warning">
+          {alert}
+        </span>
+      ) : tag && (
         <span className="inline-flex h-6 shrink-0 items-center rounded-ds-full border border-ds-outline-variant px-2 text-[11px] font-medium text-ds-text-secondary">
           {tag}
         </span>

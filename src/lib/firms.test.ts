@@ -5,6 +5,7 @@ import {
   toFireFeature,
   isSignificantFire,
   fetchLiveFires,
+  loadFires,
 } from "./firms";
 
 const SAMPLE_CSV = `latitude,longitude,bright_ti4,scan,track,acq_date,acq_time,satellite,instrument,confidence,version,bright_ti5,frp,daynight
@@ -100,5 +101,47 @@ describe("fetchLiveFires", () => {
 
     const result = await fetchLiveFires();
     expect(result.features).toEqual([]);
+  });
+});
+
+describe("loadFires", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+  });
+
+  it("lanza sin clave y evita fetch", async () => {
+    vi.stubEnv("NASA_FIRMS_MAP_KEY", "");
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(loadFires()).rejects.toThrow("NASA_FIRMS_MAP_KEY no configurada");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("lanza con HTTP 500", async () => {
+    vi.stubEnv("NASA_FIRMS_MAP_KEY", "test-key");
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 500 }));
+    await expect(loadFires()).rejects.toThrow("FIRMS HTTP 500");
+  });
+
+  it("lanza cuando fetch rechaza", async () => {
+    vi.stubEnv("NASA_FIRMS_MAP_KEY", "test-key");
+    const error = new TypeError("sin red");
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(error));
+    await expect(loadFires()).rejects.toBe(error);
+  });
+
+  it("conserva la tolerancia del envoltorio ante fallos de red", async () => {
+    vi.stubEnv("NASA_FIRMS_MAP_KEY", "test-key");
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("sin red")));
+    await expect(fetchLiveFires()).resolves.toEqual({ type: "FeatureCollection", features: [] });
+  });
+
+  it("relanza AbortError en el cargador y el envoltorio", async () => {
+    vi.stubEnv("NASA_FIRMS_MAP_KEY", "test-key");
+    const error = new DOMException("cancelado", "AbortError");
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(error));
+    await expect(loadFires()).rejects.toBe(error);
+    await expect(fetchLiveFires()).rejects.toBe(error);
   });
 });

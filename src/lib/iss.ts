@@ -1,4 +1,5 @@
-import { IssFeature, IssGeoJSON, TrackPoint } from "./types";
+import { withTimeout } from "./http";
+import { IssFeature, IssGeoJSON, IssEphemeris, TrackPoint } from "./types";
 
 const ISS_OEM_URL = "https://nasa-public-data.s3.amazonaws.com/iss-coords/current/ISS_OEM/ISS.OEM_J2K_EPH.txt";
 const EARTH_RADIUS_KM = 6378.137;
@@ -126,6 +127,14 @@ export function computeTrack(vectors: StateVector[], from: Date, to: Date, stepM
   return points;
 }
 
+export function computeEphemeris(vectors: StateVector[], from: Date, minutes = 30, stepSeconds = 15): IssEphemeris {
+  return {
+    start: from.getTime(),
+    stepSeconds,
+    points: computeTrack(vectors, from, new Date(from.getTime() + minutes * 60_000), stepSeconds * 1000),
+  };
+}
+
 /** Rumbo inicial (grados desde el norte) entre dos puntos lon/lat. */
 export function bearingDeg(from: [number, number], to: [number, number]): number {
   const toRad = (d: number) => (d * Math.PI) / 180;
@@ -136,43 +145,72 @@ export function bearingDeg(from: [number, number], to: [number, number]): number
   return ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
 }
 
+export function issAt(feature: IssFeature, atMs: number): IssFeature {
+  const ephemeris = feature.properties.ephemeris;
+  if (!ephemeris || ephemeris.points.length === 0) return feature;
+  const { start, stepSeconds, points } = ephemeris;
+  const offset = (atMs - start) / (stepSeconds * 1000);
+  if (!Number.isFinite(offset) || offset < 0 || offset > points.length - 1) return feature;
+
+  const index = Math.max(0, Math.min(Math.floor(offset), points.length - 2));
+  const before = points[index];
+  const after = points[index + 1] ?? before;
+  const fraction = offset - index;
+  const longitudeDelta = ((after[0] - before[0] + 540) % 360) - 180;
+  const longitude = ((before[0] + longitudeDelta * fraction + 540) % 360) - 180;
+  const latitude = before[1] + (after[1] - before[1]) * fraction;
+  const altitudeKm = before[2] + (after[2] - before[2]) * fraction;
+  const coordinates: [number, number] = [longitude, latitude];
+  const headingDeg = bearingDeg(fraction < 1 ? coordinates : [before[0], before[1]], [after[0], after[1]]);
+
+  return {
+    ...feature,
+    geometry: { ...feature.geometry, coordinates },
+    properties: { ...feature.properties, altitudeKm, timestamp: new Date(atMs).toISOString(), headingDeg },
+  };
+}
+
+export async function loadIss(signal?: AbortSignal, now = new Date()): Promise<IssGeoJSON> {
+  const res = await fetch(ISS_OEM_URL, { signal: withTimeout(8000, signal) });
+  if (!res.ok) {
+    throw new Error(`ISS OEM HTTP ${res.status}`);
+  }
+  const text = await res.text();
+  const vectors = parseOemFile(text);
+  const state = interpolateStateVector(vectors, now);
+  if (!state) {
+    throw new Error("ISS OEM sin vectores");
+  }
+
+  const { latitude, longitude, altitudeKm } = eciToGeodetic(state.x, state.y, state.z, state.timestamp);
+  const velocityKmS = Math.sqrt(state.vx ** 2 + state.vy ** 2 + state.vz ** 2);
+  const past = computeTrack(vectors, new Date(now.getTime() - TRACK_PAST_MIN * 60_000), now);
+  const future = computeTrack(vectors, now, new Date(now.getTime() + TRACK_FUTURE_MIN * 60_000));
+  const headingDeg = future.length > 1 ? bearingDeg([longitude, latitude], [future[1][0], future[1][1]]) : undefined;
+
+  const feature: IssFeature = {
+    type: "Feature",
+    id: "iss",
+    properties: {
+      altitudeKm,
+      velocityKmS,
+      timestamp: state.timestamp.toISOString(),
+      headingDeg,
+      track: { past, future },
+      ephemeris: computeEphemeris(vectors, now),
+    },
+    geometry: {
+      type: "Point",
+      coordinates: [longitude, latitude],
+    },
+  };
+
+  return { type: "FeatureCollection", features: [feature] };
+}
+
 export async function fetchLiveIssPosition(signal?: AbortSignal): Promise<IssGeoJSON> {
   try {
-    const res = await fetch(ISS_OEM_URL, { signal });
-    if (!res.ok) {
-      throw new Error(`ISS OEM HTTP ${res.status}`);
-    }
-    const text = await res.text();
-    const vectors = parseOemFile(text);
-    const now = new Date();
-    const state = interpolateStateVector(vectors, now);
-    if (!state) {
-      return { type: "FeatureCollection", features: [] };
-    }
-
-    const { latitude, longitude, altitudeKm } = eciToGeodetic(state.x, state.y, state.z, state.timestamp);
-    const velocityKmS = Math.sqrt(state.vx ** 2 + state.vy ** 2 + state.vz ** 2);
-    const past = computeTrack(vectors, new Date(now.getTime() - TRACK_PAST_MIN * 60_000), now);
-    const future = computeTrack(vectors, now, new Date(now.getTime() + TRACK_FUTURE_MIN * 60_000));
-    const headingDeg = future.length > 1 ? bearingDeg([longitude, latitude], [future[1][0], future[1][1]]) : undefined;
-
-    const feature: IssFeature = {
-      type: "Feature",
-      id: "iss",
-      properties: {
-        altitudeKm,
-        velocityKmS,
-        timestamp: state.timestamp.toISOString(),
-        headingDeg,
-        track: { past, future },
-      },
-      geometry: {
-        type: "Point",
-        coordinates: [longitude, latitude],
-      },
-    };
-
-    return { type: "FeatureCollection", features: [feature] };
+    return await loadIss(signal);
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") throw error;
     console.error("Error obteniendo posicion de la ISS:", error);

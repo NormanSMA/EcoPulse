@@ -70,6 +70,7 @@
   },
   "layers": {
     "title": "Layers",
+    "sourceDown": "Unavailable",
     "earthquakes": "Earthquakes (24 h)",
     "airQuality": "Air quality (PM2.5)",
     "fires": "Active wildfires",
