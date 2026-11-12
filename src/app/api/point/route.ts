@@ -3,7 +3,8 @@ import { badRequest, cachedJson, parseLatLon, upstreamError } from "@/lib/apiRes
 
 export const dynamic = "force-dynamic";
 
-// Tiempo, pronóstico 24 h, PM2.5 modelado y nombre del lugar para un punto.
+// Tiempo actual, pronóstico horario de 72 h, aire modelado y nombre del lugar para un punto.
+// Si el aire (CAMS) falla, responde 200 con `air: null` y el pronóstico completo.
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const point = parseLatLon(url);

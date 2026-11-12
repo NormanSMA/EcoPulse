@@ -3,7 +3,7 @@ import { badRequest, cachedJson, upstreamError } from "@/lib/apiResponse";
 
 export const dynamic = "force-dynamic";
 
-// Buscador de lugares (Photon / OpenStreetMap), proxy para no abrir la CSP.
+// Buscador de lugares (geocoder de Open-Meteo / GeoNames), proxy para no abrir la CSP.
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const q = (url.searchParams.get("q") ?? "").trim();
