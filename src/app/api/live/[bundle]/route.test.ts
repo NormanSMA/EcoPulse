@@ -48,6 +48,16 @@ describe("GET /api/live/[bundle]", () => {
     expect(loadLiveBundle).not.toHaveBeenCalled();
   });
 
+  it.each([["hazards", "?x=1"], ["hazards", "?period=day"], ["orbit", "?period=week"], ["pulse", "?period=day&x=1"], ["pulse", "?period=day&period=week"]])(
+    "rechaza parametros no admitidos sin consultar fuentes: %s%s",
+    async (bundleId, query) => {
+      const response = await call(bundleId, query);
+      expect(response.status).toBe(400);
+      expect(response.headers.get("Cache-Control")).toBe("no-store");
+      expect(loadLiveBundle).not.toHaveBeenCalled();
+    }
+  );
+
   it("pasa el periodo y cachea el lote completo con su TTL", async () => {
     loadLiveBundle.mockResolvedValue(bundle({ earthquakes: result({ features: [1] }) }, 120));
     const response = await call("pulse", "?period=week");

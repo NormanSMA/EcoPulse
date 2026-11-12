@@ -23,12 +23,33 @@ export function badRequest(message: string) {
   return NextResponse.json({ success: false, error: message }, { status: 400, headers: NO_STORE });
 }
 
-/** Lee lat/lon de la query y valida el rango. */
-export function parseLatLon(url: URL): { lat: number; lon: number } | null {
+/**
+ * true si la query solo trae parámetros conocidos y ninguno repetido. La URL
+ * completa es la clave del CDN: un parámetro de relleno (`?x=123`) crearía
+ * una clave nueva y otra ronda de llamadas a las fuentes externas.
+ */
+export function hasOnlyParams(url: URL, allowed: readonly string[]): boolean {
+  const seen = new Set<string>();
+  for (const key of url.searchParams.keys()) {
+    if (!allowed.includes(key) || seen.has(key)) return false;
+    seen.add(key);
+  }
+  return true;
+}
+
+const CANONICAL_COORD = /^-?\d{1,3}(\.\d{1,3})?$/;
+
+/**
+ * Lee lat/lon de la query y valida el rango. Con `canonical` exige decimal
+ * simple de hasta 3 cifras (sin exponentes ni hexadecimales): así cada punto
+ * tiene una sola forma de escribirse y una sola clave de caché.
+ */
+export function parseLatLon(url: URL, options: { canonical?: boolean } = {}): { lat: number; lon: number } | null {
   const rawLat = url.searchParams.get("lat")?.trim();
   const rawLon = url.searchParams.get("lon")?.trim();
   // Number(null) y Number("") dan 0: sin esta guarda, una query sin lat/lon valía (0,0).
   if (!rawLat || !rawLon) return null;
+  if (options.canonical && (!CANONICAL_COORD.test(rawLat) || !CANONICAL_COORD.test(rawLon))) return null;
   const lat = Number(rawLat);
   const lon = Number(rawLon);
   if (!Number.isFinite(lat) || !Number.isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) return null;

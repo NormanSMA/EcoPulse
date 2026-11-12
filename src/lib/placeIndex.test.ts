@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { normalizeText, searchPlaces } from "./placeIndex";
+import { nearestKnownPlace, normalizeText, searchPlaces } from "./placeIndex";
 
 describe("normalizeText", () => {
   it("minusculas, sin acentos y espacios colapsados", () => {
@@ -31,5 +31,23 @@ describe("searchPlaces", () => {
   });
   it("sin coincidencias", () => {
     expect(searchPlaces("zzzz")).toEqual([]);
+  });
+  it("incluye cabeceras de Nicaragua con detalle", () => {
+    expect(searchPlaces("juigalpa")).toEqual([
+      { name: "Juigalpa", detail: "Chontales, Nicaragua", lon: -85.368, lat: 12.106, kind: "city" },
+    ]);
+  });
+});
+
+describe("nearestKnownPlace", () => {
+  it("encuentra la cabecera cercana con region y pais", () => {
+    expect(nearestKnownPlace(-85.37, 12.11)).toMatchObject({ name: "Juigalpa", region: "Chontales", country: "Nicaragua" });
+  });
+  it("usa CITY_ANCHORS sin region ni pais", () => {
+    expect(nearestKnownPlace(-84.09, 9.93)).toMatchObject({ name: "San Jose", region: null, country: null });
+  });
+  it("devuelve null fuera del radio", () => {
+    expect(nearestKnownPlace(-86.25, 12.9, 5)).toBeNull();
+    expect(nearestKnownPlace(0, 0)).toBeNull();
   });
 });

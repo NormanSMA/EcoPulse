@@ -1,5 +1,5 @@
 import { fetchPointInfo } from "@/lib/pointInfo";
-import { badRequest, cachedJson, parseLatLon, upstreamError } from "@/lib/apiResponse";
+import { badRequest, cachedJson, hasOnlyParams, parseLatLon, upstreamError } from "@/lib/apiResponse";
 
 export const dynamic = "force-dynamic";
 
@@ -7,8 +7,9 @@ export const dynamic = "force-dynamic";
 // Si el aire (CAMS) falla, responde 200 con `air: null` y el pronóstico completo.
 export async function GET(request: Request) {
   const url = new URL(request.url);
-  const point = parseLatLon(url);
-  if (!point) return badRequest("lat/lon inválidos");
+  if (!hasOnlyParams(url, ["lat", "lon", "lang"])) return badRequest("parámetros no admitidos");
+  const point = parseLatLon(url, { canonical: true });
+  if (!point) return badRequest("lat/lon inválidos: usa decimales de hasta 3 cifras");
   const lang = url.searchParams.get("lang") === "en" ? "en" : "es";
   try {
     const info = await fetchPointInfo(point.lat, point.lon, lang);

@@ -31,12 +31,12 @@ const placeBody = { features: [{ geometry: { coordinates: [-86.236, 12.115] }, p
 const json = (body: unknown) => new Response(JSON.stringify(body));
 const failure = () => new Response("fallo", { status: 500 });
 
-function stubSources({ weather = true, air = true }: { weather?: boolean; air?: boolean }) {
+function stubSources({ weather = true, air = true, place = true }: { weather?: boolean; air?: boolean; place?: boolean }) {
   vi.stubGlobal("fetch", vi.fn(async (input: string | URL) => {
     const url = String(input);
     if (url.includes("air-quality-api.open-meteo.com")) return air ? json(airBody) : failure();
     if (url.includes("api.open-meteo.com")) return weather ? json(weatherBody) : failure();
-    return json(placeBody);
+    return place ? json(placeBody) : failure();
   }));
 }
 
@@ -49,6 +49,16 @@ describe("GET /api/point", () => {
     expect((await call("")).status).toBe(400);
     expect(fetchMock).not.toHaveBeenCalled();
   });
+
+  it.each(["?lat=12.115&lon=-86.236&x=1", "?lat=12.1150001&lon=-86.236", "?lat=1e1&lon=0"])(
+    "rechaza la forma no canonica sin consultar fuentes: %s",
+    async (query) => {
+      const fetchMock = vi.fn();
+      vi.stubGlobal("fetch", fetchMock);
+      expect((await call(query)).status).toBe(400);
+      expect(fetchMock).not.toHaveBeenCalled();
+    }
+  );
 
   it("entrega 72 horas de clima y aire con el nombre del lugar", async () => {
     stubSources({});
@@ -83,5 +93,13 @@ describe("GET /api/point", () => {
     const body = await response.json();
     expect(body.current).toBeNull();
     expect(body.weather).toBeNull();
+  });
+
+  it("si el geocodificador inverso falla usa la localidad conocida mas cercana", async () => {
+    stubSources({ place: false });
+    const near = await (await call("?lat=12.12&lon=-86.25")).json();
+    expect(near.place).toMatchObject({ name: "Managua", country: "Nicaragua" });
+    const far = await (await call("?lat=0&lon=-140")).json();
+    expect(far.place).toEqual({ name: null, region: null, country: null });
   });
 });

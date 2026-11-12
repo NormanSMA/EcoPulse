@@ -1,0 +1,33 @@
+{
+  "outline": [
+    [-87.34, 13.05], [-87.55, 13.0], [-87.7, 12.9], [-87.53, 12.72], [-87.35, 12.55],
+    [-87.0, 12.3], [-86.75, 12.15], [-86.5, 11.8], [-86.2, 11.6], [-85.87, 11.2],
+    [-85.73, 11.06], [-85.61, 11.21], [-85.4, 11.05], [-85.2, 10.95], [-84.9, 10.93],
+    [-84.6, 10.77], [-84.2, 10.77], [-83.9, 10.9], [-83.7, 10.92], [-83.68, 11.2],
+    [-83.78, 11.55], [-83.62, 11.98], [-83.58, 12.4], [-83.55, 12.8], [-83.55, 13.2],
+    [-83.45, 13.6], [-83.32, 14.04], [-83.25, 14.5], [-83.2, 14.8], [-83.13, 15.0],
+    [-83.5, 14.98], [-83.97, 14.76], [-84.4, 14.66], [-84.75, 14.6], [-85.0, 14.45],
+    [-85.35, 14.2], [-85.7, 13.9], [-86.1, 13.78], [-86.5, 13.77], [-86.7, 13.6],
+    [-86.9, 13.45], [-87.15, 13.2], [-87.34, 13.05]
+  ],
+  "bbox": [-87.7, 10.7, -83.1, 15.05],
+  "departments": [
+    { "id": "ni-boaco", "name": "Boaco", "capital": "Boaco", "capitalLon": -85.675, "capitalLat": 12.472, "bbox": [-85.95, 12.05, -85.15, 12.85] },
+    { "id": "ni-carazo", "name": "Carazo", "capital": "Jinotepe", "capitalLon": -86.2, "capitalLat": 11.85, "bbox": [-86.45, 11.6, -86.0, 11.95] },
+    { "id": "ni-chinandega", "name": "Chinandega", "capital": "Chinandega", "capitalLon": -87.131, "capitalLat": 12.629, "bbox": [-87.7, 12.45, -86.75, 13.1] },
+    { "id": "ni-chontales", "name": "Chontales", "capital": "Juigalpa", "capitalLon": -85.368, "capitalLat": 12.106, "bbox": [-85.7, 11.6, -84.7, 12.5] },
+    { "id": "ni-esteli", "name": "Estelí", "capital": "Estelí", "capitalLon": -86.354, "capitalLat": 13.091, "bbox": [-86.7, 12.9, -86.1, 13.5] },
+    { "id": "ni-granada", "name": "Granada", "capital": "Granada", "capitalLon": -85.956, "capitalLat": 11.93, "bbox": [-86.1, 11.7, -85.55, 12.1] },
+    { "id": "ni-jinotega", "name": "Jinotega", "capital": "Jinotega", "capitalLon": -86.0, "capitalLat": 13.091, "bbox": [-86.35, 12.9, -84.9, 14.3] },
+    { "id": "ni-leon", "name": "León", "capital": "León", "capitalLon": -86.878, "capitalLat": 12.435, "bbox": [-87.1, 12.0, -86.2, 13.0] },
+    { "id": "ni-madriz", "name": "Madriz", "capital": "Somoto", "capitalLon": -86.583, "capitalLat": 13.479, "bbox": [-86.75, 13.2, -86.3, 13.7] },
+    { "id": "ni-managua", "name": "Managua", "capital": "Managua", "capitalLon": -86.251, "capitalLat": 12.136, "bbox": [-86.6, 11.75, -85.95, 12.5] },
+    { "id": "ni-masaya", "name": "Masaya", "capital": "Masaya", "capitalLon": -86.096, "capitalLat": 11.974, "bbox": [-86.25, 11.8, -85.9, 12.05] },
+    { "id": "ni-matagalpa", "name": "Matagalpa", "capital": "Matagalpa", "capitalLon": -85.917, "capitalLat": 12.926, "bbox": [-86.3, 12.55, -85.15, 13.25] },
+    { "id": "ni-nueva-segovia", "name": "Nueva Segovia", "capital": "Ocotal", "capitalLon": -86.48, "capitalLat": 13.63, "bbox": [-86.7, 13.4, -85.9, 14.0] },
+    { "id": "ni-rio-san-juan", "name": "Río San Juan", "capital": "San Carlos", "capitalLon": -84.779, "capitalLat": 11.122, "bbox": [-85.0, 10.75, -83.7, 11.6] },
+    { "id": "ni-rivas", "name": "Rivas", "capital": "Rivas", "capitalLon": -85.829, "capitalLat": 11.437, "bbox": [-86.15, 11.05, -85.5, 11.6] },
+    { "id": "ni-raccn", "name": "RACCN", "capital": "Bilwi", "capitalLon": -83.391, "capitalLat": 14.035, "bbox": [-85.2, 12.9, -83.1, 15.05] },
+    { "id": "ni-raccs", "name": "RACCS", "capital": "Bluefields", "capitalLon": -83.764, "capitalLat": 11.992, "bbox": [-85.15, 10.9, -83.55, 13.3] }
+  ]
+}
