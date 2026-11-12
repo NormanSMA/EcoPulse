@@ -120,7 +120,10 @@
     "from": "From",
     "today": "Today",
     "yesterday": "Yesterday",
-    "loading": "Loading…"
+    "loading": "Loading…",
+    "forecast": "Forecast",
+    "nextHours": "Next {n} h",
+    "forecastNote": "Events: current state"
   },
   "events": {
     "title": "Recent events",
@@ -332,7 +335,27 @@
       "airModel": "Estimated PM2.5",
       "loading": "Loading forecast…",
       "unavailable": "No weather data for this point.",
-      "ocean": "Ocean / unnamed"
+      "ocean": "Ocean / unnamed",
+      "forecastTitle": "Forecast",
+      "horizon": "Horizon",
+      "hours": "{n} h",
+      "groupTemp": "Temperature",
+      "groupRain": "Rain",
+      "groupWind": "Wind",
+      "groupSky": "Sky",
+      "groupAir": "Air",
+      "gusts": "Gusts",
+      "cloudCover": "Cloud cover",
+      "pressure": "Pressure",
+      "uv": "UV index",
+      "precipMm": "Rain (mm)",
+      "precipAccum": "Accumulated",
+      "pm25": "PM2.5",
+      "pm10": "PM10",
+      "usAqi": "US AQI",
+      "atCursor": "At cursor",
+      "airUnavailable": "Air quality unavailable.",
+      "group": "Forecast variables"
     },
     "tectonics": {
       "stepClasses": {
@@ -489,6 +512,26 @@
     "clear": "Clear search",
     "error": "Could not search places. Try again.",
     "resultsFound": "{count, plural, one {# place found} other {# places found}}"
+  },
+  "omnibox": {
+    "placeholder": "Search place, coordinates or @km",
+    "label": "Search the map",
+    "clear": "Clear search",
+    "searching": "Searching…",
+    "noResults": "No results",
+    "error": "Search failed. Try again.",
+    "resultsFound": "{count, plural, one {# result} other {# results}}",
+    "hint": "Examples: managua @50km · 12.11,-86.23 · @100km",
+    "goToCoords": "Go to {coords}",
+    "nearMe": "Events within {km} km of my location",
+    "withRadius": "{place} · {km} km radius",
+    "suggestion": "Suggestion",
+    "locating": "Locating…",
+    "geoDenied": "Could not get your location. Check browser permissions.",
+    "geoNotSupported": "Your browser does not support geolocation.",
+    "myLocation": "My location",
+    "filterActive": "{km} km from {place}",
+    "clearFilter": "Clear radius filter"
   },
   "disasterTypes": {
     "FL": "Flood",

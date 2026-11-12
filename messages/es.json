@@ -120,7 +120,10 @@
     "from": "Desde",
     "today": "Hoy",
     "yesterday": "Ayer",
-    "loading": "Cargando…"
+    "loading": "Cargando…",
+    "forecast": "Pronóstico",
+    "nextHours": "Próximas {n} h",
+    "forecastNote": "Eventos: estado actual"
   },
   "events": {
     "title": "Eventos recientes",
@@ -332,7 +335,27 @@
       "airModel": "PM2,5 estimado",
       "loading": "Cargando pronóstico…",
       "unavailable": "No hay datos meteorológicos para este punto.",
-      "ocean": "Océano / sin nombre"
+      "ocean": "Océano / sin nombre",
+      "forecastTitle": "Pronóstico",
+      "horizon": "Horizonte",
+      "hours": "{n} h",
+      "groupTemp": "Temperatura",
+      "groupRain": "Lluvia",
+      "groupWind": "Viento",
+      "groupSky": "Cielo",
+      "groupAir": "Aire",
+      "gusts": "Rachas",
+      "cloudCover": "Nubosidad",
+      "pressure": "Presión",
+      "uv": "Índice UV",
+      "precipMm": "Lluvia (mm)",
+      "precipAccum": "Acumulado",
+      "pm25": "PM2,5",
+      "pm10": "PM10",
+      "usAqi": "US AQI",
+      "atCursor": "En el cursor",
+      "airUnavailable": "Calidad del aire no disponible.",
+      "group": "Variables del pronóstico"
     },
     "tectonics": {
       "stepClasses": {
@@ -489,6 +512,26 @@
     "clear": "Borrar búsqueda",
     "error": "No se pudo buscar lugares. Inténtalo de nuevo.",
     "resultsFound": "{count, plural, one {# lugar encontrado} other {# lugares encontrados}}"
+  },
+  "omnibox": {
+    "placeholder": "Buscar lugar, coordenadas o @km",
+    "label": "Buscar en el mapa",
+    "clear": "Borrar búsqueda",
+    "searching": "Buscando…",
+    "noResults": "Sin resultados",
+    "error": "No se pudo buscar. Inténtalo de nuevo.",
+    "resultsFound": "{count, plural, one {# resultado} other {# resultados}}",
+    "hint": "Ejemplos: managua @50km · 12.11,-86.23 · @100km",
+    "goToCoords": "Ir a {coords}",
+    "nearMe": "Eventos a {km} km de mi ubicación",
+    "withRadius": "{place} · radio {km} km",
+    "suggestion": "Sugerencia",
+    "locating": "Ubicando…",
+    "geoDenied": "No se pudo obtener tu ubicación. Revisa los permisos del navegador.",
+    "geoNotSupported": "Tu navegador no soporta geolocalización.",
+    "myLocation": "Mi ubicación",
+    "filterActive": "{km} km de {place}",
+    "clearFilter": "Quitar filtro de radio"
   },
   "disasterTypes": {
     "FL": "Inundación",

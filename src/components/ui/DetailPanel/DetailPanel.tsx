@@ -14,7 +14,9 @@ import type { SelectionKind } from "@/lib/selection";
 import type { EarthquakeFeature, TectonicBoundaryFeature, TectonicPlateFeature, TectonicBoundaryType, TectonicStepClass } from "@/lib/types";
 import type { MapData } from "@/components/map/types";
 import { nearestBoundary, plateName, splitPlates } from "@/lib/tectonics";
-import type { PointInfo } from "@/lib/pointInfo";
+import { modeledPm25 } from "@/lib/pointInfo";
+import type { PointForecast } from "@/lib/forecast/types";
+import { sampleAt } from "@/lib/forecast/series";
 import { relativeTime, formatDateTime, depthClass, compass, formatCoords, formatReportPeriod, saffirSimpson } from "@/lib/format";
 import { footprintRadiusKm } from "@/lib/geoShapes";
 import { getAQICategory } from "@/lib/openaq";
@@ -173,18 +175,30 @@ function QuakeHistory({ lat, lon, selectedId, locale }: { lat: number; lon: numb
   );
 }
 
-/** Tiempo actual y pronóstico 24 h en un punto (+ PM2.5 modelado). */
-function PointWeather({ info, loading, error, onRetry, locale }: { info: PointInfo | null; loading: boolean; error: boolean; onRetry: () => void; locale: string }) {
+/**
+ * Tiempo en un punto: valores actuales o, con el cursor de la línea de tiempo
+ * en el futuro, los de esa hora del pronóstico. Debajo, la serie de 24–72 h.
+ */
+function PointWeather({ info, loading, error, onRetry, locale, cursorTime }: { info: PointForecast | null; loading: boolean; error: boolean; onRetry: () => void; locale: string; cursorTime?: number | null }) {
   const t = useTranslations("detail.point");
   const tCodes = useTranslations("weatherCodes");
   if (loading) return <Muted>{t("loading")}</Muted>;
   if (error) return <RequestError onRetry={onRetry} />;
   if (!info?.current) return <Muted>{t("unavailable")}</Muted>;
-  const c = info.current;
+  const sample = cursorTime != null && info.weather ? sampleAt(info.weather, info.air, cursorTime) : null;
+  const c = sample
+    ? { temperature: sample.temperature, apparent: sample.apparentTemperature, humidity: sample.humidity, windSpeed: sample.wind.speed, windDirection: sample.windDirection, windGusts: sample.wind.gust, precipitation: sample.precipitation, cloudCover: sample.cloudCover, weatherCode: sample.weatherCode }
+    : info.current;
+  const pm25 = sample ? sample.pm25 : modeledPm25(info);
   const code = String(c.weatherCode);
   const desc = tCodes.has(code) ? tCodes(code) : "—";
   return (
     <>
+      {sample && (
+        <p className="text-xs font-medium text-ds-primary">
+          {t("atCursor")} · {new Date(sample.time).toLocaleString(locale, { weekday: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+        </p>
+      )}
       <div className="flex items-baseline gap-3">
         <span className="text-4xl font-normal tabular-nums text-ds-text-primary">{Math.round(c.temperature)}°</span>
         <span className="text-sm text-ds-text-secondary">{desc}</span>
@@ -193,14 +207,16 @@ function PointWeather({ info, loading, error, onRetry, locale }: { info: PointIn
         <Stat label={t("feels")} value={`${Math.round(c.apparent)}°C`} />
         <Stat label={t("humidity")} value={`${c.humidity}%`} />
         <Stat label={t("wind")} value={`${Math.round(c.windSpeed)} km/h`} hint={compass(c.windDirection, locale)} />
+        <Stat label={t("gusts")} value={`${Math.round(c.windGusts)} km/h`} />
         <Stat label={t("precip")} value={`${formatNumber(c.precipitation, locale)} mm`} />
-        {info.pm25 != null && (
-          <Stat label={t("airModel")} value={`${formatNumber(info.pm25, locale, 1)} µg/m³`} hint={<span style={{ color: aqiColor(getAQICategory(info.pm25)) }}>●</span>} />
+        <Stat label={t("cloudCover")} value={`${Math.round(c.cloudCover)}%`} />
+        {pm25 != null && (
+          <Stat label={t("airModel")} value={`${formatNumber(pm25, locale, 1)} µg/m³`} hint={<span style={{ color: aqiColor(getAQICategory(pm25)) }}>●</span>} />
         )}
       </Stats>
-      {info.hourly.length > 0 && (
-        <Block title={t("forecast")}>
-          <ForecastChart hourly={info.hourly} locale={locale} />
+      {info.weather && info.weather.time.length > 0 && (
+        <Block title={t("forecastTitle")}>
+          <ForecastChart weather={info.weather} air={info.air} locale={locale} cursorTime={cursorTime} />
         </Block>
       )}
     </>
@@ -232,10 +248,12 @@ export interface DetailPanelProps {
   onClose: () => void;
   /** Variante de escritorio: muestra "volver a eventos" en vez de cerrar. */
   backToEvents?: boolean;
+  /** Instante de la línea de tiempo cuando recorre el pronóstico (ms). */
+  cursorTime?: number | null;
   className?: string;
 }
 
-export function DetailPanel({ kind, resolved, locale, tectonics, onClose, backToEvents, className }: DetailPanelProps) {
+export function DetailPanel({ kind, resolved, locale, tectonics, onClose, backToEvents, cursorTime, className }: DetailPanelProps) {
   const t = useTranslations("detail");
   const tTypes = useTranslations("disasterTypes");
   const tAlert = useTranslations("legend.alertLevels");
@@ -247,7 +265,7 @@ export function DetailPanel({ kind, resolved, locale, tectonics, onClose, backTo
   // Pronóstico/aire modelado: para puntos, ciclones y estaciones de aire.
   const wantsPoint = item && (item.kind === "point" || item.kind === "cyclone" || item.kind === "air");
   const pointUrl = wantsPoint && coords ? `/api/point?lat=${coords[1].toFixed(3)}&lon=${coords[0].toFixed(3)}&lang=${locale}` : null;
-  const { data: pointInfo, loading: pointLoading, error: pointError, retry: retryPoint } = useJson<PointInfo>(pointUrl);
+  const { data: pointInfo, loading: pointLoading, error: pointError, retry: retryPoint } = useJson<PointForecast>(pointUrl);
 
   const accent = (() => {
     if (!item) return marker.selected;
@@ -395,7 +413,7 @@ export function DetailPanel({ kind, resolved, locale, tectonics, onClose, backTo
             <Muted>{t("cyclone.trackNote")}</Muted>
             <SourceLink href={`https://www.gdacs.org/report.aspx?eventtype=TC&eventid=${item.f.properties.eventId.replace(/^TC-/, "")}`}>{t("cyclone.report")}</SourceLink>
             <Block title={t("point.now")}>
-              <PointWeather info={pointInfo} loading={pointLoading} error={pointError} onRetry={retryPoint} locale={locale} />
+              <PointWeather info={pointInfo} loading={pointLoading} error={pointError} onRetry={retryPoint} locale={locale} cursorTime={cursorTime} />
             </Block>
           </>
         )}
@@ -475,7 +493,7 @@ export function DetailPanel({ kind, resolved, locale, tectonics, onClose, backTo
                 <p className="-mt-2 text-sm text-ds-text-secondary">{[pointInfo.place.region, pointInfo.place.country].filter(Boolean).join(", ")}</p>
               )
             )}
-            <PointWeather info={pointInfo} loading={pointLoading} error={pointError} onRetry={retryPoint} locale={locale} />
+            <PointWeather info={pointInfo} loading={pointLoading} error={pointError} onRetry={retryPoint} locale={locale} cursorTime={cursorTime} />
             <QuakeHistory lat={item.lat} lon={item.lon} locale={locale} />
           </>
         )}
@@ -534,7 +552,7 @@ function AirDetail({
   locale,
 }: {
   item: Extract<NonNullable<ResolvedSelection["item"]>, { kind: "air" }>;
-  pointInfo: PointInfo | null;
+  pointInfo: PointForecast | null;
   pointLoading: boolean;
   pointError: boolean;
   retryPoint: () => void;
@@ -547,7 +565,7 @@ function AirDetail({
   const url = p.locationId && p.sensorId ? `/api/air-quality/station?location=${p.locationId}&sensor=${p.sensorId}` : null;
   const { data: station, loading, error, retry } = useJson<{ name: string | null; locality: string | null; country: string | null; history: { t: string; v: number }[] }>(url);
   const stationName = [station?.name, station?.locality, station?.country].filter(Boolean).join(" · ");
-  const model = pointInfo?.pm25;
+  const model = modeledPm25(pointInfo);
   return (
     <>
       <div className="flex flex-wrap gap-2">
