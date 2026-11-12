@@ -40,11 +40,11 @@ describe("GET /api/seismic-history", () => {
     expect(collection.summary.byDecade).toEqual([{ decade: 2010, count: 1 }]);
   });
 
-  it("acepta placas en orden inverso y devuelve una colección vacía sin caché", async () => {
+  it("acepta placas en orden inverso y cachea poco una colección vacía", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ status: 204, ok: true }));
     const response = await GET(request("?plates=SA-NZ"));
     expect(response.status).toBe(200);
-    expect(response.headers.get("Cache-Control")).toBe("no-store");
+    expect(response.headers.get("Cache-Control")).toBe("public, s-maxage=300, stale-while-revalidate=1800");
     expect(await response.json()).toMatchObject({ metadata: { plates: "NZ-SA", count: 0 },
       features: [], summary: { total: 0, strongest: null, byDecade: [] } });
   });
@@ -68,10 +68,30 @@ describe("GET /api/seismic-history", () => {
     expect(await response.json()).toMatchObject({ metadata: { mode: "point", count: 1, radiusKm: 150 } });
   });
 
-  it("point con lista vacía responde no-store", async () => {
+  it("point en zona sin sismos usa caché corto", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ status: 204, ok: true }));
     const response = await GET(request("?mode=point&lat=-31.5&lon=-71.6"));
     expect(response.status).toBe(200);
+    expect(response.headers.get("Cache-Control")).toBe("public, s-maxage=300, stale-while-revalidate=1800");
+    expect((await response.json()).metadata.sources).toEqual(["USGS", "EMSC"]);
+  });
+
+  it("point con una fuente caída informa solo la que respondió", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => String(url).includes("earthquake.usgs.gov")
+      ? { ok: false, status: 503 }
+      : { ok: true, status: 204 }));
+    const response = await GET(request("?mode=point&lat=-31.5&lon=-71.6"));
+    expect(response.headers.get("Cache-Control")).toContain("s-maxage=300");
+    expect((await response.json()).metadata.sources).toEqual(["EMSC"]);
+  });
+
+  it("point con todas las fuentes caídas responde no-store", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("sin red")));
+    const response = await GET(request("?mode=point&lat=-31.5&lon=-71.6"));
+    expect(response.status).toBe(200);
     expect(response.headers.get("Cache-Control")).toBe("no-store");
+    expect((await response.json()).metadata.sources).toEqual([]);
   });
 });
