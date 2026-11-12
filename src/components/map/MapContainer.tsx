@@ -18,6 +18,9 @@ import { registerMapIcons } from "@/lib/mapIcons";
 import { nightPolygon, footprintRing, unwrapLongitudes } from "@/lib/geoShapes";
 import type { Selection } from "@/lib/selection";
 import { resolveSelection } from "@/lib/resolveSelection";
+import { nearestCandidate, type PickCandidate, type Pixel } from "@/lib/screenPick";
+import { circleRing } from "@/lib/geo";
+import type { SpatialFilter } from "@/lib/explorerState";
 import type { MapViewProps } from "./types";
 
 interface MapContainerProps extends MapViewProps {
@@ -122,6 +125,14 @@ const nightData = (refTime: number): GeoJSON.FeatureCollection => ({
   features: [{ type: "Feature", properties: {}, geometry: { type: "Polygon", coordinates: [nightPolygon(new Date(refTime))] } }],
 });
 
+function filterRingData(filter: SpatialFilter | null | undefined): GeoJSON.FeatureCollection {
+  if (!filter) return { type: "FeatureCollection", features: [] };
+  return {
+    type: "FeatureCollection",
+    features: [{ type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: unwrapLongitudes(circleRing(filter.center[0], filter.center[1], filter.radiusKm)) } }],
+  };
+}
+
 const selectionData = (p: [number, number] | null): GeoJSON.FeatureCollection =>
   p ? { type: "FeatureCollection", features: [{ type: "Feature", properties: {}, geometry: { type: "Point", coordinates: p } }] } : EMPTY;
 
@@ -156,7 +167,7 @@ function toSelection(layerId: string, f: MapGeoJSONFeature): Selection | null {
 }
 
 export default function MapContainer(props: MapContainerProps) {
-  const { data, visibility, refTime, radarTiles, selectedPoint, focus, basemap, initialView = DEFAULT_MAP_VIEW } = props;
+  const { data, visibility, refTime, radarTiles, selectedPoint, focus, spatialFilter, basemap, initialView = DEFAULT_MAP_VIEW } = props;
   const tKeyboard = useTranslations("mapKeyboard");
   const [announcement, setAnnouncement] = useState<{ selection: Selection; count: number } | null>(null);
   const item = resolveSelection(announcement?.selection ?? null, data)?.item;
@@ -220,6 +231,7 @@ export default function MapContainer(props: MapContainerProps) {
     map.addSource("iss-track", { type: "geojson", data: track });
     map.addSource("iss-footprint", { type: "geojson", data: footprint });
     map.addSource("selection", { type: "geojson", data: selectionData(p.selectedPoint) });
+    map.addSource("filter-ring", { type: "geojson", data: filterRingData(p.spatialFilter) });
 
     // ---------- Capas (de abajo hacia arriba) ----------
     map.addLayer({
@@ -521,6 +533,14 @@ export default function MapContainer(props: MapContainerProps) {
       paint: { "text-color": labelText, "text-halo-color": labelHalo, "text-halo-width": 2 },
     });
 
+    // Anillo del filtro de radio del buscador ("managua @50km").
+    map.addLayer({
+      id: "filter-ring",
+      type: "line",
+      source: "filter-ring",
+      paint: { "line-color": marker.selected, "line-width": 2, "line-dasharray": [2, 2], "line-opacity": 0.9 },
+    });
+
     // Anillo de selección (cualquier tipo de elemento o punto del mapa).
     map.addLayer({
       id: "selection-halo",
@@ -636,8 +656,7 @@ export default function MapContainer(props: MapContainerProps) {
         [center.x + KEYBOARD_HIT_PX, center.y + KEYBOARD_HIT_PX],
       ], { layers: present }) : [];
       const { lng, lat } = map.unproject(center).wrap();
-      let selection: Selection = { kind: "point", lon: lng, lat };
-      let nearest = KEYBOARD_HIT_PX;
+      const candidates: PickCandidate<Selection>[] = [];
       for (const feature of hits) {
         const candidate = toSelection(feature.layer.id, feature);
         if (!candidate) continue;
@@ -646,21 +665,16 @@ export default function MapContainer(props: MapContainerProps) {
           : geometry.type === "LineString" ? [geometry.coordinates]
           : geometry.type === "MultiLineString" ? geometry.coordinates : [];
         for (const line of lines) {
-          const points = line.map(([lon, lat]) => map.project([lon, lat]));
-          for (let i = 0; i < points.length; i++) {
-            const start = points[i];
-            const end = points[i + 1] ?? start;
-            const dx = end.x - start.x, dy = end.y - start.y;
-            const length = dx * dx + dy * dy;
-            const fraction = length ? Math.max(0, Math.min(1, ((center.x - start.x) * dx + (center.y - start.y) * dy) / length)) : 0;
-            const distance = Math.hypot(start.x + fraction * dx - center.x, start.y + fraction * dy - center.y);
-            if (distance <= nearest) {
-              nearest = distance;
-              selection = candidate;
-            }
-          }
+          candidates.push({
+            item: candidate,
+            line: line.map(([lon, lat]): Pixel => {
+              const p = map.project([lon, lat]);
+              return [p.x, p.y];
+            }),
+          });
         }
       }
+      const selection: Selection = nearestCandidate([center.x, center.y], candidates, KEYBOARD_HIT_PX) ?? { kind: "point", lon: lng, lat };
       propsRef.current.onSelect(selection);
       setAnnouncement((previous) => ({ selection, count: (previous?.count ?? 0) + 1 }));
     };
@@ -746,6 +760,15 @@ export default function MapContainer(props: MapContainerProps) {
     setData("tectonic-plates", data.tectonics?.plates ?? EMPTY);
   }, [data.tectonics]);
   useEffect(() => setData("selection", selectionData(selectedPoint)), [selectedPoint]);
+  useEffect(() => {
+    setData("filter-ring", filterRingData(spatialFilter));
+    const map = mapRef.current;
+    if (!map || !spatialFilter) return;
+    // Encaja el círculo completo en pantalla.
+    const ring = circleRing(spatialFilter.center[0], spatialFilter.center[1], spatialFilter.radiusKm, 8);
+    const bounds = ring.reduce((b, c) => b.extend(c), new maplibregl.LngLatBounds(ring[0], ring[0]));
+    map.fitBounds(bounds, { padding: 64, maxZoom: 11, animate: !window.matchMedia("(prefers-reduced-motion: reduce)").matches });
+  }, [spatialFilter]);
   useEffect(() => {
     setData("iss", data.iss);
     const { track, footprint } = issDerived(data.iss);

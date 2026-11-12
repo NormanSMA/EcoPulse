@@ -1,3 +1,4 @@
+import type { SpatialFilter } from "@/lib/explorerState";
 import type {
   EarthquakeGeoJSON,
   AirQualityGeoJSON,
@@ -40,6 +41,8 @@ export interface MapViewProps {
   selectedPoint: [number, number] | null;
   onSelect: (selection: Selection) => void;
   focus?: { lng: number; lat: number; key: number } | null;
+  /** Filtro de radio activo: se dibuja su anillo. */
+  spatialFilter?: SpatialFilter | null;
   initialView?: MapView;
   onViewChange?: (view: MapView) => void;
 }
