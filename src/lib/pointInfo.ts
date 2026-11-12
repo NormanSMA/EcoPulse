@@ -9,11 +9,13 @@ import { withTimeout } from "./http";
 import { fetchPointForecast } from "./forecast/openMeteo";
 import { hourIndexAt } from "./forecast/series";
 import type { PointForecast } from "./forecast/types";
+import { nearestKnownPlace } from "./placeIndex";
 
 const PHOTON = "https://photon.komoot.io";
 const GEOCODER = "https://geocoding-api.open-meteo.com/v1/search";
 // El nombre del lugar es accesorio: no debe retrasar el pronóstico si Photon va lento.
 const REVERSE_TIMEOUT_MS = 4000;
+const LOCAL_PLACE_KM = 25;
 const USER_AGENT = { "User-Agent": "EcoPulse (https://github.com/NormanSMA/EcoPulse)" };
 
 /** PM2.5 modelado para la hora indicada (por defecto, ahora). */
@@ -22,6 +24,15 @@ export function modeledPm25(forecast: Pick<PointForecast, "air"> | null | undefi
   if (!air) return null;
   const index = hourIndexAt(air.time, atMs);
   return index === null ? null : air.pm25[index];
+}
+
+/**
+ * Respaldo sin red externa: si Photon falla o agota el tiempo, se usa la
+ * localidad conocida más cercana (cabeceras de Nicaragua y ciudades ancla).
+ */
+function localPlace(lon: number, lat: number): PointForecast["place"] {
+  const near = nearestKnownPlace(lon, lat, LOCAL_PLACE_KM);
+  return near ? { name: near.name, region: near.region, country: near.country } : { name: null, region: null, country: null };
 }
 
 interface PhotonFeature {
@@ -57,7 +68,7 @@ export async function fetchPointInfo(lat: number, lon: number, lang: string, sig
   // Photon no tiene español: "default" da el nombre local (bien en
   // Latinoamérica y España). Si ese nombre no está en alfabeto latino
   // (東京都, Москва…) se repite la consulta en inglés.
-  const reverseUrl = (l: string) => `${PHOTON}/reverse?lat=${lat}&lon=${lon}&lang=${l}`;
+  const reverseUrl = (l: string) => `${PHOTON}/reverse?lat=${lat.toFixed(3)}&lon=${lon.toFixed(3)}&lang=${l}`;
 
   const json = (url: string) =>
     fetch(url, { signal: withTimeout(REVERSE_TIMEOUT_MS, signal), headers: USER_AGENT })
@@ -86,7 +97,7 @@ export async function fetchPointInfo(lat: number, lon: number, lang: string, sig
               ? feature.properties.name ?? null
               : feature.properties.city ?? feature.properties.locality ?? feature.properties.district ?? feature.properties.county ?? feature.properties.name ?? null,
         }
-      : { name: null, region: null, country: null },
+      : localPlace(lon, lat),
     ...core,
   };
 }

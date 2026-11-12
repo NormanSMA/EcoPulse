@@ -20,6 +20,7 @@ describe("parseSeismicHistoryQuery", () => {
   it.each([
     "", "lat=1", "lat=91&lon=0", "lat=1&lon=2&radiusKm=0", "lat=1&lon=2&radiusKm=501",
     "lat=1&lon=2&days=0", "lat=1&lon=2&days=31", "lat=1&lon=2&days=abc", "mode=otro&lat=1&lon=2",
+    "lat=1&lon=2&radiusKm=150.5", "lat=1&lon=2&days=1e1", "lat=1.00001&lon=2", "lat=1&lon=2&x=9", "lat=1&lat=3&lon=2",
   ])("rechaza point inválido: %s", (query) => {
     expect(parse(query)).toBeNull();
   });

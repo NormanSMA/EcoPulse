@@ -45,10 +45,14 @@ function optionalNumber(params: URLSearchParams, name: string, fallback: number,
   const raw = values[0].trim();
   if (values.length > 1 || !raw) return null;
   const value = Number(raw);
-  return Number.isFinite(value) && value >= 1 && value <= max ? value : null;
+  // Solo enteros: con decimales habría infinitas claves de caché para la misma consulta.
+  return /^\d{1,4}$/.test(raw) && value >= 1 && value <= max ? value : null;
 }
 
+const ALLOWED_PARAMS = ["mode", "lat", "lon", "radiusKm", "days", "plates"];
+
 export function parseSeismicHistoryQuery(params: URLSearchParams): SeismicHistoryQuery | null {
+  for (const key of params.keys()) if (!ALLOWED_PARAMS.includes(key)) return null;
   const mode = params.get("mode") ?? (params.has("plates") && !params.has("lat") && !params.has("lon") ? "boundary" : "point");
   if (mode === "boundary") {
     const plates = params.get("plates");
@@ -56,9 +60,10 @@ export function parseSeismicHistoryQuery(params: URLSearchParams): SeismicHistor
     return { mode, plates: findPlateBoundary(plates)!.plates };
   }
   if (mode !== "point") return null;
+  if (params.getAll("lat").length > 1 || params.getAll("lon").length > 1) return null;
   const point = parseLatLon(new URL(`http://localhost/?${new URLSearchParams({
     lat: params.get("lat") ?? "", lon: params.get("lon") ?? "",
-  })}`));
+  })}`), { canonical: true });
   const radiusKm = optionalNumber(params, "radiusKm", POINT_HISTORY.radiusKm, POINT_HISTORY.maxRadiusKm);
   const days = optionalNumber(params, "days", POINT_HISTORY.days, POINT_HISTORY.maxDays);
   if (!point || radiusKm === null || days === null) return null;

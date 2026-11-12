@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { badRequest, upstreamError } from "@/lib/apiResponse";
+import { badRequest, hasOnlyParams, upstreamError } from "@/lib/apiResponse";
 import { bundleCacheControl } from "@/lib/live/bundle";
 import { BUNDLE_SWR_SECONDS, isBundleId, loadLiveBundle } from "@/lib/live/sources";
 
@@ -15,7 +15,10 @@ export async function GET(request: Request, { params }: { params: Promise<{ bund
   if (!isBundleId(id)) {
     return NextResponse.json({ success: false, error: "lote desconocido" }, { status: 404, headers: { "Cache-Control": "no-store" } });
   }
-  const period = new URL(request.url).searchParams.get("period") ?? "day";
+  const url = new URL(request.url);
+  // Solo `period`, y solo en el lote de sismos: cualquier otro parámetro sería una clave de CDN distinta.
+  if (!hasOnlyParams(url, id === "pulse" ? ["period"] : [])) return badRequest("parámetros no admitidos");
+  const period = url.searchParams.get("period") ?? "day";
   if (period !== "day" && period !== "week") return badRequest("period inválido");
   try {
     const bundle = await loadLiveBundle(id, period, request.signal);
