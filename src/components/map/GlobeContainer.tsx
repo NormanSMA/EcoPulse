@@ -10,6 +10,8 @@ import { themes, layers, marker, magnitudeColor, aqiColor, stormColor, boundaryC
 import { getIcon } from "@/lib/mapIcons";
 import { selectionFromEntityId, type Selection } from "@/lib/selection";
 import { resolveSelection } from "@/lib/resolveSelection";
+import { nearestCandidate, type PickCandidate, type Pixel } from "@/lib/screenPick";
+import { circleRing } from "@/lib/geo";
 import type { MapViewProps } from "./types";
 
 interface GlobeContainerProps extends MapViewProps {
@@ -66,7 +68,7 @@ const css = (c: string) => Cesium.Color.fromCssColorString(c);
 const LABEL_FONT = "600 12px 'Google Sans Flex', Roboto, sans-serif";
 
 export default function GlobeContainer(props: GlobeContainerProps) {
-  const { data, visibility, refTime, radarTiles, selectedPoint, focus, theme, initialView = DEFAULT_MAP_VIEW } = props;
+  const { data, visibility, refTime, radarTiles, selectedPoint, focus, spatialFilter, theme, initialView = DEFAULT_MAP_VIEW } = props;
   const tGlobe = useTranslations("globe");
   const tKeyboard = useTranslations("mapKeyboard");
   const [announcement, setAnnouncement] = useState<{ selection: Selection; count: number } | null>(null);
@@ -233,8 +235,7 @@ export default function GlobeContainer(props: GlobeContainerProps) {
       const candidates: ({ id?: unknown; primitive?: { position?: unknown } } | undefined)[] = [
         picked, ...viewer.scene.drillPick(center, undefined, width, height),
       ];
-      let selection: Selection | null = null;
-      let nearest = KEYBOARD_HIT_PX;
+      const pickable: PickCandidate<Selection>[] = [];
       for (const candidate of candidates) {
         const raw: unknown = candidate?.id;
         const entity = raw instanceof Cesium.Entity ? raw : null;
@@ -247,22 +248,15 @@ export default function GlobeContainer(props: GlobeContainerProps) {
         const positions: unknown = position instanceof Cesium.Cartesian3 ? [position]
           : entity?.polyline?.positions?.getValue(viewer.clock.currentTime) ?? [];
         if (!Array.isArray(positions)) continue;
-        const points = positions.map((p: unknown) => p instanceof Cesium.Cartesian3
-          ? Cesium.SceneTransforms.worldToWindowCoordinates(viewer.scene, p) : undefined);
-        for (let i = 0; i < points.length; i++) {
-          const start = points[i];
-          const end = points[i + 1] ?? start;
-          if (!start || !end) continue;
-          const dx = end.x - start.x, dy = end.y - start.y;
-          const length = dx * dx + dy * dy;
-          const fraction = length ? Math.max(0, Math.min(1, ((center.x - start.x) * dx + (center.y - start.y) * dy) / length)) : 0;
-          const distance = Math.hypot(start.x + fraction * dx - center.x, start.y + fraction * dy - center.y);
-          if (distance <= nearest) {
-            nearest = distance;
-            selection = selected;
-          }
-        }
+        pickable.push({
+          item: selected,
+          line: positions.map((p: unknown): Pixel | undefined => {
+            const point = p instanceof Cesium.Cartesian3 ? Cesium.SceneTransforms.worldToWindowCoordinates(viewer.scene, p) : undefined;
+            return point ? [point.x, point.y] : undefined;
+          }),
+        });
       }
+      let selection: Selection | null = nearestCandidate([center.x, center.y], pickable, KEYBOARD_HIT_PX);
       if (!selection) {
         const cartesian = viewer.camera.pickEllipsoid(center, viewer.scene.globe.ellipsoid);
         if (!cartesian) return;
@@ -670,6 +664,22 @@ export default function GlobeContainer(props: GlobeContainerProps) {
     });
      
   }, [selectedPoint]);
+
+  // Anillo del filtro de radio del buscador.
+  useEffect(() => {
+    replaceEntities("filter-ring", !!spatialFilter, (add) => {
+      const { center, radiusKm } = spatialFilter!;
+      add({
+        id: "filter-ring",
+        polyline: {
+          positions: Cesium.Cartesian3.fromDegreesArray(circleRing(center[0], center[1], radiusKm).flat()),
+          width: 2,
+          material: css(marker.selected),
+          clampToGround: true,
+        },
+      });
+    });
+  }, [spatialFilter]);
 
   // 4. Radar de lluvia (RainViewer) como capa de imagería.
   useEffect(() => {
