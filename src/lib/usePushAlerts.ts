@@ -1,5 +1,6 @@
 'use client';
 
+import { registerSW } from "@/lib/offline/registerSW";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 // Cliente de alertas Web Push: registra /sw.js, gestiona la suscripción y
@@ -65,9 +66,11 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   });
 }
 
+// Un solo registro del service worker para push y para el modo sin conexión.
 async function register(): Promise<ServiceWorkerRegistration> {
-  await navigator.serviceWorker.register("/sw.js");
-  return navigator.serviceWorker.ready;
+  const registration = await registerSW();
+  if (!registration) throw new Error("Service worker no disponible");
+  return registration;
 }
 
 async function send(method: "POST" | "DELETE", body: unknown): Promise<void> {
