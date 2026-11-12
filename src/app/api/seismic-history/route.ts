@@ -1,5 +1,5 @@
 import { badRequest, cachedJson, upstreamError } from "@/lib/apiResponse";
-import { loadSeismicHistory, parseSeismicHistoryQuery } from "@/lib/seismicHistory";
+import { loadSeismicHistory, parseSeismicHistoryQuery, seismicHistoryCache } from "@/lib/seismicHistory";
 
 export const dynamic = "force-dynamic";
 
@@ -10,7 +10,8 @@ export async function GET(request: Request) {
   }
   try {
     const history = await loadSeismicHistory(query, request.signal);
-    return cachedJson(history, query.mode === "point" ? 900 : 86_400, history.features.length > 0);
+    const { ttlSeconds, cacheable } = seismicHistoryCache(history);
+    return cachedJson(history, ttlSeconds, cacheable);
   } catch (error) {
     return upstreamError("seismic-history", error);
   }

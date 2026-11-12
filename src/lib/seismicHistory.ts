@@ -1,6 +1,6 @@
 import { parseLatLon } from "./apiResponse";
 import { BOUNDARY_HISTORY, fetchBoundaryHistory, findPlateBoundary, summarizeBoundaryHistory, type BoundaryHistoryFeature } from "./boundaryHistory";
-import { fetchQuakeHistory } from "./earthquakes";
+import { loadQuakeHistory } from "./earthquakes";
 import { withTimeout } from "./http";
 import type { EarthquakeFeature } from "./types";
 
@@ -23,7 +23,21 @@ export interface SeismicHistory {
   summary?: { total: number; strongest: BoundaryHistoryFeature | null; byDecade: { decade: number; count: number }[] };
 }
 
-export const POINT_HISTORY = { radiusKm: 150, days: 30, minMagnitude: 2.5, maxRadiusKm: 500, maxDays: 30 } as const;
+const EMPTY_TTL_SECONDS = 300;
+
+/**
+ * Caché de CDN: con sismos usa el TTL del modo; zona sin sismos (fuentes OK)
+ * usa un TTL corto; con todas las fuentes caídas no se guarda.
+ */
+export function seismicHistoryCache(history: SeismicHistory): { ttlSeconds: number; cacheable: boolean } {
+  const full = history.metadata.mode === "point" ? 900 : 86_400;
+  return {
+    ttlSeconds: history.features.length > 0 ? full : EMPTY_TTL_SECONDS,
+    cacheable: history.metadata.sources.length > 0,
+  };
+}
+
+export const POINT_HISTORY ={ radiusKm: 150, days: 30, minMagnitude: 2.5, maxRadiusKm: 500, maxDays: 30 } as const;
 
 function optionalNumber(params: URLSearchParams, name: string, fallback: number, max: number): number | null {
   const values = params.getAll(name);
@@ -53,12 +67,13 @@ export function parseSeismicHistoryQuery(params: URLSearchParams): SeismicHistor
 
 export async function loadSeismicHistory(query: SeismicHistoryQuery, signal?: AbortSignal): Promise<SeismicHistory> {
   if (query.mode === "point") {
-    const features = await fetchQuakeHistory(query.lat, query.lon, query.radiusKm, query.days, withTimeout(8000, signal));
+    const { features, sources } = await loadQuakeHistory(query.lat, query.lon, query.radiusKm, query.days, withTimeout(8000, signal));
     return {
       type: "FeatureCollection",
       metadata: {
         mode: "point",
-        sources: ["USGS", "EMSC"],
+        // Solo las agencias que respondieron: vacío significa fuentes caídas.
+        sources,
         starttime: new Date(Date.now() - query.days * 86_400_000).toISOString().slice(0, 19),
         minMagnitude: POINT_HISTORY.minMagnitude,
         radiusKm: query.radiusKm,

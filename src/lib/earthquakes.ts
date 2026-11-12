@@ -108,16 +108,6 @@ async function loadEmsc(params: Record<string, string | number>, signal?: AbortS
   return data.features.filter((f) => f.properties.evtype !== "qb").map(fromEmsc);
 }
 
-async function fetchEmsc(params: Record<string, string | number>, signal?: AbortSignal): Promise<EarthquakeFeature[]> {
-  try {
-    return await loadEmsc(params, signal);
-  } catch (err) {
-    if (err instanceof DOMException && err.name === "AbortError") throw err;
-    console.error("Error obteniendo sismos de EMSC:", err);
-    return [];
-  }
-}
-
 export async function loadMergedEarthquakes(period: QuakePeriod, signal?: AbortSignal): Promise<EarthquakeGeoJSON> {
   const since = new Date(Date.now() - (period === "week" ? 7 : 1) * 86_400_000).toISOString().slice(0, 19);
   const results = await Promise.allSettled([
@@ -176,6 +166,16 @@ export async function fetchMergedEarthquakes(period: QuakePeriod, signal?: Abort
  * detalle: USGS FDSN + EMSC FDSN, deduplicados.
  */
 export async function fetchQuakeHistory(lat: number, lon: number, radiusKm = 150, days = 30, signal?: AbortSignal): Promise<EarthquakeFeature[]> {
+  return (await loadQuakeHistory(lat, lon, radiusKm, days, signal)).features;
+}
+
+/**
+ * Igual que fetchQuakeHistory, pero informa qué agencias respondieron:
+ * distingue "zona sin sismos" de "fuentes caídas".
+ */
+export async function loadQuakeHistory(
+  lat: number, lon: number, radiusKm = 150, days = 30, signal?: AbortSignal,
+): Promise<{ features: EarthquakeFeature[]; sources: string[] }> {
   const start = new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 19);
   const usgsUrl = `${USGS_FDSN}?${new URLSearchParams({
     format: "geojson",
@@ -187,14 +187,19 @@ export async function fetchQuakeHistory(lat: number, lon: number, radiusKm = 150
     orderby: "time",
     limit: "500",
   })}`;
+  const tolerant = <T>(request: Promise<T>): Promise<T | null> =>
+    request.catch((err) => {
+      if (err instanceof DOMException && err.name === "AbortError") throw err;
+      return null;
+    });
   const [usgs, emsc] = await Promise.all([
-    fetch(usgsUrl, { signal })
-      .then((r) => (r.ok ? (r.json() as Promise<EarthquakeGeoJSON>) : null))
-      .catch((err) => {
-        if (err instanceof DOMException && err.name === "AbortError") throw err;
-        return null;
-      }),
-    fetchEmsc({ lat, lon, maxradius: kmToDeg(radiusKm).toFixed(3), start, minmag: 2.5 }, signal),
+    // FDSN responde 204 sin cuerpo cuando la zona no tiene sismos: es una respuesta válida.
+    tolerant(fetch(usgsUrl, { signal }).then((r): Promise<Pick<EarthquakeGeoJSON, "features"> | null> | Pick<EarthquakeGeoJSON, "features"> | null =>
+      r.status === 204 ? { features: [] } : r.ok ? (r.json() as Promise<EarthquakeGeoJSON>) : null)),
+    tolerant(loadEmsc({ lat, lon, maxradius: kmToDeg(radiusKm).toFixed(3), start, minmag: 2.5 }, signal)),
   ]);
-  return mergeQuakes(usgs?.features ?? [], emsc);
+  return {
+    features: mergeQuakes(usgs?.features ?? [], emsc ?? []),
+    sources: [...(usgs ? ["USGS"] : []), ...(emsc ? ["EMSC"] : [])],
+  };
 }
