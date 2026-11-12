@@ -5,10 +5,9 @@ import { Activity, Sun, Moon, Languages, Search, Layers, Check, X, Bell, BellRin
 import { MorphIcon } from "morphicons/react";
 import { useTranslations } from "next-intl";
 import { IconButton } from "@/components/ui/Button";
-import { PlaceSearch } from "@/components/ui/PlaceSearch";
+import { CommandOmnibox, type OmniboxAction } from "@/components/ui/CommandOmnibox";
 import AlertsPanel from "@/components/ui/AlertsPanel";
 import { usePushAlerts } from "@/lib/usePushAlerts";
-import type { GeocodeResult } from "@/lib/pointInfo";
 import { useMediaQuery, type Theme } from "@/design-system/hooks";
 import { useLocale, type Locale } from "@/design-system/i18n/I18nProvider";
 import { BASEMAP_ORDER, type Basemap } from "@/lib/mapStyles";
@@ -17,7 +16,10 @@ import { cn } from "@/design-system/utils/cn";
 export type MapMode = "2d" | "3d";
 
 interface HeaderProps {
-  onPlace: (place: GeocodeResult) => void;
+  onSearch: (action: OmniboxAction) => void;
+  /** Texto del filtro de radio activo (o null). */
+  filterLabel?: string | null;
+  onClearFilter?: () => void;
   mapMode: MapMode;
   onMapModeChange: (mode: MapMode) => void;
   basemap: Basemap;
@@ -216,7 +218,9 @@ function AlertsMenu({ locale }: { locale: Locale }) {
 }
 
 export default function Header({
-  onPlace,
+  onSearch,
+  filterLabel,
+  onClearFilter,
   mapMode,
   onMapModeChange,
   basemap,
@@ -262,11 +266,13 @@ export default function Header({
           searchOpen ? "block" : "hidden"
         )}
       >
-        <PlaceSearch
+        <CommandOmnibox
           locale={locale}
           focusWhen={searchOpen}
-          onPick={(place) => {
-            onPlace(place);
+          filterLabel={filterLabel}
+          onClearFilter={onClearFilter}
+          onAction={(action) => {
+            onSearch(action);
             setSearchOpen(false);
           }}
         />

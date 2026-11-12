@@ -3,10 +3,13 @@ import { Play, Pause, CalendarDays } from "lucide";
 import { MorphIcon } from "morphicons/react";
 import { cn } from "@/design-system/utils/cn";
 
-export type TimeWindow = "live" | "1h" | "6h" | "24h" | "7d" | "custom";
+import { isForecastWindow, type TimeWindow } from "@/lib/timeline";
 
-// Orden cronológico: el pasado a la izquierda y "En vivo" (ahora) a la derecha.
-const WINDOWS: Exclude<TimeWindow, "custom">[] = ["7d", "24h", "6h", "1h", "live"];
+export type { TimeWindow };
+
+// Orden cronológico: pasado a la izquierda, "En vivo" (ahora) y pronóstico a la derecha.
+const WINDOWS: Exclude<TimeWindow, "custom">[] = ["7d", "24h", "6h", "1h", "live", "+24h", "+48h", "+72h"];
+const LIVE_INDEX = WINDOWS.indexOf("live");
 
 export interface TimeControlProps {
   window: TimeWindow;
@@ -208,7 +211,12 @@ export function TimeControl({
   const clock = shown ? formatLocal(shown, locale) : "";
   const utc = shown ? formatUtc(shown, locale) : "";
   const activeIndex = (WINDOWS as TimeWindow[]).indexOf(activeWindow);
-  const progress = activeIndex < 0 ? 100 : (activeIndex / (WINDOWS.length - 1)) * 100;
+  // Tramo resaltado: entre la parada elegida y "ahora" (hacia atrás o hacia adelante).
+  const forecast = isForecastWindow(activeWindow);
+  const from = activeIndex < 0 ? LIVE_INDEX : Math.min(activeIndex, LIVE_INDEX);
+  const to = activeIndex < 0 ? LIVE_INDEX : Math.max(activeIndex, LIVE_INDEX);
+  const trackStart = (from / (WINDOWS.length - 1)) * 100;
+  const trackWidth = ((to - from) / (WINDOWS.length - 1)) * 100;
 
   return (
     <div
@@ -277,7 +285,7 @@ export function TimeControl({
             min={0}
             max={1000}
             step={1}
-            value={Math.round(Math.min(1, Math.max(0, playProgress ?? 1)) * 1000)}
+            value={Math.round(Math.min(1, Math.max(0, playProgress ?? (forecast ? 0 : 1))) * 1000)}
             onChange={(e) => onSeek(Number(e.target.value) / 1000)}
             aria-label={seekLabel}
             className="h-5 w-full cursor-pointer accent-[rgb(var(--ds-highlight))]"
@@ -302,14 +310,14 @@ export function TimeControl({
           <div className="absolute left-3 right-3 sm:left-4 sm:right-4 top-[9px] h-1 rounded-full bg-ds-surface-highest" aria-hidden="true">
             <div
               className="h-full rounded-full bg-ds-primary transition-[margin,width] duration-ds-slow ease-ds-standard"
-              style={{ marginLeft: `${progress}%`, width: `${100 - progress}%` }}
+              style={{ marginLeft: `${trackStart}%`, width: `${trackWidth}%` }}
             />
           </div>
           <div className="relative flex justify-between">
             {WINDOWS.map((w, i) => {
               const active = w === activeWindow;
-              // Puntos dentro de la ventana visible: del elegido hasta ahora.
-              const passed = activeIndex >= 0 && i >= activeIndex;
+              // Puntos dentro de la ventana visible: entre el elegido y ahora.
+              const passed = activeIndex >= 0 && i >= from && i <= to;
               return (
                 <button
                   key={w}

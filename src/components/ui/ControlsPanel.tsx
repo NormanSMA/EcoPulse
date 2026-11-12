@@ -1,5 +1,5 @@
 import { useTranslations } from "next-intl";
-import { Mountain, CloudSun, Flame, Satellite, Palette, MapPin, Info } from "lucide";
+import { Mountain, CloudSun, Flame, Satellite, Palette, Info } from "lucide";
 import type { IconNode } from "lucide";
 import { MorphIcon } from "morphicons/react";
 import { layers, type LayerKey } from "@/design-system/tokens";
@@ -7,7 +7,6 @@ import { LayerToggle, Switch } from "@/components/ui/LayerToggle";
 import { cn } from "@/design-system/utils/cn";
 import { Section } from "@/components/ui/Section";
 import { Legend } from "@/components/ui/Legend";
-import NearbySearch from "@/components/ui/NearbySearch";
 
 export const MAG_STEPS = [0, 3, 4, 5, 6, 7] as const;
 
@@ -78,7 +77,6 @@ export interface ControlsPanelProps {
 export default function ControlsPanel({ visibility, onChange, showLegend = true, minMag, onMinMagChange, down }: ControlsPanelProps) {
   const t = useTranslations("layers");
   const tPanel = useTranslations("panel");
-  const tNearby = useTranslations("nearby");
 
   return (
     <div className="flex flex-col">
@@ -146,10 +144,6 @@ export default function ControlsPanel({ visibility, onChange, showLegend = true,
           <Legend visibility={visibility} />
         </Section>
       )}
-
-      <Section title={tNearby("title")} icon={MapPin} defaultOpen={false}>
-        <NearbySearch />
-      </Section>
 
       <p className="flex items-start gap-2 border-t border-ds-outline-variant px-4 pb-1 pt-3 text-xs text-ds-text-muted">
         <MorphIcon icon={Info} size={14} reducedMotion="user" className="mt-px shrink-0" />
