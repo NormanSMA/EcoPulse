@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useCallback, useReducer, useRef, type CSSProperties, type ReactNode } from "react";
 import dynamic from "next/dynamic";
 import { useTranslations } from "next-intl";
-import { ChevronDown, Clock, Inbox, SlidersHorizontal, X } from "lucide";
+import { ChevronDown, Clock, Download, Inbox, SlidersHorizontal, WifiOff, X } from "lucide";
 import type { IconNode } from "lucide";
 import { MorphIcon } from "morphicons/react";
 import { I18nProvider, useLocale } from "@/design-system/i18n/I18nProvider";
@@ -15,16 +15,25 @@ import { useLiveData, radarFrameAt } from "@/lib/useLiveData";
 import { resolveSelection } from "@/lib/resolveSelection";
 import { selectionFromEntityId, type Selection } from "@/lib/selection";
 import type { OmniboxAction } from "@/components/ui/CommandOmnibox";
+import { ZonePanel } from "@/components/ui/ZonePanel";
+import { Section } from "@/components/ui/Section";
+import { frameAt } from "@/lib/forecast/series";
+import { useWeatherGrid } from "@/lib/forecast/useWeatherGrid";
+import { OFFLINE_ASSET_URLS } from "@/lib/mapStyles";
+import { registerSW } from "@/lib/offline/registerSW";
+import { useOnline } from "@/lib/offline/useOnline";
+import { pickZone } from "@/lib/zones/pickZone";
+import type { ZonePack } from "@/lib/zones/types";
 import type { MapData, LayerVisibility } from "@/components/map/types";
 import Header, { type MapMode } from "@/components/ui/Header";
 import ControlsPanel from "@/components/ui/ControlsPanel";
 import EventsPanel, { type EventItem } from "@/components/ui/EventsPanel";
-import { DetailPanel } from "@/components/ui/DetailPanel";
+import { DetailPanel, preloadDetailCharts } from "@/components/ui/DetailPanel";
 import { Button, IconButton } from "@/components/ui/Button";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { TimeControl } from "@/components/ui/TimeControl";
 import { explorerReducer, initialExplorerState, inSpatialFilter, mobileSheet, type Layout } from "@/lib/explorerState";
-import { playbackEnded, resolveTimeline, seekTime, type TimeWindow } from "@/lib/timeline";
+import { HOUR_MS, playbackEnded, resolveTimeline, seekTime, type TimeWindow } from "@/lib/timeline";
 import { Legend } from "@/components/ui/Legend";
 
 const MAP_LOADING = (
@@ -54,6 +63,9 @@ const INITIAL_VISIBILITY: LayerVisibility = {
   iss: true,
   dayNight: true,
   radar: false,
+  wind: false,
+  clouds: false,
+  rain: false,
   airQuality: false,
   volcanoCatalog: false,
   tectonics: false,
@@ -96,6 +108,8 @@ function HomePageContent() {
   const tPanel = useTranslations("panel");
   const tTime = useTranslations("timeControl");
   const tOmni = useTranslations("omnibox");
+  const tZones = useTranslations("zones");
+  const tOffline = useTranslations("offline");
   const tPlates = useTranslations("detail.tectonics.plateNames");
   const { locale } = useLocale();
 
@@ -109,6 +123,17 @@ function HomePageContent() {
   const { basemap, setBasemap } = useBasemap(theme);
   const [timeOpen, setTimeOpen] = useState(true);
 
+  // ---------- Conexión y arranque sin red ----------
+  const online = useOnline();
+  useEffect(() => {
+    // Registra el service worker y le pasa el cascarón del build actual.
+    // Después se piden los chunks diferidos que hacen falta sin red (gráficos
+    // del detalle): con el worker ya activo, quedan guardados.
+    registerSW(OFFLINE_ASSET_URLS).then(() => preloadDetailCharts());
+  }, []);
+  // Zona guardada que se muestra en el mapa (sus puntos alimentan las capas de clima).
+  const [activePack, setActivePack] = useState<ZonePack | null>(null);
+
   // ---------- Selección, cámara y paneles: un solo estado ----------
   // Escritorio y móvil leen lo mismo; solo cambia el contenedor (panel u hoja).
   const layout = useLayout();
@@ -116,14 +141,9 @@ function HomePageContent() {
   const [explorer, dispatch] = useReducer(explorerReducer, "wide", initialExplorerState);
   useEffect(() => {
     if (!layout) return;
-    const fromMobile = layoutRef.current === "mobile" && layout !== "mobile";
+    const previous = layoutRef.current;
     layoutRef.current = layout;
-    dispatch({ type: "layout", layout });
-    // Al volver de móvil (giro o ventana más ancha) se recuperan los paneles de escritorio.
-    if (fromMobile) {
-      dispatch({ type: "openRight", layout });
-      if (layout === "wide") dispatch({ type: "openLeft", layout });
-    }
+    dispatch({ type: "layout", layout, previous });
   }, [layout]);
   const { selection, focus, spatialFilter } = explorer;
   const isDesktop = layout === "medium" || layout === "wide";
@@ -271,6 +291,24 @@ function HomePageContent() {
     return tTime("summary", { label, count: mags.length, max });
   }, [data.earthquakes, timeWindow, customStart, windowMs, playhead, tTime, locale, usesWeek, live.weekQuakes, forecastMode, timeline.horizonHours]);
 
+  // ---------- Pronóstico sobre la malla (viento, nubes, lluvia) ----------
+  // Con una zona guardada en pantalla se usa su paquete; si no, la malla que
+  // corresponde a lo que se ve (país, metropolitana o táctica según el zoom).
+  const weatherOn = visibility.wind || visibility.clouds || visibility.rain;
+  const autoZone = useMemo(
+    () => (weatherOn && online && !activePack && mapMode === "2d" ? pickZone(mapView.lng, mapView.lat, mapView.zoom) : null),
+    [weatherOn, online, activePack, mapMode, mapView]
+  );
+  const liveGrid = useWeatherGrid(autoZone);
+  const grid = activePack?.forecast ?? liveGrid.grid;
+  const frameHour = Math.floor(refTime / HOUR_MS);
+  const weatherFrame = useMemo(() => {
+    if (!grid || grid.time.length === 0) return null;
+    // Fuera del rango del pronóstico (pasado o más allá de 72 h) se usa el extremo más cercano.
+    const at = Math.min(Math.max(frameHour * HOUR_MS, grid.time[0]), grid.time[grid.time.length - 1]);
+    return frameAt(grid, at);
+  }, [grid, frameHour]);
+
   // El radar solo tiene pasado y unos minutos de pronóstico inmediato.
   const radarTiles = visibility.radar ? radarFrameAt(live.radar, Math.min(refTime, now))?.tiles ?? null : null;
   // Capas cuya fuente falló o agotó el tiempo en el último ciclo.
@@ -349,12 +387,41 @@ function HomePageContent() {
     onSelect: selectOnMap,
     focus,
     spatialFilter,
+    weatherFrame,
+    showGridPoints: activePack !== null,
     initialView: mapView,
   };
 
   const events = (className?: string) => (
     <EventsPanel data={data} visibility={visibility} locale={locale} selected={selection} onPick={pickEvent} loading={live.quakesStatus === "loading"} error={live.quakesStatus === "error"} className={className} />
   );
+
+  // ---------- Zonas sin conexión ----------
+  const showPack = useCallback((pack: ZonePack | null) => {
+    setActivePack(pack);
+    if (pack) dispatch({ type: "focus", at: pack.meta.zone.center, now: Date.now() });
+  }, []);
+  const liveEvents = useMemo(
+    () => ({
+      earthquakes: live.earthquakes.features,
+      fires: live.fires.features,
+      disasters: live.disasters.features,
+      cyclones: live.cyclones.features,
+      volcanoes: live.volcanoes.features,
+    }),
+    [live.earthquakes, live.fires, live.disasters, live.cyclones, live.volcanoes]
+  );
+  const zoneCenter = selectedPoint
+    ? { lon: selectedPoint[0], lat: selectedPoint[1], name: resolved?.item.kind === "point" ? resolved.item.name ?? null : null }
+    : { lon: mapView.lng, lat: mapView.lat, name: null };
+  const zonesSection = (
+    <Section title={tZones("title")} icon={Download} defaultOpen={!online}>
+      <ZonePanel locale={locale === "en" ? "en" : "es"} online={online} center={zoneCenter} events={liveEvents} activeZoneId={activePack?.meta.id ?? null} onShow={showPack} />
+    </Section>
+  );
+  // Sin red: mapa base mínimo y solo 2D (el globo depende de teselas remotas).
+  const shownBasemap = online ? basemap : "offline";
+  const shownMode: MapMode = online ? mapMode : "2d";
 
   // Desplazamientos de los controles nativos del mapa para no quedar bajo los paneles.
   const stageStyle = {
@@ -381,6 +448,17 @@ function HomePageContent() {
         onToggleTheme={toggleTheme}
       />
 
+      {!online && (
+        <p role="status" className="flex shrink-0 items-center gap-2 border-b border-ds-outline-variant bg-ds-surface-container px-4 py-2 text-xs font-medium text-ds-warning">
+          <MorphIcon icon={WifiOff} size={16} reducedMotion="user" className="shrink-0" />
+          <span className="min-w-0 flex-1">
+            {tOffline("banner")}
+            {live.snapshotAt != null && ` ${tOffline("snapshot", { date: new Date(live.snapshotAt).toLocaleString(locale, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) })}`}
+            {mapMode === "3d" && ` ${tOffline("globeDisabled")}.`}
+          </span>
+        </p>
+      )}
+
       <div
         style={stageStyle}
         className={cn(
@@ -391,8 +469,8 @@ function HomePageContent() {
         )}
       >
         <div className="absolute inset-0">
-          {mapMode === "2d" ? (
-            <MapContainer {...viewProps} onViewChange={setMapView} basemap={basemap} />
+          {shownMode === "2d" ? (
+            <MapContainer {...viewProps} onViewChange={setMapView} basemap={shownBasemap} />
           ) : (
             <GlobeContainer {...viewProps} onViewChange={setMapView} theme={theme} />
           )}
@@ -403,7 +481,7 @@ function HomePageContent() {
           <aside aria-label={tPanel("controls")} className={cn(floatingPanel, "left-4 w-[360px]")}>
             <PanelHeader title={tPanel("controls")} icon={SlidersHorizontal} onClose={closeControls} closeLabel={tPanel("close")} />
             <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain py-2">
-              <ControlsPanel visibility={visibility} onChange={setLayer} minMag={minMag} onMinMagChange={setMinMag} down={layersDown} />
+              <ControlsPanel visibility={visibility} onChange={setLayer} minMag={minMag} onMinMagChange={setMinMag} down={layersDown} extra={zonesSection} />
             </div>
           </aside>
         ) : (
@@ -536,7 +614,7 @@ function HomePageContent() {
                   <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain pb-[max(1rem,env(safe-area-inset-bottom))]">
                     {sheet === "layers" ? (
                       <div className="py-2">
-                        <ControlsPanel visibility={visibility} onChange={setLayer} minMag={minMag} onMinMagChange={setMinMag} down={layersDown} />
+                        <ControlsPanel visibility={visibility} onChange={setLayer} minMag={minMag} onMinMagChange={setMinMag} down={layersDown} extra={zonesSection} />
                       </div>
                     ) : (
                       events("min-h-[60vh] p-3")

@@ -73,6 +73,14 @@ Además, bajo demanda:
 
 Todas estas consultas pasan por rutas propias del servidor (`/api/point`, `/api/geocode`, `/api/seismic-history`, `/api/air-quality/station`). Los eventos en vivo llegan agrupados en `/api/live/pulse`, `/api/live/hazards` y `/api/live/orbit`.
 
+### Pronóstico de 72 h y zonas sin conexión
+
+- **Pronóstico:** cada punto del mapa muestra 24, 48 o 72 horas de clima (viento y rachas, nubosidad, lluvia, temperatura, presión, UV) y calidad del aire (PM2,5, PM10, US AQI). La línea de tiempo llega hasta `+72h` y mueve gráficos y capas.
+- **Capas de clima:** viento, nubosidad y lluvia prevista se pintan sobre una malla que entrega `/api/forecast/grid?zone=<id>`. El servidor calcula la malla (máximo 80 puntos) y la pide a Open-Meteo en una sola llamada por API.
+- **Zonas sin conexión:** desde el panel de Controles se descarga una zona táctica (25 km), metropolitana o el país. El paquete (pronóstico de 72 h y eventos cercanos) se guarda en IndexedDB y se exporta a JSON, CSV o un reporte HTML autónomo.
+- **Arranque sin red:** el service worker guarda el cascarón de la app. Sin conexión se usa un mapa base mínimo (`public/data/basemap-lite.json`), los últimos eventos vistos y el pronóstico de las zonas guardadas. Las rutas `/api/*` nunca se cachean en el worker.
+- El contorno de Nicaragua de `src/lib/zones/nicaragua.data.json` es una aproximación. Tras editarlo, ejecuta `node scripts/build-basemap-lite.mjs`.
+
 ## Arquitectura
 
 ```

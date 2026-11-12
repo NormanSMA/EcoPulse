@@ -15,6 +15,7 @@ import type { EarthquakeFeature, TectonicBoundaryFeature, TectonicPlateFeature, 
 import type { MapData } from "@/components/map/types";
 import { nearestBoundary, plateName, splitPlates } from "@/lib/tectonics";
 import { modeledPm25 } from "@/lib/pointInfo";
+import { forecastFromPacks } from "@/lib/offline/packRepo";
 import type { PointForecast } from "@/lib/forecast/types";
 import { sampleAt } from "@/lib/forecast/series";
 import { relativeTime, formatDateTime, depthClass, compass, formatCoords, formatReportPeriod, saffirSimpson } from "@/lib/format";
@@ -28,6 +29,15 @@ const QuakeHistoryChart = dynamic(() => import("./DetailCharts").then((m) => m.Q
 const AirHistoryChart = dynamic(() => import("./DetailCharts").then((m) => m.AirHistoryChart), { ssr: false, loading: () => <ChartPlaceholder h="h-40" /> });
 const ForecastChart = dynamic(() => import("./DetailCharts").then((m) => m.ForecastChart), { ssr: false, loading: () => <ChartPlaceholder h="h-44" /> });
 const DecadeChart = dynamic(() => import("./DetailCharts").then((m) => m.DecadeChart), { ssr: false, loading: () => <ChartPlaceholder h="h-40" /> });
+
+/**
+ * Descarga por adelantado el chunk de gráficos. Con el service worker activo
+ * queda en caché: sin esto, abrir un detalle sin conexión fallaba con
+ * ChunkLoadError porque el chunk nunca se había pedido.
+ */
+export function preloadDetailCharts(): Promise<unknown> {
+  return import("./DetailCharts").catch(() => undefined);
+}
 
 type Tectonics = MapData["tectonics"];
 
@@ -179,22 +189,27 @@ function QuakeHistory({ lat, lon, selectedId, locale }: { lat: number; lon: numb
  * Tiempo en un punto: valores actuales o, con el cursor de la línea de tiempo
  * en el futuro, los de esa hora del pronóstico. Debajo, la serie de 24–72 h.
  */
-function PointWeather({ info, loading, error, onRetry, locale, cursorTime }: { info: PointForecast | null; loading: boolean; error: boolean; onRetry: () => void; locale: string; cursorTime?: number | null }) {
+function PointWeather({ info, loading, error, onRetry, locale, cursorTime, packZone }: { info: PointForecast | null; loading: boolean; error: boolean; onRetry: () => void; locale: string; cursorTime?: number | null; packZone?: string | null }) {
   const t = useTranslations("detail.point");
+  const tOffline = useTranslations("offline");
   const tCodes = useTranslations("weatherCodes");
+  // Un paquete guardado no trae "ahora": se lee la hora actual de su serie.
+  const [mountedAt] = useState(() => Date.now());
   if (loading) return <Muted>{t("loading")}</Muted>;
   if (error) return <RequestError onRetry={onRetry} />;
-  if (!info?.current) return <Muted>{t("unavailable")}</Muted>;
-  const sample = cursorTime != null && info.weather ? sampleAt(info.weather, info.air, cursorTime) : null;
+  const at = cursorTime ?? (info && !info.current ? mountedAt : null);
+  const sample = at != null && info?.weather ? sampleAt(info.weather, info.air, at) : null;
   const c = sample
     ? { temperature: sample.temperature, apparent: sample.apparentTemperature, humidity: sample.humidity, windSpeed: sample.wind.speed, windDirection: sample.windDirection, windGusts: sample.wind.gust, precipitation: sample.precipitation, cloudCover: sample.cloudCover, weatherCode: sample.weatherCode }
-    : info.current;
+    : info?.current;
+  if (!info || !c) return <Muted>{t("unavailable")}</Muted>;
   const pm25 = sample ? sample.pm25 : modeledPm25(info);
   const code = String(c.weatherCode);
   const desc = tCodes.has(code) ? tCodes(code) : "—";
   return (
     <>
-      {sample && (
+      {packZone && <p role="status" className="text-xs font-medium text-ds-warning">{tOffline("packSource", { zone: packZone })}</p>}
+      {sample && cursorTime != null && (
         <p className="text-xs font-medium text-ds-primary">
           {t("atCursor")} · {new Date(sample.time).toLocaleString(locale, { weekday: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
         </p>
@@ -265,7 +280,28 @@ export function DetailPanel({ kind, resolved, locale, tectonics, onClose, backTo
   // Pronóstico/aire modelado: para puntos, ciclones y estaciones de aire.
   const wantsPoint = item && (item.kind === "point" || item.kind === "cyclone" || item.kind === "air");
   const pointUrl = wantsPoint && coords ? `/api/point?lat=${coords[1].toFixed(3)}&lon=${coords[0].toFixed(3)}&lang=${locale}` : null;
-  const { data: pointInfo, loading: pointLoading, error: pointError, retry: retryPoint } = useJson<PointForecast>(pointUrl);
+  const { data: netInfo, loading: pointLoading, error: netError, retry: retryPoint } = useJson<PointForecast>(pointUrl);
+
+  // Sin red (o con la fuente caída): pronóstico del punto de malla más cercano de una zona guardada.
+  const [packInfo, setPackInfo] = useState<{ key: string; forecast: PointForecast; zone: string } | null>(null);
+  const packKey = wantsPoint && coords && netError ? `${coords[0].toFixed(3)},${coords[1].toFixed(3)}` : null;
+  useEffect(() => {
+    if (!packKey) return;
+    let alive = true;
+    const [lon, lat] = packKey.split(",").map(Number);
+    forecastFromPacks(lon, lat, Date.now())
+      .then((found) => {
+        if (alive && found) setPackInfo({ key: packKey, ...found });
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, [packKey]);
+  const fromPack = packKey && packInfo?.key === packKey ? packInfo : null;
+  const pointInfo = netInfo ?? fromPack?.forecast ?? null;
+  const pointError = netError && !fromPack;
+  const packZone = !netInfo && fromPack ? fromPack.zone : null;
 
   const accent = (() => {
     if (!item) return marker.selected;
@@ -413,7 +449,7 @@ export function DetailPanel({ kind, resolved, locale, tectonics, onClose, backTo
             <Muted>{t("cyclone.trackNote")}</Muted>
             <SourceLink href={`https://www.gdacs.org/report.aspx?eventtype=TC&eventid=${item.f.properties.eventId.replace(/^TC-/, "")}`}>{t("cyclone.report")}</SourceLink>
             <Block title={t("point.now")}>
-              <PointWeather info={pointInfo} loading={pointLoading} error={pointError} onRetry={retryPoint} locale={locale} cursorTime={cursorTime} />
+              <PointWeather info={pointInfo} loading={pointLoading} error={pointError} onRetry={retryPoint} locale={locale} cursorTime={cursorTime} packZone={packZone} />
             </Block>
           </>
         )}
@@ -493,7 +529,7 @@ export function DetailPanel({ kind, resolved, locale, tectonics, onClose, backTo
                 <p className="-mt-2 text-sm text-ds-text-secondary">{[pointInfo.place.region, pointInfo.place.country].filter(Boolean).join(", ")}</p>
               )
             )}
-            <PointWeather info={pointInfo} loading={pointLoading} error={pointError} onRetry={retryPoint} locale={locale} cursorTime={cursorTime} />
+            <PointWeather info={pointInfo} loading={pointLoading} error={pointError} onRetry={retryPoint} locale={locale} cursorTime={cursorTime} packZone={packZone} />
             <QuakeHistory lat={item.lat} lon={item.lon} locale={locale} />
           </>
         )}

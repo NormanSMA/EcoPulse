@@ -90,19 +90,10 @@
     "dayNight": "Día y noche",
     "volcanoCatalog": "Catálogo de volcanes",
     "radar": "Radar de lluvia",
-    "tectonics": "Placas tectónicas"
-  },
-  "nearby": {
-    "title": "Sismos cerca de mí",
-    "radiusLabel": "Radio",
-    "locating": "Ubicando...",
-    "loading": "Buscando...",
-    "useLocation": "Usar mi ubicación",
-    "geoNotSupported": "Tu navegador no soporta geolocalización.",
-    "geoDenied": "No se pudo obtener tu ubicación. Revisa los permisos del navegador.",
-    "resultsFound": "sismo(s) encontrados:",
-    "noResults": "Sin sismos dentro del radio seleccionado.",
-    "error": "No se pudo buscar sismos. Inténtalo de nuevo."
+    "tectonics": "Placas tectónicas",
+    "wind": "Viento",
+    "clouds": "Nubosidad",
+    "rain": "Lluvia prevista"
   },
   "timeControl": {
     "show": "Línea de tiempo",
@@ -147,7 +138,8 @@
     "dark": "Oscuro",
     "light": "Claro",
     "satellite": "Satélite",
-    "unavailable3d": "Mapa base (solo en 2D)"
+    "unavailable3d": "Mapa base (solo en 2D)",
+    "offline": "Sin conexión"
   },
   "panel": {
     "controls": "Controles",
@@ -504,15 +496,6 @@
     "depth": "{km} km prof.",
     "tsunami": "Tsunami"
   },
-  "placeSearch": {
-    "placeholder": "Buscar un lugar",
-    "searching": "Buscando…",
-    "noResults": "Sin resultados",
-    "label": "Buscar un lugar en el mapa",
-    "clear": "Borrar búsqueda",
-    "error": "No se pudo buscar lugares. Inténtalo de nuevo.",
-    "resultsFound": "{count, plural, one {# lugar encontrado} other {# lugares encontrados}}"
-  },
   "omnibox": {
     "placeholder": "Buscar lugar, coordenadas o @km",
     "label": "Buscar en el mapa",
@@ -532,6 +515,41 @@
     "myLocation": "Mi ubicación",
     "filterActive": "{km} km de {place}",
     "clearFilter": "Quitar filtro de radio"
+  },
+  "zones": {
+    "title": "Zonas sin conexión",
+    "intro": "Descarga el pronóstico de 72 h y los eventos cercanos para consultarlos sin internet.",
+    "tierLabel": "Tamaño de la zona",
+    "tierTactical": "Táctica · 25 km",
+    "tierMetro": "Metropolitana",
+    "tierCountry": "País · Nicaragua",
+    "center": "Centro: {place}",
+    "mapCenter": "centro del mapa",
+    "download": "Descargar zona",
+    "downloading": "Descargando…",
+    "saved": "Zonas guardadas",
+    "empty": "Aún no hay zonas guardadas.",
+    "points": "{count, plural, one {# punto} other {# puntos}}",
+    "events": "{count, plural, one {# evento} other {# eventos}}",
+    "validUntil": "Válido hasta {date}",
+    "expired": "Vencido",
+    "show": "Ver en el mapa",
+    "hide": "Ocultar del mapa",
+    "refresh": "Actualizar",
+    "delete": "Borrar",
+    "storage": "Espacio usado: {used}",
+    "error": "No se pudo descargar la zona. Inténtalo de nuevo.",
+    "offlineHint": "Sin conexión: solo puedes ver las zonas guardadas.",
+    "export": "Exportar",
+    "exportJson": "JSON",
+    "exportCsv": "CSV",
+    "exportReport": "Reporte"
+  },
+  "offline": {
+    "banner": "Sin conexión. Se muestran datos guardados.",
+    "snapshot": "Datos del {date}",
+    "packSource": "Pronóstico de zona guardada: {zone}",
+    "globeDisabled": "3D no disponible sin conexión"
   },
   "disasterTypes": {
     "FL": "Inundación",
