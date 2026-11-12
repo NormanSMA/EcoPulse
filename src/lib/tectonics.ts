@@ -1,30 +1,9 @@
+import { pointToSegmentKm as geoPointToSegmentKm } from "./geo";
 import type { TectonicBoundaryGeoJSON, TectonicBoundaryType, TectonicPlateGeoJSON, TectonicStepClass } from "./types";
 
-const R_KM = 6371;
-const RAD = Math.PI / 180;
-
-/**
- * Distancia (km) de un punto a un segmento, en plano local equirectangular
- * centrado en el punto. Suficiente para segmentos cortos de PB2002.
- */
+/** Distancia (km) de un punto a un segmento (esférica, ver geo.ts). */
 export function pointToSegmentKm(lon: number, lat: number, a: [number, number], b: [number, number]): number {
-  const k = Math.cos(lat * RAD);
-  const dx = (lng: number) => {
-    let d = lng - lon;
-    if (d > 180) d -= 360;
-    if (d < -180) d += 360;
-    return d * RAD * k * R_KM;
-  };
-  const dy = (la: number) => (la - lat) * RAD * R_KM;
-  const ax = dx(a[0]);
-  const ay = dy(a[1]);
-  const bx = dx(b[0]);
-  const by = dy(b[1]);
-  const vx = bx - ax;
-  const vy = by - ay;
-  const len2 = vx * vx + vy * vy;
-  const t = len2 === 0 ? 0 : Math.max(0, Math.min(1, -(ax * vx + ay * vy) / len2));
-  return Math.hypot(ax + t * vx, ay + t * vy);
+  return geoPointToSegmentKm([lon, lat], a, b);
 }
 
 export interface NearestBoundary {

@@ -1,8 +1,9 @@
 import boundaryCatalog from "../../public/data/tectonics/boundaries.json";
+import { pointToSegmentKm } from "./geo";
+import { withTimeout } from "./http";
 import type { EarthquakeFeature, EarthquakeGeoJSON } from "./types";
 
 const USGS_QUERY = "https://earthquake.usgs.gov/fdsnws/event/1/query";
-const EARTH_RADIUS_KM = 6371;
 const CATALOG_LIMIT = 20_000;
 export const BOUNDARY_HISTORY = {
   starttime: "1900-01-01",
@@ -42,44 +43,11 @@ export function findPlateBoundary(plates: string | null): PlateBoundary | null {
   };
 }
 
-const radians = (degrees: number) => degrees * Math.PI / 180;
-
-function angularDistance(first: Coordinate, second: Coordinate): number {
-  const latitudeDelta = radians(second[1] - first[1]);
-  const longitudeDelta = radians(second[0] - first[0]);
-  const haversine = Math.sin(latitudeDelta / 2) ** 2
-    + Math.cos(radians(first[1])) * Math.cos(radians(second[1])) * Math.sin(longitudeDelta / 2) ** 2;
-  return 2 * Math.asin(Math.sqrt(Math.min(1, Math.max(0, haversine))));
-}
-
-function bearing(first: Coordinate, second: Coordinate): number {
-  const longitudeDelta = radians(second[0] - first[0]);
-  const firstLatitude = radians(first[1]);
-  const secondLatitude = radians(second[1]);
-  return Math.atan2(
-    Math.sin(longitudeDelta) * Math.cos(secondLatitude),
-    Math.cos(firstLatitude) * Math.sin(secondLatitude)
-      - Math.sin(firstLatitude) * Math.cos(secondLatitude) * Math.cos(longitudeDelta),
-  );
-}
-
-function segmentDistanceKm(point: Coordinate, start: Coordinate, end: Coordinate): number {
-  const fromStart = angularDistance(start, point);
-  const segmentLength = angularDistance(start, end);
-  if (segmentLength < 1e-12) return fromStart * EARTH_RADIUS_KM;
-  const angle = bearing(start, point) - bearing(start, end);
-  const alongTrack = Math.atan2(Math.sin(fromStart) * Math.cos(angle), Math.cos(fromStart));
-  if (alongTrack < 0 || alongTrack > segmentLength) {
-    return Math.min(fromStart, angularDistance(end, point)) * EARTH_RADIUS_KM;
-  }
-  return Math.abs(Math.asin(Math.max(-1, Math.min(1, Math.sin(fromStart) * Math.sin(angle))))) * EARTH_RADIUS_KM;
-}
-
 export function distanceToBoundaryKm(point: Coordinate, lines: PlateBoundary["lines"]): number {
   let nearest = Infinity;
   for (const line of lines) {
     for (let index = 1; index < line.length; index++) {
-      nearest = Math.min(nearest, segmentDistanceKm(point, line[index - 1], line[index]));
+      nearest = Math.min(nearest, pointToSegmentKm(point, line[index - 1], line[index]));
     }
   }
   return nearest;
@@ -137,7 +105,7 @@ export async function fetchBoundaryHistory(
   });
   const response = await fetch(`${USGS_QUERY}?${query}`, {
     next: { revalidate: 86_400 },
-    signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(20_000)]) : AbortSignal.timeout(20_000),
+    signal: withTimeout(20_000, signal),
   });
   if (response.status === 204) return [];
   if (!response.ok) throw new Error(`USGS HTTP ${response.status}`);

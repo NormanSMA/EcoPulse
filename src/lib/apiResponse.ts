@@ -25,8 +25,12 @@ export function badRequest(message: string) {
 
 /** Lee lat/lon de la query y valida el rango. */
 export function parseLatLon(url: URL): { lat: number; lon: number } | null {
-  const lat = Number(url.searchParams.get("lat"));
-  const lon = Number(url.searchParams.get("lon"));
+  const rawLat = url.searchParams.get("lat")?.trim();
+  const rawLon = url.searchParams.get("lon")?.trim();
+  // Number(null) y Number("") dan 0: sin esta guarda, una query sin lat/lon valía (0,0).
+  if (!rawLat || !rawLon) return null;
+  const lat = Number(rawLat);
+  const lon = Number(rawLon);
   if (!Number.isFinite(lat) || !Number.isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) return null;
   return { lat, lon };
 }

@@ -1,3 +1,4 @@
+import { haversineKm, kmToDeg } from "./geo";
 import type { EarthquakeFeature, EarthquakeGeoJSON } from "./types";
 
 // Catálogo sísmico combinado: USGS (referencia mundial, con PAGER, tsunami y
@@ -64,20 +65,12 @@ function withUsgsSource(f: EarthquakeFeature): EarthquakeFeature {
   return { ...f, properties: { ...f.properties, source: "USGS" } };
 }
 
-function distanceKm(a: [number, number], b: [number, number]): number {
-  const toRad = (d: number) => (d * Math.PI) / 180;
-  const dLat = toRad(b[1] - a[1]);
-  const dLon = toRad(b[0] - a[0]);
-  const h = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(a[1])) * Math.cos(toRad(b[1])) * Math.sin(dLon / 2) ** 2;
-  return 2 * 6371 * Math.asin(Math.sqrt(h));
-}
-
 /** Mismo sismo reportado por dos agencias: ≤90 s, ≤150 km y magnitud parecida. */
 export function isSameEvent(a: EarthquakeFeature, b: EarthquakeFeature): boolean {
   if (Math.abs(a.properties.time - b.properties.time) > 90_000) return false;
   const [ax, ay] = a.geometry.coordinates;
   const [bx, by] = b.geometry.coordinates;
-  if (distanceKm([ax, ay], [bx, by]) > 150) return false;
+  if (haversineKm([ax, ay], [bx, by]) > 150) return false;
   const am = a.properties.mag ?? 0;
   const bm = b.properties.mag ?? 0;
   return Math.abs(am - bm) <= 1;
@@ -170,7 +163,7 @@ export async function fetchQuakeHistory(lat: number, lon: number, radiusKm = 150
         if (err instanceof DOMException && err.name === "AbortError") throw err;
         return null;
       }),
-    fetchEmsc({ lat, lon, maxradius: (radiusKm / 111.2).toFixed(3), start, minmag: 2.5 }, signal),
+    fetchEmsc({ lat, lon, maxradius: kmToDeg(radiusKm).toFixed(3), start, minmag: 2.5 }, signal),
   ]);
   return mergeQuakes(usgs?.features ?? [], emsc);
 }
