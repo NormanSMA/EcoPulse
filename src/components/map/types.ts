@@ -1,4 +1,5 @@
 import type { SpatialFilter } from "@/lib/explorerState";
+import type { WeatherFrame } from "@/lib/forecast/types";
 import type {
   EarthquakeGeoJSON,
   AirQualityGeoJSON,
@@ -41,6 +42,10 @@ export interface MapViewProps {
   selectedPoint: [number, number] | null;
   onSelect: (selection: Selection) => void;
   focus?: { lng: number; lat: number; key: number } | null;
+  /** Pronóstico de la malla en el instante de referencia (viento, nubes, lluvia). */
+  weatherFrame?: WeatherFrame | null;
+  /** Muestra los puntos de la malla aunque las capas de clima estén apagadas (zona guardada activa). */
+  showGridPoints?: boolean;
   /** Filtro de radio activo: se dibuja su anillo. */
   spatialFilter?: SpatialFilter | null;
   initialView?: MapView;

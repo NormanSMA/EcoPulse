@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import { Mountain, CloudSun, Flame, Satellite, Palette, Info } from "lucide";
 import type { IconNode } from "lucide";
@@ -37,6 +38,9 @@ const GROUPS: { id: "geo" | "atmosphere" | "hazards" | "space"; icon: IconNode; 
     layers: [
       { key: "airQuality", tag: "OpenAQ" },
       { key: "radar", tag: "RainViewer" },
+      { key: "wind", tag: "Open-Meteo" },
+      { key: "clouds", tag: "Open-Meteo" },
+      { key: "rain", tag: "Open-Meteo" },
     ],
   },
   {
@@ -68,13 +72,15 @@ export interface ControlsPanelProps {
   onMinMagChange: (value: number) => void;
   /** Capas cuya fuente no respondió en el último ciclo. */
   down?: Partial<Record<LayerKey, boolean>>;
+  /** Secciones adicionales al final del panel (zonas sin conexión). */
+  extra?: ReactNode;
 }
 
 /**
  * Contenido del panel "Controles" (izquierda en escritorio, bottom sheet en
  * móvil): grupos de capas con switch maestro, leyenda y búsqueda cercana.
  */
-export default function ControlsPanel({ visibility, onChange, showLegend = true, minMag, onMinMagChange, down }: ControlsPanelProps) {
+export default function ControlsPanel({ visibility, onChange, showLegend = true, minMag, onMinMagChange, down, extra }: ControlsPanelProps) {
   const t = useTranslations("layers");
   const tPanel = useTranslations("panel");
 
@@ -144,6 +150,8 @@ export default function ControlsPanel({ visibility, onChange, showLegend = true,
           <Legend visibility={visibility} />
         </Section>
       )}
+
+      {extra}
 
       <p className="flex items-start gap-2 border-t border-ds-outline-variant px-4 pb-1 pt-3 text-xs text-ds-text-muted">
         <MorphIcon icon={Info} size={14} reducedMotion="user" className="mt-px shrink-0" />

@@ -20,6 +20,7 @@ import type { Selection } from "@/lib/selection";
 import { resolveSelection } from "@/lib/resolveSelection";
 import { nearestCandidate, type PickCandidate, type Pixel } from "@/lib/screenPick";
 import { circleRing } from "@/lib/geo";
+import { WEATHER_LAYER_IDS, addWeatherLayers, setWeatherFrame } from "./weatherLayers";
 import type { SpatialFilter } from "@/lib/explorerState";
 import type { MapViewProps } from "./types";
 
@@ -31,6 +32,9 @@ interface MapContainerProps extends MapViewProps {
 const LAYER_GROUPS: Record<LayerKey, string[]> = {
   dayNight: ["night-fill"],
   radar: ["radar"],
+  wind: [...WEATHER_LAYER_IDS.wind],
+  clouds: [...WEATHER_LAYER_IDS.clouds],
+  rain: [...WEATHER_LAYER_IDS.rain],
   earthquakes: ["quake-clusters", "quake-cluster-count", "quakes", "quake-pulse"],
   airQuality: ["air-quality"],
   fires: ["fires-heat", "fires"],
@@ -125,6 +129,12 @@ const nightData = (refTime: number): GeoJSON.FeatureCollection => ({
   features: [{ type: "Feature", properties: {}, geometry: { type: "Polygon", coordinates: [nightPolygon(new Date(refTime))] } }],
 });
 
+/** Los puntos de la malla se ven con cualquier capa de clima activa o con una zona guardada en pantalla. */
+function setGridPointsVisible(map: MapLibreMap, p: Pick<MapViewProps, "visibility" | "showGridPoints">) {
+  const visible = p.showGridPoints || p.visibility.wind || p.visibility.clouds || p.visibility.rain;
+  for (const id of WEATHER_LAYER_IDS.grid) if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", visible ? "visible" : "none");
+}
+
 function filterRingData(filter: SpatialFilter | null | undefined): GeoJSON.FeatureCollection {
   if (!filter) return { type: "FeatureCollection", features: [] };
   return {
@@ -167,7 +177,7 @@ function toSelection(layerId: string, f: MapGeoJSONFeature): Selection | null {
 }
 
 export default function MapContainer(props: MapContainerProps) {
-  const { data, visibility, refTime, radarTiles, selectedPoint, focus, spatialFilter, basemap, initialView = DEFAULT_MAP_VIEW } = props;
+  const { data, visibility, refTime, radarTiles, selectedPoint, focus, spatialFilter, weatherFrame, showGridPoints, basemap, initialView = DEFAULT_MAP_VIEW } = props;
   const tKeyboard = useTranslations("mapKeyboard");
   const [announcement, setAnnouncement] = useState<{ selection: Selection; count: number } | null>(null);
   const item = resolveSelection(announcement?.selection ?? null, data)?.item;
@@ -242,6 +252,10 @@ export default function MapContainer(props: MapContainerProps) {
       paint: { "fill-color": marker.night, "fill-opacity": onLight ? 0.16 : 0.32, "fill-antialias": false },
     });
     if (p.radarTiles) addRadar(map, p.radarTiles);
+
+    // Pronóstico sobre la malla: bajo los eventos, sobre la sombra nocturna.
+    addWeatherLayers(map, p.weatherFrame ?? null, { wind: p.visibility.wind, clouds: p.visibility.clouds, rain: p.visibility.rain });
+    setGridPointsVisible(map, p);
 
     map.addLayer({
       id: "iss-footprint",
@@ -803,6 +817,16 @@ export default function MapContainer(props: MapContainerProps) {
     }
     if (map.getLayer("fires")) map.setPaintProperty("fires", "icon-opacity", fireOpacity(refTime));
   }, [refTime]);
+
+  // Pronóstico de la malla: nuevo cuadro al cambiar la hora del cursor o la zona.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (map && isMapLoadedRef.current) setWeatherFrame(map, weatherFrame ?? null);
+  }, [weatherFrame]);
+  useEffect(() => {
+    const map = mapRef.current;
+    if (map && isMapLoadedRef.current) setGridPointsVisible(map, propsRef.current);
+  }, [showGridPoints, visibility.wind, visibility.clouds, visibility.rain]);
 
   // 4. Visibilidad por grupo (setLayoutProperty, sin latencia).
   const visKey = (Object.keys(LAYER_GROUPS) as LayerKey[]).map((k) => (visibility[k] ? 1 : 0)).join("");

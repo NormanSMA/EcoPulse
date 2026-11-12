@@ -88,6 +88,10 @@ export const layers = {
   volcanoCatalog: palette.brown,
   airQuality: palette.green,
   radar: palette.blue,
+  // Capas del pronóstico sobre la malla (viento, nubosidad y lluvia prevista).
+  wind: palette.teal,
+  clouds: palette.grey,
+  rain: palette.blue,
   iss: palette.blueLight,
   tectonics: palette.purple,
   // Swatch del toggle (la sombra nocturna usa marker.night).

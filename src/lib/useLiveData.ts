@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type {
   EarthquakeGeoJSON,
   AirQualityGeoJSON,
@@ -16,6 +16,7 @@ import type {
 import type { LiveBundle, SourceResult, SourceStatus } from "@/lib/live/bundle";
 import type { HazardsBundle, OrbitBundle, PulseBundle } from "@/lib/live/sources";
 import { issAt } from "@/lib/iss";
+import { loadSnapshot, saveSnapshot } from "@/lib/offline/liveSnapshot";
 
 // Carga y refresco de las fuentes de la web. Los eventos llegan en lotes
 // (/api/live/*) agrupados por frecuencia de cambio; cada fuente informa su
@@ -106,6 +107,14 @@ export function nextSourceStatus<S extends Record<string, unknown>>(
   return next;
 }
 
+const SNAPSHOT_MAX_FIRES = 3000;
+interface HazardsSnapshot {
+  fires: FireGeoJSON | null;
+  disasters: DisasterGeoJSON | null;
+  cyclones: CycloneGeoJSON | null;
+  volcanoes: ActiveVolcanoGeoJSON | null;
+}
+
 const PULSE_KEYS = ["earthquakes"] as const;
 const HAZARD_KEYS = ["fires", "disasters", "cyclones", "volcanoes"] as const;
 const ORBIT_KEYS = ["iss"] as const;
@@ -139,6 +148,9 @@ export function useLiveData({
   const [tectonics, setTectonics] = useState<{ boundaries: TectonicBoundaryGeoJSON; plates: TectonicPlateGeoJSON } | null>(null);
   const [radar, setRadar] = useState<RadarFrame[]>([]);
   const [sourceStatus, setSourceStatus] = useState<LiveSourceStatus>(INITIAL_STATUS);
+  // Fecha de la foto guardada que se está mostrando (null si hay datos de red).
+  const [snapshotAt, setSnapshotAt] = useState<number | null>(null);
+  const hasLive = useRef({ pulse: false, hazards: false });
 
   const report = useCallback(
     <S extends Record<string, unknown>>(keys: readonly (keyof S & LiveSourceKey)[], bundle: LiveBundle<S> | null) =>
@@ -152,9 +164,21 @@ export function useLiveData({
     report(PULSE_KEYS, bundle);
     const data = bundle?.sources.earthquakes.data;
     if (data) {
+      hasLive.current.pulse = true;
+      setSnapshotAt(null);
       setEarthquakes(data);
       setQuakesStatus("ready");
-    } else setQuakesStatus("error");
+      saveSnapshot("pulse", data);
+      return;
+    }
+    // Sin red y sin datos aún: se muestra la última foto guardada.
+    const saved = hasLive.current.pulse ? null : await loadSnapshot<EarthquakeGeoJSON>("pulse");
+    if (signal.aborted) return;
+    if (saved) {
+      setEarthquakes(saved.data);
+      setSnapshotAt(saved.savedAt);
+      setQuakesStatus("ready");
+    } else if (!hasLive.current.pulse) setQuakesStatus("error");
   }, QUAKES_REFRESH_MS);
 
   usePolling(
@@ -180,12 +204,30 @@ export function useLiveData({
     const bundle = await getJson<HazardsBundle>("/api/live/hazards", signal);
     if (signal.aborted) return;
     report(HAZARD_KEYS, bundle);
-    if (!bundle) return;
+    if (!bundle) {
+      if (hasLive.current.hazards) return;
+      const saved = await loadSnapshot<HazardsSnapshot>("hazards");
+      if (signal.aborted || !saved) return;
+      if (saved.data.fires) setFires(saved.data.fires);
+      if (saved.data.disasters) setDisasters(saved.data.disasters);
+      if (saved.data.cyclones) setCyclones(saved.data.cyclones);
+      if (saved.data.volcanoes) setVolcanoes(saved.data.volcanoes);
+      setSnapshotAt((previous) => previous ?? saved.savedAt);
+      return;
+    }
+    hasLive.current.hazards = true;
     const { fires: f, disasters: dis, cyclones: cyc, volcanoes: vol } = bundle.sources;
     if (f.data) setFires(f.data);
     if (dis.data) setDisasters(dis.data);
     if (cyc.data) setCyclones(cyc.data);
     if (vol.data) setVolcanoes(vol.data);
+    // Los incendios del mundo pesan demasiado para guardarlos: solo los primeros miles.
+    saveSnapshot("hazards", {
+      fires: f.data && { ...f.data, features: f.data.features.slice(0, SNAPSHOT_MAX_FIRES) },
+      disasters: dis.data,
+      cyclones: cyc.data,
+      volcanoes: vol.data,
+    } satisfies HazardsSnapshot);
   }, SLOW_REFRESH_MS);
 
   usePolling(
@@ -247,7 +289,7 @@ export function useLiveData({
     needRadar
   );
 
-  return { earthquakes, quakesStatus, weekQuakes, airQuality, fires, disasters, cyclones, volcanoes, volcanoCatalog, iss, radar, tectonics, sourceStatus };
+  return { earthquakes, quakesStatus, weekQuakes, airQuality, fires, disasters, cyclones, volcanoes, volcanoCatalog, iss, radar, tectonics, sourceStatus, snapshotAt };
 }
 
 /** Cuadro de radar más cercano (sin pasarse) al instante de referencia. */

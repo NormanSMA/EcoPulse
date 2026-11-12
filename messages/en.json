@@ -90,19 +90,10 @@
     "dayNight": "Day and night",
     "volcanoCatalog": "Volcano catalog",
     "radar": "Rain radar",
-    "tectonics": "Tectonic plates"
-  },
-  "nearby": {
-    "title": "Earthquakes near me",
-    "radiusLabel": "Radius",
-    "locating": "Locating...",
-    "loading": "Searching...",
-    "useLocation": "Use my location",
-    "geoNotSupported": "Your browser does not support geolocation.",
-    "geoDenied": "Could not get your location. Check your browser permissions.",
-    "resultsFound": "earthquake(s) found:",
-    "noResults": "No earthquakes within the selected radius.",
-    "error": "Could not search earthquakes. Try again."
+    "tectonics": "Tectonic plates",
+    "wind": "Wind",
+    "clouds": "Cloud cover",
+    "rain": "Forecast rain"
   },
   "timeControl": {
     "show": "Timeline",
@@ -147,7 +138,8 @@
     "dark": "Dark",
     "light": "Light",
     "satellite": "Satellite",
-    "unavailable3d": "Base map (2D only)"
+    "unavailable3d": "Base map (2D only)",
+    "offline": "Offline"
   },
   "panel": {
     "controls": "Controls",
@@ -504,15 +496,6 @@
     "depth": "{km} km deep",
     "tsunami": "Tsunami"
   },
-  "placeSearch": {
-    "placeholder": "Search a place",
-    "searching": "Searching…",
-    "noResults": "No results",
-    "label": "Search a place on the map",
-    "clear": "Clear search",
-    "error": "Could not search places. Try again.",
-    "resultsFound": "{count, plural, one {# place found} other {# places found}}"
-  },
   "omnibox": {
     "placeholder": "Search place, coordinates or @km",
     "label": "Search the map",
@@ -532,6 +515,41 @@
     "myLocation": "My location",
     "filterActive": "{km} km from {place}",
     "clearFilter": "Clear radius filter"
+  },
+  "zones": {
+    "title": "Offline zones",
+    "intro": "Download the 72 h forecast and nearby events to use them without internet.",
+    "tierLabel": "Zone size",
+    "tierTactical": "Tactical · 25 km",
+    "tierMetro": "Metropolitan",
+    "tierCountry": "Country · Nicaragua",
+    "center": "Center: {place}",
+    "mapCenter": "map center",
+    "download": "Download zone",
+    "downloading": "Downloading…",
+    "saved": "Saved zones",
+    "empty": "No saved zones yet.",
+    "points": "{count, plural, one {# point} other {# points}}",
+    "events": "{count, plural, one {# event} other {# events}}",
+    "validUntil": "Valid until {date}",
+    "expired": "Expired",
+    "show": "Show on map",
+    "hide": "Hide from map",
+    "refresh": "Refresh",
+    "delete": "Delete",
+    "storage": "Storage used: {used}",
+    "error": "Could not download the zone. Try again.",
+    "offlineHint": "Offline: only saved zones are available.",
+    "export": "Export",
+    "exportJson": "JSON",
+    "exportCsv": "CSV",
+    "exportReport": "Report"
+  },
+  "offline": {
+    "banner": "Offline. Showing saved data.",
+    "snapshot": "Data from {date}",
+    "packSource": "Forecast from saved zone: {zone}",
+    "globeDisabled": "3D is unavailable offline"
   },
   "disasterTypes": {
     "FL": "Flood",

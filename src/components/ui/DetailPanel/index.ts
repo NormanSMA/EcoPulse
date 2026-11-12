@@ -1,1 +1,1 @@
-export { DetailPanel, type DetailPanelProps } from "./DetailPanel";
+export { DetailPanel, preloadDetailCharts, type DetailPanelProps } from "./DetailPanel";
