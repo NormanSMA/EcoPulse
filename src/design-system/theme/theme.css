@@ -1,72 +1,90 @@
 /*
- * Design System 4.0 — variables de tema (Google DeepMind / Weather Lab).
+ * Design System 5.0 — Obsidian & Electric Neon.
  *
- * Los colores van en formato de canales RGB ("168 199 250") para que
+ * Un solo tema oscuro: sin selector de tema por atributo. Estas variables son
+ * el tema único de la app.
+ *
+ * Los colores van en formato de canales RGB ("148 163 184") para que
  * Tailwind pueda aplicar opacidad: `rgb(var(--ds-primary) / <alpha-value>)`.
  * En CSS/SVG plano se consumen como `rgb(var(--ds-primary))`.
  * Deben mantenerse sincronizados a mano con `tokens/colors.ts` (`themes`).
  *
- * Lenguaje visual: superficies sólidas grafito (sin glass/neumorfismo),
- * paneles flotantes sobre el mapa con leve translucidez, elevación Material
- * (sombras suaves), state layers (hover 8% / press 12%) y acento azul.
- *
- * Dark es el default (sin atributo). `useTheme()` alterna `data-theme`.
+ * Lenguaje visual: lienzo obsidiana casi negro, paneles de vidrio con puntos
+ * y blur, bordes translúcidos blancos, acentos azul eléctrico y neón,
+ * elevación profunda (sombras negras) y state layers blancos (hover 8% /
+ * press 12%).
  */
 
-:root,
-:root[data-theme="dark"] {
+:root {
   color-scheme: dark;
 
-  --ds-canvas: 18 19 23;
-  --ds-surface: 24 25 29;
-  --ds-surface-container: 31 32 36;
-  --ds-surface-container-high: 40 42 46;
-  --ds-surface-container-highest: 47 48 52;
+  --ds-canvas: 0 0 0;
+  --ds-canvas-deep: 5 8 17;
+  --ds-surface: 11 15 24;
+  --ds-surface-container: 18 22 31;
+  --ds-surface-container-high: 26 31 43;
+  --ds-surface-container-highest: 35 41 56;
 
-  --ds-text-primary: 248 249 252;
-  --ds-text-secondary: 178 187 197;
-  --ds-text-muted: 128 134 142;
+  --ds-text-primary: 255 255 255;
+  --ds-text-secondary: 148 163 184;
+  --ds-text-muted: 131 145 167;
 
-  --ds-outline: 94 98 104;
-  --ds-outline-variant: 53 55 60;
+  --ds-outline: 58 66 82;
+  --ds-outline-variant: 35 41 56;
 
-  --ds-primary: 168 199 250;
-  --ds-on-primary: 6 46 111;
-  --ds-primary-container: 8 66 160;
-  --ds-on-primary-container: 211 227 253;
-  --ds-secondary-container: 0 74 119;
-  --ds-on-secondary-container: 194 231 255;
-  --ds-highlight: 240 210 60;
+  --ds-primary: 56 189 248;
+  --ds-primary-strong: 0 112 255;
+  --ds-on-primary: 255 255 255;
+  --ds-primary-container: 10 42 92;
+  --ds-on-primary-container: 205 230 255;
+  --ds-secondary-container: 14 35 64;
+  --ds-on-secondary-container: 186 230 253;
+  --ds-highlight: 255 214 0;
+  --ds-info: 56 189 248;
 
-  --ds-error: 242 184 181;
-  --ds-success: 109 213 140;
-  --ds-warning: 253 214 99;
+  --ds-error: 255 46 76;
+  --ds-danger: 255 46 76;
+  --ds-success: 0 230 118;
+  --ds-warning: 255 214 0;
 
   /* Estado de frescura de datos (StatusBadge, timeline). */
-  --ds-status-live: 109 213 140;
-  --ds-status-recent: 168 199 250;
-  --ds-status-stale: 253 214 99;
-  --ds-status-unknown: 128 134 142;
+  --ds-status-live: 0 230 118;
+  --ds-status-recent: 56 189 248;
+  --ds-status-stale: 255 214 0;
+  --ds-status-unknown: 100 116 139;
 
-  /* Paneles flotantes sobre el mapa: casi opacos, blur leve. */
-  --ds-panel: rgb(24 25 29 / 0.9);
-  --ds-panel-strong: rgb(24 25 29 / 0.96);
-  --ds-panel-blur: 16px;
+  /* Paneles flotantes sobre el mapa. */
+  --ds-panel: rgb(18 22 31 / 0.76);
+  --ds-panel-strong: rgb(18 22 31 / 0.9);
+  --ds-panel-blur: 20px;
   --ds-scrim: rgb(0 0 0 / 0.5);
 
-  /* State layers Material (color del contenido con opacidad). */
-  --ds-state-hover: rgb(248 249 252 / 0.08);
-  --ds-state-press: rgb(248 249 252 / 0.12);
+  /* Vidrio: fondo, puntos, blur, bordes, brillos y halo. */
+  --ds-glass-bg: rgb(18 22 31 / 0.76);
+  --ds-glass-blur: 20px;
+  --ds-glass-dots: radial-gradient(rgb(255 255 255 / 0.07) 1px, transparent 1px);
+  --ds-glass-dots-size: 16px 16px;
+  --ds-glass-border: rgb(255 255 255 / 0.12);
+  --ds-control-border: rgb(255 255 255 / 0.16);
+  --ds-divider: rgb(255 255 255 / 0.10);
+  --ds-glass-inset: inset 0 1px 0 0 rgb(255 255 255 / 0.16), inset 0 12px 24px -12px rgb(0 112 255 / 0.18);
+  --ds-halo-blue: radial-gradient(60% 50% at 50% 0%, rgb(0 102 255 / 0.18), transparent 70%);
+  --ds-glow-blue: inset 0 0 12px rgb(56 189 248 / 0.35), 0 0 20px rgb(0 112 255 / 0.30);
 
-  /* Elevación. */
-  --ds-shadow-1: 0 1px 2px rgb(0 0 0 / 0.3), 0 1px 3px 1px rgb(0 0 0 / 0.15);
-  --ds-shadow-2: 0 1px 2px rgb(0 0 0 / 0.3), 0 2px 6px 2px rgb(0 0 0 / 0.15);
-  --ds-shadow-3: 0 4px 8px 3px rgb(0 0 0 / 0.15), 0 1px 3px rgb(0 0 0 / 0.3);
+  /* State layers (blanco translúcido sobre superficies oscuras). */
+  --ds-state-hover: rgb(255 255 255 / 0.08);
+  --ds-state-press: rgb(255 255 255 / 0.12);
+
+  /* Elevación profunda. */
+  --ds-shadow-1: 0 1px 2px rgb(0 0 0 / 0.5), 0 1px 3px 1px rgb(0 0 0 / 0.35);
+  --ds-shadow-2: 0 1px 2px rgb(0 0 0 / 0.5), 0 2px 6px 2px rgb(0 0 0 / 0.35);
+  --ds-shadow-3: 0 4px 8px 3px rgb(0 0 0 / 0.35), 0 1px 3px rgb(0 0 0 / 0.5);
 
   /* Radios. */
   --ds-radius-control: 12px;
+  --ds-radius-card: 20px;
   --ds-radius-panel: 24px;
-  --ds-radius-sheet: 28px;
+  --ds-radius-sheet: 24px;
   --ds-radius-pill: 999px;
 
   /* Motion. */
@@ -77,49 +95,4 @@
   /* Tipografía. */
   --ds-font-sans: "Google Sans Flex", "Google Sans Text", "Google Sans", Roboto, Arial, Helvetica, sans-serif;
   --ds-font-mono: "Google Sans Code", "Roboto Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
-}
-
-:root[data-theme="light"] {
-  color-scheme: light;
-
-  --ds-canvas: 248 250 253;
-  --ds-surface: 255 255 255;
-  --ds-surface-container: 240 244 249;
-  --ds-surface-container-high: 233 238 246;
-  --ds-surface-container-highest: 221 227 234;
-
-  --ds-text-primary: 31 31 31;
-  --ds-text-secondary: 68 71 70;
-  --ds-text-muted: 116 119 117;
-
-  --ds-outline: 116 119 117;
-  --ds-outline-variant: 196 199 197;
-
-  --ds-primary: 11 87 208;
-  --ds-on-primary: 255 255 255;
-  --ds-primary-container: 211 227 253;
-  --ds-on-primary-container: 4 30 73;
-  --ds-secondary-container: 194 231 255;
-  --ds-on-secondary-container: 0 29 53;
-  --ds-highlight: 143 78 6;
-
-  --ds-error: 179 38 30;
-  --ds-success: 20 108 46;
-  --ds-warning: 143 78 6;
-
-  --ds-status-live: 20 108 46;
-  --ds-status-recent: 11 87 208;
-  --ds-status-stale: 143 78 6;
-  --ds-status-unknown: 116 119 117;
-
-  --ds-panel: rgb(255 255 255 / 0.92);
-  --ds-panel-strong: rgb(255 255 255 / 0.97);
-  --ds-scrim: rgb(0 0 0 / 0.32);
-
-  --ds-state-hover: rgb(31 31 31 / 0.08);
-  --ds-state-press: rgb(31 31 31 / 0.12);
-
-  --ds-shadow-1: 0 1px 2px rgb(60 64 67 / 0.3), 0 1px 3px 1px rgb(60 64 67 / 0.15);
-  --ds-shadow-2: 0 1px 2px rgb(60 64 67 / 0.3), 0 2px 6px 2px rgb(60 64 67 / 0.15);
-  --ds-shadow-3: 0 4px 8px 3px rgb(60 64 67 / 0.15), 0 1px 3px rgb(60 64 67 / 0.3);
 }

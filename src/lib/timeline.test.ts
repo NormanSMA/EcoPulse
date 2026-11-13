@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  FORECAST_WINDOWS, HOUR_MS, isForecastWindow, playbackEnded, playbackStart, playbackStep, resolveTimeline, seekTime, type TimeWindow,
+  FORECAST_WINDOWS, HOUR_MS, globalMode, isForecastWindow, stopGroup, playbackEnded, playbackStart, playbackStep, resolveTimeline, seekTime, type TimeWindow,
 } from "./timeline";
 
 const NOW = 1_800_000_000_000;
@@ -90,5 +90,26 @@ describe("reproduccion", () => {
     expect(seekTime(0.5, fc, NOW)).toBe(NOW + 24 * HOUR_MS);
     expect(seekTime(2, fc, NOW)).toBe(NOW + 48 * HOUR_MS);
     expect(seekTime(-1, fc, NOW)).toBe(NOW);
+  });
+});
+
+describe("globalMode", () => {
+  it("prioriza sin conexion", () => {
+    expect(globalMode({ online: false, window: "+24h" })).toBe("offline");
+    expect(globalMode({ online: false, window: "live" })).toBe("offline");
+  });
+  it("distingue pronostico, historial y en vivo", () => {
+    expect(globalMode({ online: true, window: "+48h" })).toBe("forecast");
+    expect(globalMode({ online: true, window: "24h" })).toBe("history");
+    expect(globalMode({ online: true, window: "custom" })).toBe("history");
+    expect(globalMode({ online: true, window: "live", playing: true })).toBe("history");
+    expect(globalMode({ online: true, window: "live" })).toBe("live");
+  });
+});
+
+describe("stopGroup", () => {
+  it("agrupa las 8 paradas en tres grupos", () => {
+    const all: TimeWindow[] = ["7d", "24h", "6h", "1h", "custom", "live", "+24h", "+48h", "+72h"];
+    expect(all.map(stopGroup)).toEqual(["past", "past", "past", "past", "past", "live", "forecast", "forecast", "forecast"]);
   });
 });

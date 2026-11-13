@@ -7,7 +7,7 @@ import { ChevronDown, Clock, Download, Inbox, SlidersHorizontal, WifiOff, X } fr
 import type { IconNode } from "lucide";
 import { MorphIcon } from "morphicons/react";
 import { I18nProvider, useLocale } from "@/design-system/i18n/I18nProvider";
-import { useFreshness, useTheme, useBasemap } from "@/design-system/hooks";
+import { useFreshness, useBasemap } from "@/design-system/hooks";
 import type { LayerKey } from "@/design-system/tokens";
 import { cn } from "@/design-system/utils/cn";
 import { DEFAULT_MAP_VIEW, type MapView } from "@/lib/mapView";
@@ -118,8 +118,7 @@ function HomePageContent() {
   const [playing, setPlaying] = useState(false);
   const [mapMode, setMapMode] = useState<MapMode>("2d");
   const [mapView, setMapView] = useState<MapView>(DEFAULT_MAP_VIEW);
-  const { theme, toggleTheme } = useTheme();
-  const { basemap, setBasemap } = useBasemap(theme);
+  const { basemap, setBasemap } = useBasemap();
   const [timeOpen, setTimeOpen] = useState(true);
 
   // ---------- Conexión y arranque sin red ----------
@@ -443,8 +442,6 @@ function HomePageContent() {
         onMapModeChange={changeMapMode}
         basemap={basemap}
         onBasemapChange={setBasemap}
-        theme={theme}
-        onToggleTheme={toggleTheme}
       />
 
       {!online && (

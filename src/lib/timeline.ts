@@ -13,6 +13,28 @@ export function isForecastWindow(w: TimeWindow): boolean {
   return w in FORECAST_HOURS;
 }
 
+/** Estado global que muestra el indicador único del Header. */
+export type GlobalMode = "live" | "history" | "forecast" | "offline";
+
+/**
+ * Sin red manda "offline". Con red: pronóstico si la ventana es futura,
+ * historial si hay ventana pasada o reproducción, y en vivo en otro caso.
+ */
+export function globalMode({ online, window, playing = false }: { online: boolean; window: TimeWindow; playing?: boolean }): GlobalMode {
+  if (!online) return "offline";
+  if (isForecastWindow(window)) return "forecast";
+  if (window !== "live" || playing) return "history";
+  return "live";
+}
+
+/** Grupo de la timeline compacta en móvil: Pasado | LIVE | Pronóstico. */
+export type StopGroup = "past" | "live" | "forecast";
+
+export function stopGroup(w: TimeWindow): StopGroup {
+  if (w === "live") return "live";
+  return isForecastWindow(w) ? "forecast" : "past";
+}
+
 export interface TimelineInput {
   window: TimeWindow;
   customStart: number | null;

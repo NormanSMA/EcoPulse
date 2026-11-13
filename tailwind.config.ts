@@ -20,6 +20,7 @@ export default {
       },
       colors: {
         "ds-canvas": v("canvas"),
+        "ds-canvas-deep": v("canvas-deep"),
         "ds-surface": {
           DEFAULT: v("surface"),
           container: v("surface-container"),
@@ -37,6 +38,7 @@ export default {
         },
         "ds-primary": {
           DEFAULT: v("primary"),
+          strong: v("primary-strong"),
           on: v("on-primary"),
           container: v("primary-container"),
           "on-container": v("on-primary-container"),
@@ -46,7 +48,9 @@ export default {
           "on-container": v("on-secondary-container"),
         },
         "ds-highlight": v("highlight"),
+        "ds-info": v("info"),
         "ds-error": v("error"),
+        "ds-danger": v("danger"),
         "ds-success": v("success"),
         "ds-warning": v("warning"),
         "ds-status": {
@@ -62,14 +66,23 @@ export default {
         "ds-scrim": "var(--ds-scrim)",
         "ds-hover": "var(--ds-state-hover)",
         "ds-press": "var(--ds-state-press)",
+        "ds-glass": "var(--ds-glass-bg)",
+      },
+      borderColor: {
+        "ds-glass": "var(--ds-glass-border)",
+        "ds-control": "var(--ds-control-border)",
+        "ds-divider": "var(--ds-divider)",
       },
       boxShadow: {
         "ds-1": "var(--ds-shadow-1)",
         "ds-2": "var(--ds-shadow-2)",
         "ds-3": "var(--ds-shadow-3)",
+        "ds-glow": "var(--ds-glow-blue)",
+        "ds-glass": "var(--ds-glass-inset), var(--ds-shadow-2)",
       },
       backdropBlur: {
         "ds-panel": "var(--ds-panel-blur)",
+        "ds-glass": "var(--ds-glass-blur)",
       },
       spacing: {
         "ds-1": spacing[1],
@@ -92,6 +105,7 @@ export default {
         "ds-3xl": radius["3xl"],
         "ds-full": radius.full,
         "ds-control": "var(--ds-radius-control)",
+        "ds-card": "var(--ds-radius-card)",
         "ds-panel": "var(--ds-radius-panel)",
         "ds-sheet": "var(--ds-radius-sheet)",
       },

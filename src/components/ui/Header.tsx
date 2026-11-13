@@ -1,14 +1,14 @@
 'use client';
 
 import { useEffect, useRef, useState } from "react";
-import { Activity, Sun, Moon, Languages, Search, Layers, Check, X, Bell, BellRing } from "lucide";
+import { Activity, Languages, Search, Layers, Check, X, Bell, BellRing } from "lucide";
 import { MorphIcon } from "morphicons/react";
 import { useTranslations } from "next-intl";
 import { IconButton } from "@/components/ui/Button";
 import { CommandOmnibox, type OmniboxAction } from "@/components/ui/CommandOmnibox";
 import AlertsPanel from "@/components/ui/AlertsPanel";
 import { usePushAlerts } from "@/lib/usePushAlerts";
-import { useMediaQuery, type Theme } from "@/design-system/hooks";
+import { useMediaQuery } from "@/design-system/hooks";
 import { useLocale, type Locale } from "@/design-system/i18n/I18nProvider";
 import { BASEMAP_ORDER, type Basemap } from "@/lib/mapStyles";
 import { cn } from "@/design-system/utils/cn";
@@ -24,8 +24,6 @@ interface HeaderProps {
   onMapModeChange: (mode: MapMode) => void;
   basemap: Basemap;
   onBasemapChange: (basemap: Basemap) => void;
-  theme: Theme;
-  onToggleTheme: () => void;
 }
 
 /** Selector segmentado 2D / 3D (segmented button Material 3). */
@@ -225,12 +223,9 @@ export default function Header({
   onMapModeChange,
   basemap,
   onBasemapChange,
-  theme,
-  onToggleTheme,
 }: HeaderProps) {
   const tApp = useTranslations("app");
   const tSearch = useTranslations("search");
-  const tTheme = useTranslations("theme");
   const tLang = useTranslations("language");
   const tMap = useTranslations("mapMode");
   const { locale, setLocale } = useLocale();
@@ -302,10 +297,6 @@ export default function Header({
         </IconButton>
 
         <AlertsMenu locale={locale} />
-
-        <IconButton aria-label={theme === "dark" ? tTheme("toLight") : tTheme("toDark")} onClick={onToggleTheme}>
-          <MorphIcon icon={theme === "dark" ? Sun : Moon} size={20} reducedMotion="user" />
-        </IconButton>
       </div>
     </header>
   );

@@ -1,6 +1,7 @@
-// Design System 4.0 — lenguaje visual basado en Google DeepMind / Weather Lab
-// (superficies sólidas grafito, acentos azul Material 3, tipografía Google
-// Sans Flex, controles tipo pill). Ver `Diseño sistema/Design System 4.0.md`.
+// Design System 5.0 — Obsidian & Electric Neon
+// (lienzo obsidiana casi negro, superficies vidrio, acentos azul eléctrico y
+// neón, tipografía Google Sans Flex, controles tipo pill). Ver
+// `Diseño sistema/Design System 5.0.md`.
 //
 // Este archivo es la ÚNICA fuente de colores hex de la app:
 // - `themes`: superficies/texto/acento por tema. `theme.css` los expone como
@@ -12,26 +13,29 @@
 
 export const themes = {
   dark: {
-    canvas: "#121317",
-    surface: "#18191d",
-    surfaceContainer: "#1f2024",
-    surfaceContainerHigh: "#282a2e",
-    surfaceContainerHighest: "#2f3034",
-    textPrimary: "#f8f9fc",
-    textSecondary: "#b2bbc5",
-    textMuted: "#80868e",
-    outline: "#5e6268",
-    outlineVariant: "#35373c",
-    primary: "#a8c7fa",
-    onPrimary: "#062e6f",
-    primaryContainer: "#0842a0",
-    onPrimaryContainer: "#d3e3fd",
-    secondaryContainer: "#004a77",
-    onSecondaryContainer: "#c2e7ff",
-    highlight: "#f0d23c",
-    error: "#f2b8b5",
-    success: "#6dd58c",
-    warning: "#fdd663",
+    canvas: "#000000",
+    surface: "#0b0f18",
+    surfaceContainer: "#12161f",
+    surfaceContainerHigh: "#1a1f2b",
+    surfaceContainerHighest: "#232938",
+    textPrimary: "#ffffff",
+    textSecondary: "#94a3b8",
+    textMuted: "#8391a7",
+    outline: "#3a4252",
+    outlineVariant: "#232938",
+    primary: "#38bdf8",
+    onPrimary: "#ffffff",
+    primaryContainer: "#0a2a5c",
+    onPrimaryContainer: "#cde6ff",
+    secondaryContainer: "#0e2340",
+    onSecondaryContainer: "#bae6fd",
+    highlight: "#ffd600",
+    error: "#ff2e4c",
+    success: "#00e676",
+    warning: "#ffd600",
+    canvasDeep: "#050811",
+    primaryStrong: "#0070ff",
+    info: "#38bdf8",
   },
   light: {
     canvas: "#f8fafd",
@@ -54,27 +58,29 @@ export const themes = {
     error: "#b3261e",
     success: "#146c2e",
     warning: "#8f4e06",
+    canvasDeep: "#f8fafd",
+    primaryStrong: "#0b57d0",
+    info: "#0b57d0",
   },
 } as const;
 
-// Paleta de datos: tonos de marca Google (legibles sobre basemap oscuro,
-// claro y satelital gracias al trazo de contraste de cada marcador).
+// Paleta de datos: tonos neón sobre obsidiana (legibles sobre basemap oscuro
+// gracias al trazo de contraste de cada marcador).
 const palette = {
-  blue: "#4285f4",
-  blueLight: "#8ab4f8",
-  blueDark: "#1a73e8",
-  red: "#ea4335",
-  yellow: "#fbbc04",
-  yellowLight: "#fde293",
-  green: "#34a853",
-  orange: "#fa7b17",
-  purple: "#a142f4",
-  brown: "#b5651d",
-  grey: "#9aa0a6",
-  greyLight: "#e8eaed",
+  blue: "#0070ff",
+  blueLight: "#38bdf8",
+  blueDark: "#0050c8",
+  red: "#ff2e4c",
+  yellow: "#ffd600",
+  yellowLight: "#fff59d",
+  green: "#00e676",
+  orange: "#ff7a1a",
+  violet: "#b45cff",
+  cyan: "#00e5ff",
+  grey: "#94a3b8",
+  greyLight: "#e2e8f0",
   white: "#ffffff",
-  ink: "#121317",
-  teal: "#24c1e0",
+  ink: "#050811",
 } as const;
 
 // Color identitario de cada capa (swatch del panel, icono de la lista de
@@ -83,17 +89,17 @@ export const layers = {
   earthquakes: palette.red,
   fires: palette.orange,
   disasters: palette.yellow,
-  cyclones: palette.teal,
-  volcanoes: palette.brown,
-  volcanoCatalog: palette.brown,
+  cyclones: palette.cyan,
+  volcanoes: palette.red,
+  volcanoCatalog: palette.grey,
   airQuality: palette.green,
   radar: palette.blue,
   // Capas del pronóstico sobre la malla (viento, nubosidad y lluvia prevista).
-  wind: palette.teal,
+  wind: palette.blueLight,
   clouds: palette.grey,
   rain: palette.blue,
   iss: palette.blueLight,
-  tectonics: palette.purple,
+  tectonics: palette.violet,
   // Swatch del toggle (la sombra nocturna usa marker.night).
   dayNight: palette.grey,
 } as const;
@@ -107,14 +113,14 @@ export const scales = {
     { stop: 2, color: palette.yellow },
     { stop: 4.5, color: palette.orange },
     { stop: 6, color: palette.red },
-    { stop: 7.5, color: palette.purple },
+    { stop: 7.5, color: palette.violet },
   ],
   // Categorías AQI (misma escala para aire observado y modelado).
   aqi: {
     good: palette.green,
     moderate: palette.yellow,
     unhealthy: palette.orange,
-    hazardous: palette.purple,
+    hazardous: palette.red,
     unknown: palette.grey,
   },
   // Fase del ciclón tal como la publica GDACS por segmento de trayectoria:
@@ -122,7 +128,7 @@ export const scales = {
   // categoría Saffir-Simpson por tramo; el detalle la deduce del viento máximo.)
   storm: [
     { key: "TD", color: palette.blueLight },
-    { key: "TS", color: palette.teal },
+    { key: "TS", color: palette.cyan },
     { key: "HU", color: palette.red },
   ],
   // Radar de lluvia: copia de la paleta "Universal Blue" (esquema 2) con la
@@ -163,7 +169,7 @@ export const marker = {
   cone: palette.white,
   // Volcán con nueva actividad eruptiva esta semana vs. actividad que continúa.
   volcanoNew: palette.red,
-  volcanoContinuing: palette.brown,
+  volcanoContinuing: palette.orange,
 } as const;
 
 /** Hex (#rrggbb) → rgba() con opacidad, para expresiones de MapLibre/CSS. */

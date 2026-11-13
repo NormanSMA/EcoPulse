@@ -59,10 +59,6 @@
     "shortcutHint": "Ctrl+K",
     "toggle": "Mostrar búsqueda"
   },
-  "theme": {
-    "toLight": "Cambiar a tema claro",
-    "toDark": "Cambiar a tema oscuro"
-  },
   "language": {
     "es": "Español",
     "en": "Inglés",

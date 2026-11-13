@@ -1,17 +1,14 @@
 import { useCallback, useEffect, useState } from "react";
 import type { Basemap } from "@/lib/mapStyles";
-import type { Theme } from "./useTheme";
-
 const STORAGE_KEY = "ecopulse-basemap";
+const DEFAULT_BASEMAP: Basemap = "dark";
 
 /**
- * Basemap del mapa 2D (dark/light/satellite). Por defecto sigue al tema de
- * la app (dark theme -> basemap dark, light theme -> basemap light), igual
- * que `useTheme`, salvo que el usuario haya elegido explícitamente un
- * basemap (incluyendo "satellite", que no tiene equivalente de tema): en
- * ese caso se respeta la elección y no se sobreescribe al alternar el tema.
+ * Basemap del mapa (dark/light/satellite). La interfaz tiene un solo tema
+ * oscuro (DS 5.0); el basemap por defecto es "dark" salvo que el usuario
+ * haya elegido otro explícitamente.
  */
-export function useBasemap(theme: Theme) {
+export function useBasemap() {
   const [explicitBasemap, setExplicitBasemapState] = useState<Basemap | null>(null);
 
   useEffect(() => {
@@ -36,7 +33,7 @@ export function useBasemap(theme: Theme) {
     }
   }, []);
 
-  const basemap: Basemap = explicitBasemap ?? theme;
+  const basemap: Basemap = explicitBasemap ?? DEFAULT_BASEMAP;
 
   return { basemap, setBasemap, isExplicit: explicitBasemap !== null };
 }

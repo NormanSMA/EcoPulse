@@ -123,7 +123,7 @@ export function addWeatherLayers(
         0.2, palette.blueLight,
         0.5, palette.blue,
         0.75, palette.blueDark,
-        1, palette.purple,
+        1, palette.violet,
       ],
     },
   }, beforeId);
@@ -154,7 +154,7 @@ export function addWeatherLayers(
       "icon-allow-overlap": true,
     },
     paint: {
-      "icon-color": ["interpolate", ["linear"], ["get", "windSpeed"], 0, palette.blueLight, 30, palette.teal, 60, palette.purple],
+      "icon-color": ["interpolate", ["linear"], ["get", "windSpeed"], 0, palette.blueLight, 30, palette.cyan, 60, palette.violet],
       "icon-halo-color": palette.ink,
       "icon-halo-width": 1,
     },
