@@ -1,10 +1,9 @@
 import type { NextConfig } from "next";
 
-// 'wasm-unsafe-eval' permite WebAssembly.instantiate sin abrir eval() de JS.
 // 'unsafe-eval' solo se añade en desarrollo (React y HMR lo piden). Los
 // 'unsafe-inline' los requieren los scripts inline de hidratación de Next al
-// no usar nonces.
-const scriptSrc = ["'self'", "'wasm-unsafe-eval'", "'unsafe-inline'", ...(process.env.NODE_ENV === "production" ? [] : ["'unsafe-eval'"])].join(" ");
+// no usar nonces. Sin WebAssembly: no se permite 'wasm-unsafe-eval'.
+const scriptSrc = ["'self'", "'unsafe-inline'", ...(process.env.NODE_ENV === "production" ? [] : ["'unsafe-eval'"])].join(" ");
 
 const cspHeader = `
     default-src 'self';
