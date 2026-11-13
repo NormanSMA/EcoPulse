@@ -57,3 +57,9 @@ export function particleCountFor(areaPx: number, isMobile: boolean): number {
   const proportional = Math.round(areaPx / 700);
   return Math.max(300, Math.min(max, proportional));
 }
+
+export function windSpeedScale(zoom: number, targetPxPerSec = 40, refKmh = 30): number {
+  const pixelsPerDegree = (512 * 2 ** zoom) / 360;
+  const degreesPerSecond = (refKmh / 3600) * (1 / 111.2);
+  return targetPxPerSec / (degreesPerSecond * pixelsPerDegree);
+}

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import maplibregl, {
   GeoJSONSource,
@@ -20,10 +20,13 @@ import type { Selection } from "@/lib/selection";
 import { resolveSelection } from "@/lib/resolveSelection";
 import { nearestCandidate, type PickCandidate, type Pixel } from "@/lib/screenPick";
 import { circleRing } from "@/lib/geo";
+import { buildFrameFields } from "@/lib/forecast/field";
 import { WEATHER_LAYER_IDS, addWeatherLayers, setWeatherFrame } from "./weatherLayers";
 import type { SpatialFilter } from "@/lib/explorerState";
 import type { MapViewProps } from "./types";
 import { applyProjection, introStartZoom, shouldPlayIntro, type MapProjection } from "./projection";
+
+import WindCanvas from "./WindCanvas";
 
 interface MapContainerProps extends MapViewProps {
   basemap: Basemap;
@@ -182,6 +185,9 @@ export default function MapContainer(props: MapContainerProps) {
   const { data, visibility, refTime, radarTiles, selectedPoint, focus, spatialFilter, weatherFrame, showGridPoints, basemap, projection = "mercator", initialView = DEFAULT_MAP_VIEW } = props;
   const tKeyboard = useTranslations("mapKeyboard");
   const [announcement, setAnnouncement] = useState<{ selection: Selection; count: number } | null>(null);
+  const [mapInstance, setMapInstance] = useState<MapLibreMap | null>(null);
+  const [reducedMotion, setReducedMotion] = useState(false);
+  const frameFields = useMemo(() => buildFrameFields(weatherFrame ?? null), [weatherFrame]);
   const item = resolveSelection(announcement?.selection ?? null, data)?.item;
   let selectionText = announcement ? tKeyboard(`kinds.${announcement.selection.kind}`) : "";
   if (item && "f" in item) {
@@ -293,7 +299,8 @@ export default function MapContainer(props: MapContainerProps) {
     if (p.radarTiles) addRadar(map, p.radarTiles);
 
     // Pronóstico sobre la malla: bajo los eventos, sobre la sombra nocturna.
-    addWeatherLayers(map, p.weatherFrame ?? null, { wind: p.visibility.wind, clouds: p.visibility.clouds, rain: p.visibility.rain });
+    const showWindArrows = window.matchMedia("(prefers-reduced-motion: reduce)").matches || !p.weatherFrame?.features.length;
+    addWeatherLayers(map, p.weatherFrame ?? null, { wind: p.visibility.wind && showWindArrows, clouds: p.visibility.clouds, rain: p.visibility.rain });
     setGridPointsVisible(map, p);
 
     map.addLayer({
@@ -751,6 +758,7 @@ export default function MapContainer(props: MapContainerProps) {
     const resizeObserver = new ResizeObserver(() => map.resize());
     resizeObserver.observe(mapContainerRef.current);
     mapRef.current = map;
+    setMapInstance(map);
 
     return () => {
       cancelIntroRef.current?.();
@@ -761,6 +769,14 @@ export default function MapContainer(props: MapContainerProps) {
       map.remove();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- inicialización única; los cambios se aplican en los effects de abajo.
+  }, []);
+
+  useEffect(() => {
+    const motion = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const updateMotion = () => setReducedMotion(motion.matches);
+    updateMotion();
+    motion.addEventListener("change", updateMotion);
+    return () => motion.removeEventListener("change", updateMotion);
   }, []);
 
   useEffect(() => {
@@ -885,15 +901,17 @@ export default function MapContainer(props: MapContainerProps) {
     const map = mapRef.current;
     if (!map || !isMapLoadedRef.current) return;
     for (const [key, ids] of Object.entries(LAYER_GROUPS) as [LayerKey, string[]][]) {
-      const value = visibility[key] ? "visible" : "none";
+      const showLayer = visibility[key] && (key !== "wind" || reducedMotion || !frameFields);
+      const value = showLayer ? "visible" : "none";
       for (const id of ids) if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", value);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visKey]);
+  }, [visKey, reducedMotion, frameFields]);
 
   return (
     <div className="relative h-full w-full bg-ds-canvas">
       <div ref={mapContainerRef} className="h-full w-full" />
+      <WindCanvas map={mapInstance} field={frameFields?.wind ?? null} active={visibility.wind} projection={projection} />
       <div role="status" className="sr-only" aria-atomic="true">
         {announcement && <span key={announcement.count}>{tKeyboard("selected", { name: selectionText })}</span>}
       </div>

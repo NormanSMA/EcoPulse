@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { BBox } from "@/lib/geo";
 import type { WindField } from "@/lib/forecast/field";
-import { createParticles, particleCountFor, stepParticles, type Particle } from "./windParticles";
+import { createParticles, particleCountFor, stepParticles, windSpeedScale, type Particle } from "./windParticles";
 
 const bbox: BBox = [0, 0, 10, 10];
 const wind = (u: number, v: number): WindField => ({
@@ -64,5 +64,23 @@ describe("particleCountFor", () => {
     expect(particleCountFor(1e9, false)).toBe(3000);
     expect(particleCountFor(1e9, true)).toBe(1200);
     expect(particleCountFor(10, false)).toBe(300);
+  });
+});
+
+describe("windSpeedScale", () => {
+  it("aumenta al alejar el zoom y se reduce a la mitad por nivel", () => {
+    expect(windSpeedScale(3)).toBeGreaterThan(windSpeedScale(4));
+    expect(windSpeedScale(3)).toBeCloseTo(windSpeedScale(4) * 2);
+  });
+
+  it.each([0, 4, 10])("produce cuarenta píxeles por segundo en zoom %s", (zoom) => {
+    const pixelsPerDegree = (512 * 2 ** zoom) / 360;
+    const degreesPerSecond = (30 / 3600) / 111.2;
+    expect(degreesPerSecond * windSpeedScale(zoom) * pixelsPerDegree).toBeCloseTo(40);
+  });
+
+  it("respeta velocidad objetivo y viento de referencia", () => {
+    const pixelsPerDegree = (512 * 2 ** 5) / 360;
+    expect((60 / 3600 / 111.2) * windSpeedScale(5, 80, 60) * pixelsPerDegree).toBeCloseTo(80);
   });
 });
