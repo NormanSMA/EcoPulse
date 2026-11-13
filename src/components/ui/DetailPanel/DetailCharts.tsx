@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type JSX, type KeyboardEvent } from "react";
+import { useId, useState, type JSX, type KeyboardEvent } from "react";
 import { useTranslations } from "next-intl";
 import {
   ScatterChart,
@@ -28,15 +28,8 @@ import { accumulate, sliceHours } from "@/lib/forecast/series";
 // variables de tema (ejes, rejilla, tooltips) para que sigan claro/oscuro.
 
 const AXIS = { fontSize: 11, fill: "rgb(var(--ds-text-secondary))" };
-const GRID = "rgb(var(--ds-outline-variant))";
-const TOOLTIP_STYLE = {
-  background: "rgb(var(--ds-surface-container-high))",
-  border: "1px solid rgb(var(--ds-outline-variant))",
-  borderRadius: "var(--ds-radius-control)",
-  boxShadow: "var(--ds-shadow-2)",
-  color: "rgb(var(--ds-text-primary))",
-  fontSize: 12,
-};
+const GRID = "rgb(var(--ds-text-primary) / 0.06)";
+const TOOLTIP_CLASS = "[&_.recharts-default-tooltip]:!border-ds-glass [&_.recharts-default-tooltip]:!bg-ds-glass [&_.recharts-default-tooltip]:[background-image:var(--ds-glass-dots)] [&_.recharts-default-tooltip]:[background-size:var(--ds-glass-dots-size)] [&_.recharts-default-tooltip]:backdrop-blur-ds-glass [&_.recharts-default-tooltip]:!rounded-ds-control [&_.recharts-default-tooltip]:!shadow-ds-glass [&_.recharts-default-tooltip]:!text-ds-text-primary [&_.recharts-default-tooltip]:text-xs";
 const PRIMARY = "rgb(var(--ds-primary))";
 // Temperatura en el tono cálido de la escala (el mismo naranja de M 4.5).
 const TEMP_COLOR = scales.magnitude[1].color;
@@ -76,12 +69,12 @@ export function QuakeHistoryChart({ quakes, selectedId, locale }: { quakes: Eart
           <ZAxis dataKey="mag" range={[30, 260]} />
           <Tooltip
             cursor={{ stroke: GRID }}
-            contentStyle={TOOLTIP_STYLE}
+            wrapperClassName={TOOLTIP_CLASS}
             content={({ payload }) => {
               const p = payload?.[0]?.payload as (typeof points)[number] | undefined;
               if (!p) return null;
               return (
-                <div style={TOOLTIP_STYLE} className="px-3 py-2">
+                <div className="ds-glass rounded-ds-control px-3 py-2 text-xs text-ds-text-primary">
                   <div className="font-medium">
                     M {magnitude.format(p.mag)} · {number.format(Math.round(p.depth))} km
                   </div>
@@ -112,6 +105,7 @@ export function QuakeHistoryChart({ quakes, selectedId, locale }: { quakes: Eart
 /** PM2.5 de las últimas 48 h con la guía de la OMS como referencia. */
 export function AirHistoryChart({ history, locale }: { history: { t: string; v: number }[]; locale: string }) {
   const t = useTranslations("detail");
+  const gradientId = useId();
   const number = new Intl.NumberFormat(locale);
   const data = history.map((h) => ({ t: Date.parse(h.t), v: h.v }));
   return (
@@ -119,9 +113,9 @@ export function AirHistoryChart({ history, locale }: { history: { t: string; v: 
       <ResponsiveContainer width="100%" height="100%">
         <AreaChart data={data} margin={{ top: 8, right: 8, left: -8, bottom: 0 }}>
           <defs>
-            <linearGradient id="air-fill" x1="0" y1="0" x2="0" y2="1">
+            <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor={scales.aqi.moderate} stopOpacity={0.45} />
-              <stop offset="100%" stopColor={scales.aqi.good} stopOpacity={0.05} />
+              <stop offset="100%" stopColor={scales.aqi.moderate} stopOpacity={0} />
             </linearGradient>
           </defs>
           <CartesianGrid stroke={GRID} strokeDasharray="3 3" vertical={false} />
@@ -138,11 +132,11 @@ export function AirHistoryChart({ history, locale }: { history: { t: string; v: 
           <YAxis tickFormatter={(v) => number.format(v)} tick={AXIS} axisLine={{ stroke: GRID }} tickLine={false} width={32} />
           <ReferenceLine y={15} stroke={scales.aqi.moderate} strokeDasharray="4 3" />
           <Tooltip
-            contentStyle={TOOLTIP_STYLE}
+            wrapperClassName={TOOLTIP_CLASS}
             labelFormatter={(v) => new Date(Number(v)).toLocaleString(locale)}
             formatter={(v) => [`${number.format(Number(v))} µg/m³`, t("air.pm25")]}
           />
-          <Area type="monotone" dataKey="v" stroke={scales.aqi.moderate} strokeWidth={2} fill="url(#air-fill)" isAnimationActive={false} />
+          <Area type="monotone" dataKey="v" stroke={scales.aqi.moderate} strokeWidth={2} fill={`url(#${gradientId})`} isAnimationActive={false} />
         </AreaChart>
       </ResponsiveContainer>
     </div>
@@ -168,6 +162,7 @@ export function ForecastChart({ weather, air, locale, cursorTime }: {
   cursorTime?: number | null;
 }): JSX.Element {
   const t = useTranslations("detail.point");
+  const gradientId = useId();
   const [horizon, setHorizon] = useState<ForecastHorizon>(24);
   const [group, setGroup] = useState<ForecastGroup>("temp");
   const number = new Intl.NumberFormat(locale);
@@ -266,6 +261,14 @@ export function ForecastChart({ weather, air, locale, cursorTime }: {
       <div className="h-44 w-full min-w-0" role="img" aria-label={t("forecastTitle")}>
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart data={data} margin={{ top: 8, right: 0, left: -8, bottom: 0 }}>
+          <defs>
+            {series.filter((item) => item.kind === "area").map((item) => (
+              <linearGradient key={item.key} id={`${gradientId}-${item.key}`} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={item.color} stopOpacity={0.45} />
+                <stop offset="100%" stopColor={item.color} stopOpacity={0} />
+              </linearGradient>
+            ))}
+          </defs>
           <CartesianGrid stroke={GRID} strokeDasharray="3 3" vertical={false} />
           <XAxis
             dataKey="t"
@@ -290,7 +293,7 @@ export function ForecastChart({ weather, air, locale, cursorTime }: {
           />
           {secondary && <YAxis yAxisId="right" orientation="right" domain={group === "rain" ? [0, 100] : [0, "auto"]} tickFormatter={(v) => number.format(v)} tick={AXIS} axisLine={{ stroke: GRID }} tickLine={false} width={40} unit={secondary.unit} />}
           <Tooltip
-            contentStyle={TOOLTIP_STYLE}
+            wrapperClassName={TOOLTIP_CLASS}
             labelFormatter={(v) => new Date(Number(v)).toLocaleString(locale, { weekday: "short", hour: "2-digit", minute: "2-digit" })}
             formatter={(v, name) => {
               const item = series.find((entry) => entry.key === name);
@@ -298,13 +301,13 @@ export function ForecastChart({ weather, air, locale, cursorTime }: {
             }}
           />
           {series.map((item) => item.kind === "bar" ? (
-            <Bar key={item.key} yAxisId={item.axis} dataKey={item.key} fill={item.color} fillOpacity={0.35} isAnimationActive={false} />
+            <Bar key={item.key} yAxisId={item.axis} dataKey={item.key} fill={item.color} fillOpacity={0.45} radius={[4, 4, 0, 0]} isAnimationActive={false} />
           ) : item.kind === "area" ? (
-            <Area key={item.key} yAxisId={item.axis} type="monotone" dataKey={item.key} stroke={item.color} strokeWidth={2} fill={item.color} fillOpacity={0.25} isAnimationActive={false} />
+            <Area key={item.key} yAxisId={item.axis} type="monotone" dataKey={item.key} stroke={item.color} strokeWidth={2} fill={`url(#${gradientId}-${item.key})`} isAnimationActive={false} />
           ) : (
             <Line key={item.key} yAxisId={item.axis} type="monotone" dataKey={item.key} stroke={item.color} strokeWidth={2} strokeDasharray={item.dashed ? "4 3" : undefined} dot={false} isAnimationActive={false} />
           ))}
-          {cursorVisible && <ReferenceLine x={cursorTime} yAxisId="left" stroke="rgb(var(--ds-highlight))" strokeWidth={2} />}
+          {cursorVisible && <ReferenceLine x={cursorTime} yAxisId="left" stroke="rgb(var(--ds-text-primary))" strokeWidth={1.5} strokeDasharray="3 3" label={{ value: shortHour(locale)(cursorTime), position: "insideTopRight", ...AXIS, fill: "rgb(var(--ds-text-primary))" }} />}
           </ComposedChart>
         </ResponsiveContainer>
       </div>
@@ -339,7 +342,7 @@ export function DecadeChart({ data, locale }: { data: { decade: number; count: n
           <YAxis allowDecimals={false} tickFormatter={(v) => number.format(v)} tick={AXIS} axisLine={{ stroke: GRID }} tickLine={false} width={32} />
           <Tooltip
             cursor={{ fill: "rgb(var(--ds-primary) / 0.1)" }}
-            contentStyle={TOOLTIP_STYLE}
+            wrapperClassName={TOOLTIP_CLASS}
             labelFormatter={formatDecade}
             formatter={(v) => [number.format(Number(v)), "M ≥ 7"]}
           />

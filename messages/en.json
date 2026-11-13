@@ -1,4 +1,15 @@
 {
+  "time": {
+    "groupPast": "Past",
+    "groupLive": "LIVE",
+    "groupForecast": "Forecast"
+  },
+  "mode": {
+    "live": "LIVE",
+    "history": "HISTORY",
+    "forecast": "FORECAST",
+    "offline": "OFFLINE"
+  },
   "mapKeyboard": {
     "mapLabel": "Interactive map. Press Enter or Space to select the element nearest the center or the center point.",
     "globeLabel": "Interactive globe. Press Enter or Space to select the element nearest the center or the center point.",
@@ -45,8 +56,8 @@
   },
   "metrics": {
     "earthquakes24h": "Earthquakes 24h",
-    "maxMagnitude": "Max magnitude",
-    "active": "Active events"
+    "maxMagnitude": "Max mag.",
+    "active": "Active"
   },
   "status": {
     "live": "Live",
@@ -513,6 +524,7 @@
     "clearFilter": "Clear radius filter"
   },
   "zones": {
+    "readyOffline": "Zone ready offline",
     "title": "Offline zones",
     "intro": "Download the 72 h forecast and nearby events to use them without internet.",
     "tierLabel": "Zone size",

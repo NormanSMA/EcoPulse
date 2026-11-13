@@ -1,9 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { Play, Pause, CalendarDays } from "lucide";
 import { MorphIcon } from "morphicons/react";
+import { useTranslations } from "next-intl";
+import { Button, IconButton } from "@/components/ui/Button";
 import { cn } from "@/design-system/utils/cn";
 
-import { isForecastWindow, type TimeWindow } from "@/lib/timeline";
+import { isForecastWindow, stopGroup, type StopGroup, type TimeWindow } from "@/lib/timeline";
 
 export type { TimeWindow };
 
@@ -112,24 +114,25 @@ function FromMenu({
   const active = customStart != null;
   return (
     <div ref={ref} className="relative shrink-0" onKeyDown={onKeyDown}>
-      <button
-        type="button"
+      <Button
+        variant="outlined"
+        size="sm"
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
         className={cn(
-          "inline-flex h-7 max-w-[10.5rem] items-center gap-1.5 rounded-ds-full border px-2.5 text-xs font-medium text-ds-text-primary hover:bg-ds-hover",
+          "max-w-24 gap-1 px-2 text-xs sm:max-w-44",
           active ? "border-ds-primary bg-ds-primary/10" : "border-ds-outline"
         )}
       >
         <MorphIcon icon={CalendarDays} size={14} reducedMotion="user" className="shrink-0" />
         <span className="truncate">{active ? `${label} ${formatDay(customStart, locale)}` : label}</span>
-      </button>
+      </Button>
       {open && (
         <div
           role="menu"
           aria-label={label}
-          className="absolute bottom-full right-0 z-20 mb-2 min-w-40 rounded-ds-sheet border border-ds-outline-variant bg-ds-panel p-1 shadow-ds-3 backdrop-blur-ds-panel"
+          className="ds-glass absolute bottom-full right-0 z-20 mb-2 min-w-40 rounded-ds-card p-1"
         >
           {days.map((d) => (
             <button
@@ -140,9 +143,10 @@ function FromMenu({
               onClick={() => {
                 onPick(d.ms);
                 setOpen(false);
+                ref.current?.querySelector<HTMLButtonElement>("button")?.focus();
               }}
               className={cn(
-                "block w-full rounded-ds-full px-3 py-1.5 text-left text-xs capitalize text-ds-text-primary hover:bg-ds-hover focus-visible:bg-ds-hover focus-visible:outline-none",
+                "block min-h-11 w-full rounded-full px-3 py-1.5 text-left text-xs capitalize text-ds-text-primary hover:bg-ds-hover active:bg-ds-press focus-visible:bg-ds-hover focus-visible:ring-2 focus-visible:ring-ds-primary",
                 customStart === d.ms && "font-semibold text-ds-primary"
               )}
             >
@@ -174,13 +178,7 @@ function useNow() {
   return now;
 }
 
-/**
- * Tarjeta de línea de tiempo inferior, al estilo del control de fecha de
- * Weather Lab: botón circular de reproducción, fecha actual en UTC y una
- * pista con paradas para la ventana temporal. La ventana filtra sismos,
- * incendios y desastres; la reproducción recorre esa ventana en el tiempo
- * (lógica en page.tsx).
- */
+// Despliega las paradas móviles sin aumentar la altura de la cápsula.
 export function TimeControl({
   window: activeWindow,
   onWindowChange,
@@ -206,7 +204,29 @@ export function TimeControl({
   yesterdayLabel = "Yesterday",
   className,
 }: TimeControlProps) {
+  const t = useTranslations("time");
+  const rootRef = useRef<HTMLDivElement>(null);
+  const stopsId = useId();
+  const [expandedGroup, setExpandedGroup] = useState<Exclude<StopGroup, "live"> | null>(null);
   const now = useNow();
+  useEffect(() => {
+    if (!expandedGroup) return;
+    const close = (event: PointerEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) setExpandedGroup(null);
+    };
+    const escape = (event: globalThis.KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setExpandedGroup(null);
+        rootRef.current?.querySelector<HTMLButtonElement>('[aria-expanded="true"]')?.focus();
+      }
+    };
+    document.addEventListener("pointerdown", close);
+    document.addEventListener("keydown", escape);
+    return () => {
+      document.removeEventListener("pointerdown", close);
+      document.removeEventListener("keydown", escape);
+    };
+  }, [expandedGroup]);
   const shown = playhead != null ? new Date(playhead) : now;
   const clock = shown ? formatLocal(shown, locale) : "";
   const utc = shown ? formatUtc(shown, locale) : "";
@@ -218,67 +238,40 @@ export function TimeControl({
   const trackStart = (from / (WINDOWS.length - 1)) * 100;
   const trackWidth = ((to - from) / (WINDOWS.length - 1)) * 100;
 
+  const activeGroup = stopGroup(activeWindow);
+  const shownGroup = expandedGroup ?? activeGroup;
+  const railColor = forecast
+    ? "bg-ds-warning shadow-[0_0_14px_rgb(var(--ds-warning)/0.45)]"
+    : "bg-gradient-to-r from-[#0070ff] to-[#38bdf8] shadow-ds-glow";
+  const onRadioKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+    event.preventDefault();
+    const radios = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="radio"], [role="tab"]'));
+    const index = radios.findIndex((radio) => radio === event.target);
+    const next = radios[(index + (event.key === "ArrowRight" ? 1 : -1) + radios.length) % radios.length];
+    next?.focus();
+    next?.click();
+  };
+
   return (
-    <div
-      className={cn(
-        "flex items-center gap-3 rounded-ds-sheet border border-ds-outline-variant bg-ds-panel px-3 py-3 shadow-ds-3 backdrop-blur-ds-panel sm:gap-4 sm:px-4",
-        className
-      )}
-    >
-      <button
-        type="button"
-        onClick={onTogglePlayback}
-        aria-label={playbackLabel}
-        aria-pressed={playing}
-        className="relative isolate grid h-12 w-12 shrink-0 place-items-center rounded-ds-full border border-ds-outline text-ds-text-primary transition-colors duration-ds-fast before:absolute before:inset-0 before:rounded-full before:bg-current before:opacity-0 hover:before:opacity-[0.08] active:before:opacity-[0.12]"
-      >
-        <MorphIcon key={playing ? "pause" : "play"} icon={playing ? Pause : Play} size={20} reducedMotion="user" className={cn(!playing && "translate-x-px")} />
-      </button>
-
-      {onCycleSpeed && (
-        <button
-          type="button"
-          onClick={onCycleSpeed}
-          aria-label={`${speedLabel}: ${speed}x`}
-          className="grid h-10 min-w-10 shrink-0 place-items-center rounded-ds-full border border-ds-outline px-2 text-xs font-medium tabular-nums text-ds-text-primary hover:bg-ds-hover"
-        >
-          {speed}x
-        </button>
-      )}
-
-      <div className="flex min-w-0 flex-1 flex-col gap-2">
-        <div className="flex items-center justify-between gap-2">
-          <span className="truncate text-sm font-medium tabular-nums text-ds-text-primary sm:text-base">
-            {clock || " "}
-            {utc && <span className="ml-2 text-xs font-normal text-ds-text-muted">{utc}</span>}
-          </span>
-          {note && playhead == null && (
-            <span className="hidden shrink-0 text-xs text-ds-text-muted sm:inline">{note}</span>
-          )}
-          {activeWindow === "live" && playhead == null && (
-            <span className="inline-flex shrink-0 items-center gap-1.5 text-xs font-medium text-ds-status-live">
-              <span className="h-2 w-2 animate-pulse rounded-full bg-ds-status-live" />
-              {liveLabel}
-            </span>
-          )}
-        </div>
-
-        {(summary || onCustomStart) && (
-          <div className="flex items-center justify-between gap-2">
-            <p className="min-w-0 flex-1 truncate text-xs text-ds-text-muted">{summary}</p>
-            {onCustomStart && (
-              <FromMenu
-                customStart={activeWindow === "custom" ? customStart : null}
-                onPick={onCustomStart}
-                label={fromLabel}
-                todayLabel={todayLabel}
-                yesterdayLabel={yesterdayLabel}
-                locale={locale}
-              />
-            )}
-          </div>
+    <div ref={rootRef} className={cn("ds-glass relative flex min-w-0 flex-col rounded-ds-panel px-2 py-1 sm:px-3", className)}>
+      <div className="flex h-10 min-w-0 items-center gap-2">
+        <IconButton aria-label={playbackLabel} aria-pressed={playing} onClick={onTogglePlayback} variant="outlined">
+          <MorphIcon icon={playing ? Pause : Play} size={20} reducedMotion="user" />
+        </IconButton>
+        {onCycleSpeed && (
+          <Button variant="text" size="sm" onClick={onCycleSpeed} aria-label={`${speedLabel}: ${speed}x`} className="min-w-8 px-1 tabular-nums">
+            {speed}x
+          </Button>
         )}
+        <div className="min-w-0 flex-1 tabular-nums" title={[summary, note].filter(Boolean).join(" · ")}>
+          <p className="truncate text-xs font-medium text-ds-text-primary sm:text-sm">{clock || " "}</p>
+          <p className="truncate text-[11px] text-ds-text-muted">{utc || " "}</p>
+        </div>
+        {onCustomStart && <FromMenu customStart={activeWindow === "custom" ? customStart : null} onPick={onCustomStart} label={fromLabel} todayLabel={todayLabel} yesterdayLabel={yesterdayLabel} locale={locale} />}
+      </div>
 
+      <div className="flex min-w-0 items-center gap-2">
         {onSeek && (
           <input
             type="range"
@@ -286,74 +279,66 @@ export function TimeControl({
             max={1000}
             step={1}
             value={Math.round(Math.min(1, Math.max(0, playProgress ?? (forecast ? 0 : 1))) * 1000)}
-            onChange={(e) => onSeek(Number(e.target.value) / 1000)}
+            onChange={(event) => onSeek(Number(event.target.value) / 1000)}
             aria-label={seekLabel}
-            className="h-5 w-full cursor-pointer accent-[rgb(var(--ds-highlight))]"
+            className={cn("hidden h-11 w-24 shrink-0 cursor-pointer rounded-full focus-visible:ring-2 focus-visible:ring-ds-primary sm:block", forecast ? "accent-ds-warning" : "accent-ds-primary")}
           />
         )}
-
-        <div
-          role="radiogroup"
-          aria-label={windowLabel}
-          onKeyDown={(e) => {
-            if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
-            e.preventDefault();
-            const radios = Array.from(e.currentTarget.querySelectorAll<HTMLButtonElement>('[role="radio"]'));
-            const index = radios.findIndex((radio) => radio === e.target);
-            const next = radios[(index + (e.key === "ArrowRight" ? 1 : -1) + radios.length) % radios.length];
-            next?.focus();
-            next?.click();
-          }}
-          className="relative"
-        >
-          {/* Pista + progreso */}
-          <div className="absolute left-3 right-3 sm:left-4 sm:right-4 top-[9px] h-1 rounded-full bg-ds-surface-highest" aria-hidden="true">
-            <div
-              className="h-full rounded-full bg-ds-primary transition-[margin,width] duration-ds-slow ease-ds-standard"
-              style={{ marginLeft: `${trackStart}%`, width: `${trackWidth}%` }}
-            />
+        <div role="radiogroup" aria-label={windowLabel} onKeyDown={onRadioKeyDown} className="relative hidden h-11 min-w-0 flex-1 sm:block">
+          <div className="absolute inset-x-5 top-3 h-1 rounded-full bg-ds-surface-highest" aria-hidden="true">
+            <div className={cn("h-full rounded-full", railColor)} style={{ marginLeft: `${trackStart}%`, width: `${trackWidth}%` }} />
           </div>
           <div className="relative flex justify-between">
-            {WINDOWS.map((w, i) => {
-              const active = w === activeWindow;
-              // Puntos dentro de la ventana visible: entre el elegido y ahora.
-              const passed = activeIndex >= 0 && i >= from && i <= to;
+            {WINDOWS.map((window, index) => {
+              const active = window === activeWindow;
+              const passed = activeIndex >= 0 && index >= from && index <= to;
               return (
-                <button
-                  key={w}
-                  type="button"
-                  role="radio"
-                  aria-checked={active}
-                  tabIndex={active || (activeIndex < 0 && w === "live") ? 0 : -1}
-                  onClick={() => onWindowChange(w)}
-                  className="group flex w-6 flex-col items-center gap-1 sm:w-8"
-                >
-                  <span className="grid h-[22px] w-[22px] place-items-center">
-                    <span
-                      className={cn(
-                        "rounded-full transition-all duration-ds-base ease-ds-standard",
-                        active
-                          ? "h-[18px] w-[18px] bg-ds-primary ring-4 ring-ds-primary/20"
-                          : passed
-                            ? "h-2 w-2 bg-ds-primary group-hover:h-3 group-hover:w-3"
-                            : "h-2 w-2 bg-ds-outline group-hover:h-3 group-hover:w-3"
-                      )}
-                    />
+                <button key={window} type="button" role="radio" aria-checked={active} tabIndex={active || (activeIndex < 0 && window === "live") ? 0 : -1} onClick={() => onWindowChange(window)} className="group flex h-11 min-w-11 flex-1 flex-col items-center justify-center gap-1 rounded-full hover:bg-ds-hover active:bg-ds-press focus-visible:ring-2 focus-visible:ring-ds-primary disabled:pointer-events-none disabled:opacity-40">
+                  <span aria-hidden="true" className="grid h-5 w-5 place-items-center">
+                    <span className={cn("rounded-full", active ? cn("h-4 w-4 ring-2 ring-white/20", railColor) : passed ? cn("h-2 w-2", railColor) : "h-2 w-2 bg-ds-outline")} />
                   </span>
-                  <span
-                    className={cn(
-                      "whitespace-nowrap text-[11px] font-medium transition-colors sm:text-xs",
-                      active ? "text-ds-text-primary" : "text-ds-text-muted group-hover:text-ds-text-secondary"
-                    )}
-                  >
-                    {w === "live" ? liveLabel : w}
-                  </span>
+                  <span className={cn("whitespace-nowrap text-[11px]", active ? "text-ds-text-primary" : "text-ds-text-muted")}>{window === "live" ? liveLabel : window}</span>
                 </button>
               );
             })}
           </div>
         </div>
+
+        <div role="tablist" aria-label={windowLabel} onKeyDown={onRadioKeyDown} className="flex h-11 min-w-0 flex-1 items-center gap-1 sm:hidden">
+          {(["past", "live", "forecast"] as const).map((group) => (
+            <Button
+              key={group}
+              variant="text"
+              size="sm"
+              role="tab"
+              aria-selected={shownGroup === group}
+              aria-expanded={group === "live" ? undefined : expandedGroup === group}
+              aria-controls={expandedGroup === group ? stopsId : undefined}
+              tabIndex={shownGroup === group ? 0 : -1}
+              className={cn("min-w-0 flex-1 px-2 text-[11px]", shownGroup === group ? group === "forecast" ? "bg-ds-warning/15 text-ds-warning" : group === "live" ? "bg-ds-status-live/15 text-ds-status-live" : "bg-ds-primary/15 text-ds-primary" : "text-ds-text-secondary")}
+              onClick={() => {
+                if (group === "live") {
+                  setExpandedGroup(null);
+                  onWindowChange("live");
+                } else {
+                  setExpandedGroup(expandedGroup === group ? null : group);
+                }
+              }}
+            >
+              {t(group === "past" ? "groupPast" : group === "live" ? "groupLive" : "groupForecast")}
+            </Button>
+          ))}
+        </div>
       </div>
+      {expandedGroup && (
+        <div id={stopsId} role="radiogroup" aria-label={windowLabel} onKeyDown={onRadioKeyDown} className="ds-glass absolute inset-x-0 bottom-full mb-2 flex gap-2 overflow-x-auto rounded-ds-card p-2 sm:hidden">
+          {WINDOWS.filter((window) => stopGroup(window) === expandedGroup).map((window, index) => (
+            <Button key={window} variant="outlined" role="radio" aria-checked={activeWindow === window} tabIndex={activeWindow === window || ((activeWindow === "custom" || activeGroup !== expandedGroup) && index === 0) ? 0 : -1} onClick={() => onWindowChange(window)} className={cn("min-h-11 flex-1", activeWindow === window && (expandedGroup === "forecast" ? "border-ds-warning text-ds-warning" : "border-ds-primary text-ds-primary"))}>
+              {window}
+            </Button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

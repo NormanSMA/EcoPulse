@@ -206,7 +206,7 @@ export function CommandOmnibox({
         }
       }}
     >
-      <div className="flex h-11 min-w-0 items-center gap-2 rounded-ds-full bg-ds-surface-high px-3 text-sm text-ds-text-primary hover:bg-ds-surface-highest focus-within:bg-ds-surface-highest focus-within:ring-2 focus-within:ring-ds-primary">
+      <div className="flex h-11 min-w-0 items-center gap-2 rounded-full border border-ds-control bg-white/[0.04] px-3 text-sm text-ds-text-primary hover:bg-ds-hover focus-within:border-ds-primary focus-within:shadow-ds-glow focus-within:ring-2 focus-within:ring-ds-primary">
         <MorphIcon icon={Search} size={18} reducedMotion="user" className="shrink-0 text-ds-text-secondary" />
         <input
           ref={inputRef}
@@ -275,7 +275,7 @@ export function CommandOmnibox({
         {showPanel ? statusMessage : ""}
       </div>
       {showPanel && (
-        <div className="absolute left-0 right-0 top-12 z-50 max-h-80 overflow-y-auto rounded-ds-xl border border-ds-outline-variant bg-ds-surface-container py-2 shadow-ds-3">
+        <div className="ds-glass absolute left-0 right-0 top-12 z-50 max-h-80 overflow-y-auto rounded-ds-card py-2">
           {hint && <p className="px-4 py-2 text-sm text-ds-text-secondary">{t("hint")}</p>}
           {statusMessage && status !== "done" && (
             <p className="px-4 py-2 text-sm text-ds-text-secondary">{statusMessage}</p>

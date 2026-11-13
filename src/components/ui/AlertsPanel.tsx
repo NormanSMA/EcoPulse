@@ -26,7 +26,7 @@ export default function AlertsPanel({ push }: { push: PushApi }) {
   const stateIcon = status === "on" ? BellRing : status === "denied" || status === "unsupported" ? BellOff : Bell;
 
   return (
-    <div className="flex flex-col gap-2 py-3">
+    <div className="flex flex-col gap-3 py-3">
       <p className="flex items-center gap-3 px-4 text-sm text-ds-text-secondary">
         <MorphIcon icon={stateIcon} size={18} reducedMotion="user" className="shrink-0" />
         <span>{t(`status.${status}`)}</span>
@@ -48,7 +48,7 @@ export default function AlertsPanel({ push }: { push: PushApi }) {
       {(status === "off" || status === "on") && (
         <>
           <div className="flex flex-col gap-1 px-4 pt-2">
-            <label htmlFor="alerts-mag" className="flex items-center justify-between text-sm text-ds-text-primary">
+            <label htmlFor="alerts-mag" className="ds-eyebrow flex items-center justify-between gap-2">
               <span>{t("minMagnitude")}</span>
               <span className="font-medium text-ds-primary">M {prefs.minMagnitude.toFixed(1)}</span>
             </label>
@@ -60,7 +60,8 @@ export default function AlertsPanel({ push }: { push: PushApi }) {
               step={0.5}
               value={prefs.minMagnitude}
               onChange={(e) => patch({ minMagnitude: Number(e.target.value) })}
-              className="w-full accent-ds-primary"
+              disabled={busy}
+              className="h-11 w-full cursor-pointer accent-ds-primary focus-visible:ring-2 focus-visible:ring-ds-primary disabled:cursor-wait disabled:opacity-40"
             />
           </div>
           <Row label={t("cyclones")} checked={prefs.cyclones} onChange={(v) => patch({ cyclones: v })} />
@@ -71,7 +72,7 @@ export default function AlertsPanel({ push }: { push: PushApi }) {
 
       {status === "on" && (
         <div className="px-4">
-          <Button variant="tonal" size="sm" onClick={() => void sendTest(t("testTitle"), t("testBody"))}>
+          <Button variant="outlined" size="sm" loading={busy} onClick={() => void sendTest(t("testTitle"), t("testBody"))}>
             <MorphIcon icon={Send} size={16} reducedMotion="user" />
             {t("test")}
           </Button>
@@ -84,7 +85,7 @@ export default function AlertsPanel({ push }: { push: PushApi }) {
         </p>
       )}
 
-      <p className="flex items-start gap-2 border-t border-ds-outline-variant px-4 pt-3 text-xs text-ds-text-muted">
+      <p className="flex items-start gap-2 border-t border-ds-divider px-4 pt-3 text-xs text-ds-text-muted">
         <MorphIcon icon={Info} size={14} reducedMotion="user" className="mt-px shrink-0" />
         <span>{t("iphoneNote")}</span>
       </p>

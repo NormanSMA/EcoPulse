@@ -180,12 +180,12 @@ export function ZonePanel({ locale, online, center, events, activeZoneId, onShow
   return (
     <div aria-labelledby={titleId} className="flex min-w-0 flex-col gap-4 text-sm text-ds-text-primary">
       <div className="flex min-w-0 flex-col gap-2">
-        <h3 id={titleId} className="font-medium">{t("title")}</h3>
+        <h3 id={titleId} className="ds-eyebrow">{t("title")}</h3>
         <p className="text-ds-text-secondary">{t("intro")}</p>
       </div>
 
       <div role="radiogroup" aria-label={t("tierLabel")} className="flex min-w-0 flex-col gap-2">
-        <span className="text-xs text-ds-text-secondary">{t("tierLabel")}</span>
+        <span className="ds-eyebrow">{t("tierLabel")}</span>
         <div className="flex flex-wrap gap-2">
           {TIERS.map((option, index) => (
             <Button
@@ -211,7 +211,7 @@ export function ZonePanel({ locale, online, center, events, activeZoneId, onShow
         </div>
       </div>
 
-      <div className="flex min-w-0 flex-col gap-2">
+      <div className="flex min-w-0 flex-col gap-2 rounded-ds-card border border-ds-divider bg-white/[0.04] p-3">
         {tier !== "country" && (
           <p className="break-words text-xs text-ds-text-secondary">
             {t("center", { place: center.name ?? t("mapCenter") })}
@@ -231,11 +231,11 @@ export function ZonePanel({ locale, online, center, events, activeZoneId, onShow
       </div>
 
       <div aria-labelledby={savedId} className="flex min-w-0 flex-col gap-3">
-        <h4 id={savedId} className="font-medium">{t("saved")}</h4>
+        <h4 id={savedId} className="ds-eyebrow">{t("saved")}</h4>
         {packs.length === 0 ? <p className="text-ds-text-secondary">{t("empty")}</p> : (
           <ul className="flex min-w-0 flex-col gap-4">
             {packs.map((meta) => (
-              <li key={meta.id} className="flex min-w-0 flex-col gap-2 border-t border-ds-outline-variant pt-3">
+              <li key={meta.id} className="flex min-w-0 flex-col gap-2 border-t border-ds-divider pt-3">
                 <p className="break-words font-medium">{meta.zone.name}</p>
                 <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-ds-text-secondary">
                   <span>{t("points", { count: meta.pointCount })}</span>
@@ -247,9 +247,13 @@ export function ZonePanel({ locale, online, center, events, activeZoneId, onShow
                     {t("expired")}
                   </span>
                 ) : (
-                  <p className="text-xs text-ds-text-secondary">
-                    {t("validUntil", { date: dates.format(meta.validUntil) })}
-                  </p>
+                  <div className="flex flex-col gap-1">
+                    <p role="status" className="flex items-center gap-2 text-xs text-ds-success">
+                      <span aria-hidden="true" className="ds-glow h-2 w-2 rounded-full bg-ds-success [--ep-accent:rgb(var(--ds-success))]" />
+                      {t("readyOffline")}
+                    </p>
+                    <p className="text-xs text-ds-text-secondary">{t("validUntil", { date: dates.format(meta.validUntil) })}</p>
+                  </div>
                 )}
                 <div className="flex flex-wrap gap-2">
                   <Button
