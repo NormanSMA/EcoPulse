@@ -266,7 +266,8 @@ export function TimeControl({
         )}
         <div className="min-w-0 flex-1 tabular-nums" title={[summary, note].filter(Boolean).join(" · ")}>
           <p className="truncate text-xs font-medium text-ds-text-primary sm:text-sm">{clock || " "}</p>
-          <p className="truncate text-[11px] text-ds-text-muted">{utc || " "}</p>
+          <p className="truncate text-[11px] text-ds-text-muted">{[utc, summary].filter(Boolean).join(" · ") || " "}</p>
+          {note && <p className="sr-only">{note}</p>}
         </div>
         {onCustomStart && <FromMenu customStart={activeWindow === "custom" ? customStart : null} onPick={onCustomStart} label={fromLabel} todayLabel={todayLabel} yesterdayLabel={yesterdayLabel} locale={locale} />}
       </div>

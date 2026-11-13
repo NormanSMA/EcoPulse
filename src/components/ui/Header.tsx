@@ -314,14 +314,12 @@ export default function Header({
         <div className="flex shrink-0 items-center sm:gap-1">
           <span
             role="status"
-            aria-label={tMode(mode)}
             aria-description={mode === "offline" ? offlineNote : undefined}
             title={mode === "offline" ? offlineNote : undefined}
             className={cn("inline-flex items-center gap-2 rounded-full px-1 text-[11px] font-medium uppercase tracking-[0.12em] sm:bg-white/[0.04] sm:px-3 sm:py-2", modeColor[mode])}
           >
             <span aria-hidden="true" className={cn("h-2 w-2 shrink-0 rounded-full bg-current", mode === "live" && "animate-pulse motion-reduce:animate-none")} />
-            <span aria-hidden="true" className="hidden sm:inline">{tMode(mode)}</span>
-            <span className="sr-only sm:hidden">{tMode(mode)}</span>
+            <span className="sr-only sm:not-sr-only">{tMode(mode)}</span>
           </span>
           <ModeToggle mode={mapMode} onChange={onMapModeChange} label={tMap("label")} />
 

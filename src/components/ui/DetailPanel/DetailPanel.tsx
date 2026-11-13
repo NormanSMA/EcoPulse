@@ -75,7 +75,7 @@ function useJson<T>(url: string | null) {
 
 // ---------- Piezas de maquetación ----------
 
-interface StatProps { label: string; value: string | number; hint?: ReactNode }
+interface StatProps { label: string; value: ReactNode; hint?: ReactNode }
 
 function Stat({ label, value, hint }: StatProps) {
   return (
@@ -458,7 +458,7 @@ export function DetailPanel({ kind, resolved, locale, tectonics, onClose, backTo
           <>
             <Stats>
               <Stat label={t("cyclone.category")} value={tStorm(item.f.properties.category ?? "TS")} hint={item.f.properties.category ?? "TS"} />
-              <Stat label={t("cyclone.alert")} value={tAlert(item.f.properties.alertLevel)} />
+              <Stat label={t("cyclone.alert")} value={<span style={{ color: alertColor(item.f.properties.alertLevel) }}>{tAlert(item.f.properties.alertLevel)}</span>} />
               {item.f.properties.maxWindKmh != null && (
                 <Stat
                   label={t("cyclone.maxWind")}

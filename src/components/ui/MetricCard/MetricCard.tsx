@@ -1,4 +1,4 @@
-import type { CSSProperties } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import type { IconNode } from "lucide";
 import { MorphIcon } from "morphicons/react";
 import { cn } from "@/design-system/utils/cn";
@@ -52,7 +52,7 @@ export function MetricCard({ label, value, unit, icon, iconColor, status, compac
 }
 
 export interface StatStripProps {
-  items: { label: string; value: string | number; icon?: IconNode; color?: string }[];
+  items: { label: string; value: ReactNode; icon?: IconNode; color?: string }[];
   className?: string;
 }
 
