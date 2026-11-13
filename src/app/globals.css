@@ -67,7 +67,7 @@
 }
 
 /* ------------------------------------------------------------------ */
-/* Escenario del mapa: los controles nativos de MapLibre/Cesium se     */
+/* Escenario del mapa: los controles nativos de MapLibre se     */
 /* desplazan con las variables que setea page.tsx para no quedar       */
 /* debajo de los paneles flotantes (--ep-inset-*).                      */
 /* ------------------------------------------------------------------ */
@@ -166,28 +166,13 @@
   --ep-attrib-filter: none;
 }
 
-/* Créditos de Cesium Ion (obligatorios por términos de uso, no se ocultan). */
-.ep-map-stage .cesium-viewer-bottom {
-  bottom: var(--ep-inset-bottom) !important;
-  left: var(--ep-inset-left) !important;
-  right: auto !important;
-}
-.ep-map-stage .cesium-widget-credits {
-  display: inline-block !important;
-  padding: 2px 10px;
-  border-radius: var(--ds-radius-pill);
-  background: var(--ds-panel-strong);
-  color: rgb(var(--ds-text-secondary));
-}
-
 /* ------------------------------------------------------------------ */
-/* Popups (2D MapLibre + 3D Cesium). El HTML interno lo genera          */
+/* Popups (MapLibre). El HTML interno lo genera          */
 /* src/lib/popupHtml.ts con clases .ep-popup__*; el acento de cada capa  */
 /* llega por la variable --ep-accent (hex de tokens/colors.ts).          */
 /* ------------------------------------------------------------------ */
 
-.maplibregl-popup-content,
-.cesium-glass-popup {
+.maplibregl-popup-content {
   background: var(--ds-panel-strong) !important;
   backdrop-filter: blur(var(--ds-panel-blur));
   -webkit-backdrop-filter: blur(var(--ds-panel-blur));
@@ -219,8 +204,7 @@
   border-left-color: rgb(var(--ds-outline-variant)) !important;
 }
 
-.maplibregl-popup-close-button,
-.cesium-glass-popup-close {
+.maplibregl-popup-close-button {
   top: 8px !important;
   right: 8px !important;
   width: 28px;
@@ -236,31 +220,10 @@
   color: rgb(var(--ds-text-secondary)) !important;
   transition: background-color 150ms var(--ds-ease);
 }
-.maplibregl-popup-close-button:hover,
-.cesium-glass-popup-close:hover {
+.maplibregl-popup-close-button:hover {
   color: rgb(var(--ds-text-primary)) !important;
   background: var(--ds-state-hover) !important;
 }
-
-/* Popup flotante del globo 3D (infoBox nativo de Cesium desactivado): DOM
-   propio posicionado en cada frame (GlobeContainer.tsx, postRender). */
-.cesium-glass-popup {
-  position: absolute;
-  top: 0;
-  left: 0;
-  z-index: 20;
-  transform: translate(-50%, calc(-100% - 14px));
-  min-width: 12rem;
-  max-width: min(300px, calc(100vw - 32px));
-  pointer-events: auto;
-}
-.cesium-glass-popup .cesium-glass-popup-close {
-  position: absolute;
-}
-.cesium-glass-popup.cesium-glass-popup-flip {
-  transform: translate(-50%, 14px);
-}
-
 .ep-popup {
   display: flex;
   flex-direction: column;
