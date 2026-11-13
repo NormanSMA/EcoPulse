@@ -85,7 +85,7 @@ export default function ControlsPanel({ visibility, onChange, showLegend = true,
   const tPanel = useTranslations("panel");
 
   return (
-    <div className="flex flex-col">
+    <div className="flex min-w-0 flex-col">
       {GROUPS.map((group) => {
         const on = group.layers.filter((l) => visibility[l.key]).length;
         return (
@@ -95,16 +95,15 @@ export default function ControlsPanel({ visibility, onChange, showLegend = true,
             icon={group.icon}
             meta={`${on}/${group.layers.length}`}
             trailing={
-              // Como los toggles de sección de Weather Lab: la sección está
-              // activa si alguna capa lo está; apagarla apaga todo el grupo.
               <Switch
                 checked={on > 0}
+                mixed={on > 0 && on < group.layers.length}
                 label={t(`groups.${group.id}`)}
                 onChange={(v) => group.layers.forEach((l) => onChange(l.key, v))}
               />
             }
           >
-            <div className="flex flex-col gap-0.5 pl-2">
+            <div className="flex min-w-0 flex-col">
               {group.layers.map((l) => (
                 <LayerToggle
                   key={l.key}
@@ -119,9 +118,9 @@ export default function ControlsPanel({ visibility, onChange, showLegend = true,
               ))}
             </div>
             {group.id === "geo" && visibility.earthquakes && (
-              <div role="group" aria-label={t("minMag")} className="mt-2 flex flex-col gap-1.5 pl-4 pr-2">
-                <span className="text-xs text-ds-text-secondary">{t("minMag")}</span>
-                <div className="flex flex-wrap gap-1.5">
+              <div role="group" aria-label={t("minMag")} className="my-1 flex flex-col gap-1 px-0.5">
+                <span className="ds-eyebrow px-1.5">{t("minMag")}</span>
+                <div className="flex flex-wrap gap-0.5">
                   {MAG_STEPS.map((m) => (
                     <button
                       key={m}
@@ -129,10 +128,10 @@ export default function ControlsPanel({ visibility, onChange, showLegend = true,
                       aria-pressed={minMag === m}
                       onClick={() => onMinMagChange(m)}
                       className={cn(
-                        "h-8 min-w-11 rounded-ds-full border px-3 text-xs font-medium tabular-nums transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ds-primary",
+                        "min-h-11 min-w-11 flex-1 rounded-full border px-1 text-[11px] font-medium tabular-nums hover:shadow-ds-glow active:bg-ds-press focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ds-primary disabled:pointer-events-none disabled:opacity-40",
                         minMag === m
-                          ? "border-transparent bg-ds-secondary-container text-ds-text-primary"
-                          : "border-ds-outline text-ds-text-secondary hover:bg-ds-hover"
+                          ? "border-ds-primary bg-ds-primary-strong/20 text-white"
+                          : "border-ds-control bg-ds-glass text-ds-text-secondary hover:bg-ds-hover"
                       )}
                     >
                       {m === 0 ? t("minMagAll") : `${m}+`}
@@ -153,7 +152,7 @@ export default function ControlsPanel({ visibility, onChange, showLegend = true,
 
       {extra}
 
-      <p className="flex items-start gap-2 border-t border-ds-outline-variant px-4 pb-1 pt-3 text-xs text-ds-text-muted">
+      <p className="flex items-start gap-2 border-t border-ds-divider px-2 py-2 text-xs text-ds-text-muted">
         <MorphIcon icon={Info} size={14} reducedMotion="user" className="mt-px shrink-0" />
         <span>{t("hint")}</span>
       </p>

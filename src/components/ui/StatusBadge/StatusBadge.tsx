@@ -12,29 +12,27 @@ export interface StatusBadgeProps {
   className?: string;
 }
 
-const STATUS_STYLES: Record<SimpleStatus, { dot: string; text: string; bg: string }> = {
-  live: { dot: "bg-ds-status-live", text: "text-ds-status-live", bg: "bg-ds-status-live/10 border-ds-status-live/30" },
-  recent: { dot: "bg-ds-status-recent", text: "text-ds-status-recent", bg: "bg-ds-status-recent/10 border-ds-status-recent/30" },
-  stale: { dot: "bg-ds-status-stale", text: "text-ds-status-stale", bg: "bg-ds-status-stale/10 border-ds-status-stale/30" },
-  unknown: { dot: "bg-ds-status-unknown", text: "text-ds-text-primary", bg: "bg-ds-status-unknown/10 border-ds-status-unknown/30" },
+const STATUS_STYLES: Record<SimpleStatus, { dot: string; text: string }> = {
+  live: { dot: "bg-ds-status-live [--ep-accent:rgb(var(--ds-status-live))]", text: "text-ds-status-live" },
+  recent: { dot: "bg-ds-status-recent [--ep-accent:rgb(var(--ds-status-recent))]", text: "text-ds-status-recent" },
+  stale: { dot: "bg-ds-status-stale [--ep-accent:rgb(var(--ds-status-stale))]", text: "text-ds-status-stale" },
+  unknown: { dot: "bg-ds-status-unknown [--ep-accent:rgb(var(--ds-status-unknown))]", text: "text-ds-text-muted" },
 };
 
-/** Chip de estado (pill con punto), como los tags "Operational" de Weather Lab. */
 export function StatusBadge({ status, label, size = "md", className }: StatusBadgeProps) {
   const t = useTranslations("status");
-  const { dot, text, bg } = STATUS_STYLES[status];
+  const { dot, text } = STATUS_STYLES[status];
 
   return (
     <span
       className={cn(
-        "inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-ds-full border font-medium",
-        size === "sm" ? "h-5 px-2 text-[11px]" : "h-6 px-2.5 text-xs",
+        "inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap font-medium",
+        size === "sm" ? "text-[11px] leading-5" : "text-xs leading-6",
         text,
-        bg,
         className
       )}
     >
-      <span className={cn("h-1.5 w-1.5 rounded-full", dot, status === "live" && "animate-pulse")} />
+      <span aria-hidden="true" className={cn("ds-glow h-1.5 w-1.5 rounded-full", dot)} />
       {label ?? t(status)}
     </span>
   );

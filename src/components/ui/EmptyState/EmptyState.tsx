@@ -15,7 +15,7 @@ export function EmptyState({ icon, title, description, action, className }: Empt
   return (
     <div className={cn("flex flex-col items-center justify-center gap-2 px-4 py-8 text-center", className)}>
       {icon && (
-        <div className="mb-1 grid h-12 w-12 place-items-center rounded-ds-full bg-ds-surface-high text-ds-text-secondary">
+        <div className="mb-1 grid h-12 w-12 place-items-center rounded-full border border-ds-primary/20 bg-ds-primary-strong/10 text-ds-primary shadow-ds-glow">
           <MorphIcon icon={icon} size={22} reducedMotion="user" />
         </div>
       )}
