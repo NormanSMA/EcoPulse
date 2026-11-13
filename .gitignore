@@ -38,8 +38,6 @@ next-env.d.ts
 /Docs ideas/
 /Diseño sistema/
 
-# assets estaticos de Cesium copiados de node_modules por next.config.ts (webpack)
-/public/cesium/
 
 # editores / SO / herramientas locales
 .vscode/

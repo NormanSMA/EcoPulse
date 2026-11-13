@@ -11,7 +11,6 @@ Sismos, incendios, calidad del aire, lluvia, ciclones, volcanes activos y la Est
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)
 ![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-3-06B6D4?logo=tailwindcss&logoColor=white)
 ![MapLibre](https://img.shields.io/badge/MapLibre_GL-5-396CB2?logo=maplibre&logoColor=white)
-![Cesium](https://img.shields.io/badge/CesiumJS-3D-6CADDF?logo=cesium&logoColor=white)
 ![Supabase](https://img.shields.io/badge/Supabase-PostGIS-3FCF8E?logo=supabase&logoColor=white)
 
 </div>
@@ -26,7 +25,7 @@ La idea es sencilla: los datos ambientales públicos existen, pero están disper
 
 ### Qué puedes hacer
 
-- **Explorar 10 capas de datos en vivo** sobre un mapa 2D (MapLibre) o un globo 3D con terreno real (CesiumJS). Ambas vistas muestran los mismos datos, con iconos propios por tipo de evento, agrupación de sismos, mapa de calor de incendios y marcadores que se desvanecen con la antigüedad. Al cambiar de 2D a 3D (o al revés) se conserva la región que estabas viendo.
+- **Explorar 10 capas de datos en vivo** sobre un solo mapa MapLibre con proyección plana (2D) o de globo (3D). Ambas vistas muestran los mismos datos, con iconos propios por tipo de evento, agrupación de sismos, mapa de calor de incendios y marcadores que se desvanecen con la antigüedad. Al cambiar de 2D a 3D (o al revés) se conserva la región que estabas viendo.
 - **Abrir el detalle de cualquier cosa**, sea un evento o un punto cualquiera del mapa, en un panel con datos y gráficos:
   - **Sismo:** magnitud y su tipo, profundidad (superficial, intermedio o profundo), personas que lo sintieron, alerta PAGER, aviso de tsunami y la sismicidad de la zona en los últimos 30 días.
   - **Volcán:** el reporte semanal de actividad.
@@ -101,20 +100,20 @@ Todas estas consultas pasan por rutas propias del servidor (`/api/point`, `/api/
                              ▼
                 ┌──────────────────────────┐
   Navegador ◀── │ Next.js 15 (App Router)  │ ◀── /api/* con caché CDN
-                │ MapLibre 2D · Cesium 3D  │
+                │ MapLibre 2D / globo 3D  │
                 └──────────────────────────┘
 ```
 
 - **Ingesta:** un workflow de GitHub Actions llama a `/api/ingest` cada 30 minutos. Las 8 fuentes se consultan en paralelo, se normalizan a filas tipadas, se deduplican y se guardan en Supabase con upsert.
 - **Lectura:** las rutas públicas `/api/*` consultan las fuentes externas directamente y devuelven GeoJSON con caché de CDN (`s-maxage` + `stale-while-revalidate`) para no gastar sus cuotas. Los errores nunca se cachean. Supabase guarda el histórico de la ingesta, dispara las alertas y resuelve la consulta geoespacial de sismos cercanos; el mapa no lee de Supabase.
-- **Renderizado:** MapLibre GL dibuja las capas en WebGL. Al cambiar de estilo o de datos, las fuentes se actualizan sin recrear el mapa. El globo 3D usa CesiumJS con terreno e imágenes de Cesium Ion.
+- **Renderizado:** MapLibre GL dibuja las capas en WebGL. Al cambiar de estilo o de datos, las fuentes se actualizan sin recrear el mapa. La vista 3D es la misma instancia de MapLibre con proyección `globe`.
 
 ## Stack
 
 | Área | Tecnología |
 |---|---|
 | Framework | Next.js 15 (App Router), React 19, TypeScript |
-| Mapas | MapLibre GL JS 5 · CesiumJS · OpenFreeMap · Esri World Imagery |
+| Mapas | MapLibre GL JS 5 · OpenFreeMap · Esri World Imagery |
 | UI | Tailwind CSS, sistema de diseño propio, Recharts, Lucide + Morphicons |
 | Datos | Supabase (Postgres + PostGIS) |
 | i18n | next-intl (español / inglés) |
@@ -136,7 +135,7 @@ La interfaz sigue un sistema de diseño propio (**Design System 4.0**), inspirad
 
 - Node.js 20 o superior y [pnpm](https://pnpm.io/) 11
 - Un proyecto de [Supabase](https://supabase.com/) con PostGIS habilitado
-- Claves gratuitas de [OpenAQ](https://openaq.org/), [NASA FIRMS](https://firms.modaps.eosdis.nasa.gov/api/map_key/) y [Cesium Ion](https://ion.cesium.com/)
+- Claves gratuitas de [OpenAQ](https://openaq.org/), [NASA FIRMS](https://firms.modaps.eosdis.nasa.gov/api/map_key/)
 
 ### Instalación
 
@@ -159,7 +158,6 @@ Luego abre [http://localhost:3000](http://localhost:3000).
 | `SUPABASE_SERVICE_ROLE_KEY` | Clave de servicio, solo en el servidor, para la ingesta |
 | `OPENAQ_API_KEY` | API key de OpenAQ v3 |
 | `NASA_FIRMS_MAP_KEY` | MAP_KEY de NASA FIRMS |
-| `NEXT_PUBLIC_CESIUM_TOKEN` | Token de Cesium Ion (terreno e imágenes 3D) |
 | `DISCORD_WEBHOOK_URL` | Webhook para las alertas (opcional) |
 | `INGEST_SECRET` | Secreto Bearer que protege `/api/ingest` (**obligatorio en producción**) |
 | `NEXT_PUBLIC_VAPID_PUBLIC_KEY` | Clave pública VAPID para las alertas push (`pnpm dlx web-push generate-vapid-keys`) |
@@ -191,7 +189,7 @@ src/
 │   ├── layout.tsx
 │   └── page.tsx        # Layout principal (mapa + paneles flotantes)
 ├── components/
-│   ├── map/            # MapContainer (MapLibre 2D) · GlobeContainer (Cesium 3D)
+│   ├── map/            # MapContainer (MapLibre, proyección mercator o globe)
 │   └── ui/             # Componentes del sistema de diseño
 ├── design-system/      # Tokens, tema, hooks, i18n
 └── lib/                # Clientes de cada fuente, ingesta, selección compartida 2D/3D, formato, tipos
@@ -200,7 +198,7 @@ messages/               # Traducciones es / en
 
 ## Seguridad
 
-- Content Security Policy con orígenes explícitos y cabeceras de seguridad (HSTS, `X-Frame-Options`, `Permissions-Policy`). `script-src` permite `unsafe-eval` y `unsafe-inline` porque CesiumJS evalúa código y compila WebAssembly en tiempo de ejecución.
+- Content Security Policy con orígenes explícitos y cabeceras de seguridad (HSTS, `X-Frame-Options`, `Permissions-Policy`). `script-src` permite `unsafe-inline` (hidratación de Next sin nonces) y `wasm-unsafe-eval`; `unsafe-eval` solo en desarrollo.
 - `/api/ingest` exige un token Bearer. En producción rechaza la llamada si falta `INGEST_SECRET`. En desarrollo, sin `INGEST_SECRET`, acepta llamadas sin token para facilitar las pruebas locales.
 - Las claves privadas (service role, OpenAQ, FIRMS) nunca llegan al cliente.
 - El texto de terceros (reportes de volcanes, nombres de lugares) se muestra siempre como texto, nunca como HTML.
@@ -211,4 +209,4 @@ messages/               # Traducciones es / en
 
 ## Créditos de datos
 
-Datos de USGS, EMSC, NASA FIRMS, NASA (efemérides de la ISS), GDACS (Comisión Europea / ONU), OpenAQ, Open-Meteo, RainViewer, NOAA NCEI y el Global Volcanism Program del Smithsonian Institution. Nombres de lugares de Photon (Komoot) / OpenStreetMap y GeoNames. Placas tectónicas: Bird, P. (2003), *An updated digital model of plate boundaries*, G³ 4(3), datos PB2002 en GeoJSON de Hugo Ahlenius (ODC-By 1.0). Mapas de © OpenStreetMap contributors, OpenFreeMap, Esri y Cesium Ion.
+Datos de USGS, EMSC, NASA FIRMS, NASA (efemérides de la ISS), GDACS (Comisión Europea / ONU), OpenAQ, Open-Meteo, RainViewer, NOAA NCEI y el Global Volcanism Program del Smithsonian Institution. Nombres de lugares de Photon (Komoot) / OpenStreetMap y GeoNames. Placas tectónicas: Bird, P. (2003), *An updated digital model of plate boundaries*, G³ 4(3), datos PB2002 en GeoJSON de Hugo Ahlenius (ODC-By 1.0). Mapas de © OpenStreetMap contributors, OpenFreeMap y Esri.

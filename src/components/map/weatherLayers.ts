@@ -1,8 +1,12 @@
-import type { GeoJSONSource, Map as MapLibreMap } from "maplibre-gl";
+import type { ExpressionSpecification, GeoJSONSource, Map as MapLibreMap } from "maplibre-gl";
 import type { WeatherFrame } from "../../lib/forecast/types";
-import { colors, layers, withAlpha } from "../../design-system/tokens/colors";
+import { buildFrameFields, fieldToPoints } from "../../lib/forecast/field";
+import { colors, withAlpha } from "../../design-system/tokens/colors";
 
 export const WEATHER_SOURCE = "weather-grid";
+const CLOUDS_SOURCE = "weather-clouds-field";
+const RAIN_SOURCE = "weather-rain-field";
+const EMPTY_FIELD: GeoJSON.FeatureCollection<GeoJSON.Point> = { type: "FeatureCollection", features: [] };
 export const WEATHER_LAYER_IDS = {
   wind: ["weather-wind"],
   clouds: ["weather-clouds"],
@@ -12,6 +16,11 @@ export const WEATHER_LAYER_IDS = {
 
 const { palette } = colors;
 const WIND_ARROW = "ep-weather-wind-arrow";
+
+function fieldRadius(cellDeg: number): ExpressionSpecification {
+  const radius = (cellDeg * 512 / 360) * 1.6;
+  return ["interpolate", ["exponential", 2], ["zoom"], 0, radius, 22, radius * 2 ** 22];
+}
 
 export function weatherFrameToGeoJSON(frame: WeatherFrame | null): GeoJSON.FeatureCollection<GeoJSON.Point> {
   return {
@@ -72,38 +81,50 @@ export function addWeatherLayers(
 ): void {
   if (map.getSource(WEATHER_SOURCE)) return;
   registerWindArrow(map);
+  const fields = buildFrameFields(frame);
+  const radius = fieldRadius(fields?.cellDeg ?? 0.25);
   map.addSource(WEATHER_SOURCE, { type: "geojson", data: weatherFrameToGeoJSON(frame) });
+  map.addSource(CLOUDS_SOURCE, { type: "geojson", data: fields ? fieldToPoints(fields.clouds, 5) : EMPTY_FIELD });
+  map.addSource(RAIN_SOURCE, { type: "geojson", data: fields ? fieldToPoints(fields.rain, 0.05) : EMPTY_FIELD });
 
   map.addLayer({
     id: WEATHER_LAYER_IDS.clouds[0],
-    type: "circle",
-    source: WEATHER_SOURCE,
+    type: "heatmap",
+    source: CLOUDS_SOURCE,
     layout: { visibility: visible.clouds ? "visible" : "none" },
     paint: {
-      "circle-radius": ["interpolate", ["exponential", 2], ["zoom"], 0, 8, 5, 80, 10, 600],
-      "circle-blur": 0.8,
-      "circle-color": palette.greyLight,
-      "circle-opacity": ["interpolate", ["linear"], ["get", "cloudCover"], 0, 0, 100, 0.55],
+      "heatmap-radius": radius,
+      "heatmap-weight": ["/", ["get", "value"], 100],
+      "heatmap-intensity": 0.7,
+      "heatmap-opacity": 0.55,
+      "heatmap-color": [
+        "interpolate", ["linear"], ["heatmap-density"],
+        0, withAlpha(palette.grey, 0),
+        0.2, withAlpha(palette.grey, 0.25),
+        0.6, withAlpha(palette.greyLight, 0.65),
+        1, withAlpha(palette.white, 0.85),
+      ],
     },
   }, beforeId);
 
   map.addLayer({
     id: WEATHER_LAYER_IDS.rain[0],
-    type: "circle",
-    source: WEATHER_SOURCE,
+    type: "heatmap",
+    source: RAIN_SOURCE,
     layout: { visibility: visible.rain ? "visible" : "none" },
     paint: {
-      "circle-radius": ["interpolate", ["exponential", 2], ["zoom"], 0, 6, 5, 60, 10, 450],
-      "circle-blur": 0.8,
-      "circle-color": [
-        "interpolate", ["linear"], ["get", "precipitation"],
+      "heatmap-radius": radius,
+      "heatmap-weight": ["min", 1, ["/", ["get", "value"], 10]],
+      "heatmap-intensity": 0.9,
+      "heatmap-opacity": 0.75,
+      "heatmap-color": [
+        "interpolate", ["linear"], ["heatmap-density"],
         0, withAlpha(palette.blueLight, 0),
         0.2, palette.blueLight,
-        1, layers.radar,
-        4, palette.blueDark,
-        10, palette.purple,
+        0.5, palette.blue,
+        0.75, palette.blueDark,
+        1, palette.purple,
       ],
-      "circle-opacity": ["interpolate", ["linear"], ["get", "precipitation"], 0, 0, 0.2, 0.55, 10, 0.85],
     },
   }, beforeId);
 
@@ -164,4 +185,12 @@ export function addWeatherLayers(
 export function setWeatherFrame(map: MapLibreMap, frame: WeatherFrame | null): void {
   const source = map.getSource(WEATHER_SOURCE) as GeoJSONSource | undefined;
   source?.setData(weatherFrameToGeoJSON(frame));
+  const fields = buildFrameFields(frame);
+  const clouds = map.getSource(CLOUDS_SOURCE) as GeoJSONSource | undefined;
+  const rain = map.getSource(RAIN_SOURCE) as GeoJSONSource | undefined;
+  clouds?.setData(fields ? fieldToPoints(fields.clouds, 5) : EMPTY_FIELD);
+  rain?.setData(fields ? fieldToPoints(fields.rain, 0.05) : EMPTY_FIELD);
+  for (const id of [WEATHER_LAYER_IDS.clouds[0], WEATHER_LAYER_IDS.rain[0]]) {
+    if (map.getLayer(id)) map.setPaintProperty(id, "heatmap-radius", fieldRadius(fields?.cellDeg ?? 0.25));
+  }
 }

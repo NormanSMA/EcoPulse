@@ -68,7 +68,7 @@ function ModeToggle({ mode, onChange, label }: { mode: MapMode; onChange: (m: Ma
 }
 
 /** Menú de mapa base (menu Material 3). Deshabilitado en 3D (Cesium usa su imagería). */
-function BasemapMenu({ value, onChange, disabled }: { value: Basemap; onChange: (b: Basemap) => void; disabled: boolean }) {
+function BasemapMenu({ value, onChange, disabled }: { value: Basemap; onChange: (b: Basemap) => void; disabled?: boolean }) {
   const t = useTranslations("basemap");
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -292,7 +292,7 @@ export default function Header({
 
         <span className="mx-1 hidden h-6 w-px bg-ds-outline-variant sm:block" aria-hidden="true" />
 
-        <BasemapMenu value={basemap} onChange={onBasemapChange} disabled={mapMode === "3d"} />
+        <BasemapMenu value={basemap} onChange={onBasemapChange} />
 
         <IconButton aria-label={`${tLang("toggle")} (${locale.toUpperCase()})`} onClick={toggleLocale} className="relative">
           <MorphIcon icon={Languages} size={20} reducedMotion="user" />

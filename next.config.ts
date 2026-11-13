@@ -1,17 +1,18 @@
 import type { NextConfig } from "next";
-import CopyWebpackPlugin from "copy-webpack-plugin";
 
-// 'unsafe-eval' es necesario también en producción: CesiumJS evalúa código
-// y compila WASM en runtime (verificado: sin él el globo 3D lanza EvalError y
-// WebAssembly.instantiate queda bloqueado). 'unsafe-inline' lo requieren los
-// scripts inline de hidratación de Next al no usar nonces.
+// 'wasm-unsafe-eval' permite WebAssembly.instantiate sin abrir eval() de JS.
+// 'unsafe-eval' solo se añade en desarrollo (React y HMR lo piden). Los
+// 'unsafe-inline' los requieren los scripts inline de hidratación de Next al
+// no usar nonces.
+const scriptSrc = ["'self'", "'wasm-unsafe-eval'", "'unsafe-inline'", ...(process.env.NODE_ENV === "production" ? [] : ["'unsafe-eval'"])].join(" ");
+
 const cspHeader = `
     default-src 'self';
-    script-src 'self' 'unsafe-eval' 'unsafe-inline';
+    script-src ${scriptSrc};
     style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
-    img-src 'self' blob: data: https://tiles.openfreemap.org https://tilecache.rainviewer.com https://*.cesium.com https://*.virtualearth.net https://server.arcgisonline.com;
+    img-src 'self' blob: data: https://tiles.openfreemap.org https://tilecache.rainviewer.com https://server.arcgisonline.com;
     font-src 'self' https://fonts.gstatic.com;
-    connect-src 'self' https://tiles.openfreemap.org https://api.rainviewer.com https://tilecache.rainviewer.com https://*.supabase.co https://api.cesium.com https://assets.ion.cesium.com https://*.cesium.com https://*.virtualearth.net https://dev.virtualearth.net https://server.arcgisonline.com;
+    connect-src 'self' https://tiles.openfreemap.org https://api.rainviewer.com https://tilecache.rainviewer.com https://*.supabase.co https://server.arcgisonline.com;
     worker-src 'self' blob:;
     object-src 'none';
     base-uri 'self';
@@ -27,30 +28,6 @@ const nextConfig: NextConfig = {
   output: process.env.BUILD_STANDALONE ? "standalone" : undefined,
   reactStrictMode: true,
   poweredByHeader: false,
-  // Cesium (Fase 3.3) necesita sus assets estáticos (Workers/Assets/Widgets)
-  // servidos same-origin en /cesium/ — se copian de node_modules en cada build/dev.
-  webpack: (config, { isServer }) => {
-    // @spz-loader/core (Gaussian splats, que EcoPulse no usa) lo importa
-    // Cesium de forma dinámica y trae un WASM embebido como string: el
-    // minificador lo convierte en un template literal con escapes octales
-    // inválidos y el chunk revienta con SyntaxError en producción (el globo
-    // 3D no cargaba). Se reemplaza por un módulo vacío.
-    config.resolve.alias = { ...config.resolve.alias, "@spz-loader/core": false };
-
-    if (!isServer) {
-      config.plugins.push(
-        new CopyWebpackPlugin({
-          patterns: [
-            { from: "node_modules/cesium/Build/Cesium/Workers", to: "../public/cesium/Workers" },
-            { from: "node_modules/cesium/Build/Cesium/ThirdParty", to: "../public/cesium/ThirdParty" },
-            { from: "node_modules/cesium/Build/Cesium/Assets", to: "../public/cesium/Assets" },
-            { from: "node_modules/cesium/Build/Cesium/Widgets", to: "../public/cesium/Widgets" },
-          ],
-        })
-      );
-    }
-    return config;
-  },
   // Algunos navegadores piden /favicon.ico aunque el HTML declare otro icono.
   async rewrites() {
     return [{ source: "/favicon.ico", destination: "/icons/icon-192.png" }];
