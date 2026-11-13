@@ -567,7 +567,7 @@ function HomePageContent() {
             todayLabel={tTime("today")}
             yesterdayLabel={tTime("yesterday")}
             note={timeWindow === "7d" ? tTime("weekNote") : undefined}
-            className="w-full"
+            className="w-full pt-4 sm:pt-3"
           />
           </div>
 

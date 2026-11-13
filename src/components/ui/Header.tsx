@@ -321,7 +321,7 @@ export default function Header({
           >
             <span aria-hidden="true" className={cn("h-2 w-2 shrink-0 rounded-full bg-current", mode === "live" && "animate-pulse motion-reduce:animate-none")} />
             <span aria-hidden="true" className="hidden sm:inline">{tMode(mode)}</span>
-            <span className="sr-only">{tMode(mode)}</span>
+            <span className="sr-only sm:hidden">{tMode(mode)}</span>
           </span>
           <ModeToggle mode={mapMode} onChange={onMapModeChange} label={tMap("label")} />
 
