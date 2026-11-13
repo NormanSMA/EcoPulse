@@ -430,7 +430,9 @@ function HomePageContent() {
   // Desplazamientos de los controles nativos del mapa para no quedar bajo los paneles.
   const stageStyle = {
     "--ep-inset-right-lg": eventsOpen ? "392px" : "16px",
-    "--ep-inset-top-lg": "88px",
+    // Con el panel derecho cerrado, el botón "Eventos" (48 px) ocupa la esquina:
+    // el zoom baja debajo de él para no taparse.
+    "--ep-inset-top-lg": eventsOpen ? "88px" : "148px",
   } as CSSProperties;
 
   // Los paneles de escritorio solo se montan en escritorio: ocultos por CSS
