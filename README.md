@@ -198,7 +198,7 @@ messages/               # Traducciones es / en
 
 ## Seguridad
 
-- Content Security Policy con orígenes explícitos y cabeceras de seguridad (HSTS, `X-Frame-Options`, `Permissions-Policy`). `script-src` permite `unsafe-inline` (hidratación de Next sin nonces) y `wasm-unsafe-eval`; `unsafe-eval` solo en desarrollo.
+- Content Security Policy con orígenes explícitos y cabeceras de seguridad (HSTS, `X-Frame-Options`, `Permissions-Policy`). `script-src` permite `unsafe-inline` (hidratación de Next sin nonces); `unsafe-eval` solo en desarrollo.
 - `/api/ingest` exige un token Bearer. En producción rechaza la llamada si falta `INGEST_SECRET`. En desarrollo, sin `INGEST_SECRET`, acepta llamadas sin token para facilitar las pruebas locales.
 - Las claves privadas (service role, OpenAQ, FIRMS) nunca llegan al cliente.
 - El texto de terceros (reportes de volcanes, nombres de lugares) se muestra siempre como texto, nunca como HTML.
