@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState, type KeyboardEvent } from "react";
+import { useEffect, useMemo, useState, type KeyboardEvent, type CSSProperties } from "react";
 import { useTranslations } from "next-intl";
 import { Waves, Flame, AlertTriangle, Mountain, Tornado, Search, Inbox, Radio, Activity, Siren } from "lucide";
 import type { IconNode } from "lucide";
@@ -10,8 +10,9 @@ import { layers, marker, magnitudeColor, alertColor, stormColor } from "@/design
 import { relativeTime } from "@/lib/format";
 import { selectionKey, type Selection } from "@/lib/selection";
 import type { MapData, LayerVisibility } from "@/components/map/types";
+import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { MetricCard } from "@/components/ui/MetricCard";
+import { StatStrip } from "@/components/ui/MetricCard";
 
 type EventKind = "quake" | "fire" | "disaster" | "cyclone" | "volcano";
 
@@ -223,35 +224,62 @@ export default function EventsPanel({ data, visibility, locale, selected, onPick
   }
 
   return (
-    <div className={cn("flex min-h-0 flex-col gap-3", className)}>
-      <div className="grid shrink-0 grid-cols-3 gap-2">
-        <MetricCard icon={Radio} iconColor={layers.earthquakes} label={tMetrics("earthquakes24h")} value={quakes.length} compact />
-        <MetricCard icon={Activity} iconColor={magnitudeColor(maxMag)} label={tMetrics("maxMagnitude")} value={maxMag ? maxMag.toFixed(1) : "—"} compact />
-        <MetricCard icon={Siren} iconColor={alertColor("Orange")} label={tMetrics("active")} value={active} compact />
+    <div className={cn("flex min-h-0 flex-col", className)}>
+      <StatStrip
+        items={[
+          { icon: Radio, color: layers.earthquakes, label: tMetrics("earthquakes24h"), value: quakes.length },
+          { icon: Activity, color: magnitudeColor(maxMag), label: tMetrics("maxMagnitude"), value: maxMag ? maxMag.toFixed(1) : "—" },
+          { icon: Siren, color: alertColor("Orange"), label: tMetrics("active"), value: active },
+        ]}
+        className="shrink-0 py-2 [&>div]:min-w-0 [&>div]:gap-0.5 [&>div]:px-3 [&_dt]:truncate [&_dt]:whitespace-nowrap [&_dt]:!text-[10px] [&_dd]:text-xl [&_dd]:leading-7"
+      />
+
+      <div className="flex h-11 shrink-0 items-center gap-2">
+        <label className="flex h-9 min-w-0 flex-1 items-center gap-2 rounded-full border border-ds-control bg-white/[0.04] px-3 text-sm hover:bg-ds-hover focus-within:shadow-ds-glow focus-within:ring-2 focus-within:ring-ds-primary">
+          <MorphIcon icon={Search} size={16} reducedMotion="user" className="shrink-0 text-ds-text-secondary" />
+          <input
+            type="search"
+            value={query}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setLimit(PAGE);
+            }}
+            placeholder={t("filter")}
+            aria-label={t("filter")}
+            className="h-11 min-w-0 flex-1 bg-transparent text-ds-text-primary outline-none placeholder:text-ds-text-secondary [&::-webkit-search-cancel-button]:hidden"
+          />
+        </label>
+        <div role="radiogroup" aria-label={t("sort.label")} onKeyDown={onArrowKey} className="flex h-9 shrink-0 rounded-full border border-ds-control p-0.5">
+          {(["relevant", "recent"] as const).map((s) => (
+            <Button
+              variant="text"
+              size="sm"
+              key={s}
+              type="button"
+              role="radio"
+              aria-checked={sort === s}
+              tabIndex={sort === s ? 0 : -1}
+              onClick={() => setSort(s)}
+              className={cn(
+                "h-full px-2 text-[11px]",
+                sort === s ? "bg-ds-secondary-container text-ds-secondary-on-container" : "text-ds-text-secondary hover:bg-ds-hover"
+              )}
+            >
+              {t(`sort.${s}`)}
+            </Button>
+          ))}
+        </div>
       </div>
 
-      <label className="flex h-10 shrink-0 items-center gap-2 rounded-ds-full bg-ds-surface-high px-3 text-sm focus-within:ring-2 focus-within:ring-ds-primary">
-        <MorphIcon icon={Search} size={16} reducedMotion="user" className="shrink-0 text-ds-text-secondary" />
-        <input
-          type="search"
-          value={query}
-          onChange={(e) => {
-            setQuery(e.target.value);
-            setLimit(PAGE);
-          }}
-          placeholder={t("filter")}
-          aria-label={t("filter")}
-          className="min-w-0 flex-1 bg-transparent text-ds-text-primary outline-none placeholder:text-ds-text-secondary [&::-webkit-search-cancel-button]:hidden"
-        />
-      </label>
-
-      <div className="-mx-1 flex shrink-0 gap-1.5 overflow-x-auto px-1 pb-0.5 [scrollbar-width:none]" role="tablist" aria-label={tEvents("title")} onKeyDown={onArrowKey}>
+      <div className="-mx-1 flex h-11 shrink-0 items-center gap-1.5 overflow-x-auto px-1 [scrollbar-width:none]" role="tablist" aria-label={tEvents("title")} onKeyDown={onArrowKey}>
         {chips.map((c) => {
           const n = counts[c] ?? 0;
           if (c !== "all" && n === 0) return null;
           const activeChip = kind === c;
           return (
-            <button
+            <Button
+              variant="text"
+              size="sm"
               key={c}
               type="button"
               role="tab"
@@ -262,36 +290,17 @@ export default function EventsPanel({ data, visibility, locale, selected, onPick
                 setLimit(PAGE);
               }}
               className={cn(
-                "inline-flex h-8 shrink-0 items-center gap-1.5 rounded-ds-md border px-3 text-[13px] font-medium transition-colors duration-ds-fast",
+                "h-8 shrink-0 gap-1.5 border px-3 text-[13px]",
                 activeChip
                   ? "border-transparent bg-ds-secondary-container text-ds-secondary-on-container"
-                  : "border-ds-outline-variant text-ds-text-secondary hover:bg-ds-hover"
+                  : "border-ds-control text-ds-text-secondary hover:bg-ds-hover"
               )}
             >
               {t(`chips.${c}`)}
               <span className="tabular-nums opacity-70">{n > 999 ? "999+" : n}</span>
-            </button>
+            </Button>
           );
         })}
-      </div>
-
-      <div role="radiogroup" aria-label={t("sort.label")} onKeyDown={onArrowKey} className="flex h-8 shrink-0 self-start rounded-ds-full border border-ds-outline p-0.5">
-        {(["relevant", "recent"] as const).map((s) => (
-          <button
-            key={s}
-            type="button"
-            role="radio"
-            aria-checked={sort === s}
-            tabIndex={sort === s ? 0 : -1}
-            onClick={() => setSort(s)}
-            className={cn(
-              "rounded-ds-full px-3 text-xs font-medium transition-colors",
-              sort === s ? "bg-ds-secondary-container text-ds-secondary-on-container" : "text-ds-text-secondary hover:bg-ds-hover"
-            )}
-          >
-            {t(`sort.${s}`)}
-          </button>
-        ))}
       </div>
 
       <div role="status" aria-atomic="true" className={loading ? "text-sm text-ds-text-secondary" : "sr-only"}>
@@ -301,7 +310,7 @@ export default function EventsPanel({ data, visibility, locale, selected, onPick
       {list.length === 0 ? !loading && !error && (
         <EmptyState icon={Inbox} title={tEvents("empty")} description={tEvents("emptyDescription")} />
       ) : (
-        <ul className="-mx-1 flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto overscroll-contain">
+        <ul className="-mx-1 flex min-h-0 flex-1 flex-col divide-y divide-ds-divider overflow-y-auto overscroll-contain">
           {list.slice(0, limit).map((item) => {
             const isSelected = selectionKey(item.selection) === selectedKey;
             return (
@@ -311,22 +320,16 @@ export default function EventsPanel({ data, visibility, locale, selected, onPick
                   onClick={() => onPick(item)}
                   aria-pressed={isSelected}
                   className={cn(
-                    "flex w-full items-center gap-3 rounded-ds-control px-3 py-2.5 text-left transition-colors duration-ds-fast",
+                    "flex min-h-11 w-full items-center gap-3 px-3 py-3 text-left transition-colors duration-ds-fast active:bg-ds-press focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ds-primary",
                     isSelected ? "bg-ds-secondary-container/60" : "hover:bg-ds-hover"
                   )}
                 >
-                  {item.kind === "quake" ? (
-                    <span
-                      className="grid h-10 w-10 shrink-0 place-items-center rounded-ds-full text-sm font-medium tabular-nums text-ds-text-primary"
-                      style={{ backgroundColor: `${item.color}26`, boxShadow: `inset 0 0 0 1.5px ${item.color}66` }}
-                    >
-                      {item.mag?.toFixed(1)}
-                    </span>
-                  ) : (
-                    <span className="grid h-10 w-10 shrink-0 place-items-center rounded-ds-full" style={{ color: item.color, backgroundColor: `${item.color}26` }}>
-                      <MorphIcon icon={item.icon} size={18} reducedMotion="user" />
-                    </span>
-                  )}
+                  <span
+                    className="ds-glow grid h-10 w-10 shrink-0 place-items-center rounded-full border-[1.5px] border-[color:var(--ep-accent)] bg-[color:color-mix(in_srgb,var(--ep-accent)_12%,transparent)] text-sm font-medium tabular-nums text-[color:var(--ep-accent)]"
+                    style={{ "--ep-accent": item.color } as CSSProperties}
+                  >
+                    {item.kind === "quake" ? <span className="text-white">{item.mag?.toFixed(1)}</span> : <MorphIcon icon={item.icon} size={18} reducedMotion="user" />}
+                  </span>
                   <span className="flex min-w-0 flex-1 flex-col">
                     <span className="truncate text-sm font-medium text-ds-text-primary">{item.title}</span>
                     <span className="flex min-w-0 items-center gap-1.5 text-xs text-ds-text-secondary">
@@ -340,12 +343,12 @@ export default function EventsPanel({ data, visibility, locale, selected, onPick
                     </span>
                   </span>
                   <span className="flex shrink-0 flex-col items-end gap-1">
-                    {item.time != null && <span className="text-[11px] tabular-nums text-ds-text-muted">{relativeTime(item.time, locale)}</span>}
+                    {item.time != null && <span className="text-[11px] tabular-nums text-ds-text-secondary">{relativeTime(item.time, locale)}</span>}
                     {item.tsunami && (
                       <span className="rounded-ds-full bg-ds-error/15 px-2 text-[11px] font-medium text-ds-error">{t("tsunami")}</span>
                     )}
                     {item.badge && !item.tsunami && (
-                      <span className="rounded-ds-full px-2 text-[11px] font-medium" style={{ color: item.color, backgroundColor: `${item.color}26` }}>
+                      <span className="rounded-full bg-[color:color-mix(in_srgb,var(--ep-accent)_15%,transparent)] px-2 text-[11px] font-medium text-[color:var(--ep-accent)]" style={{ "--ep-accent": item.color } as CSSProperties}>
                         {item.badge}
                       </span>
                     )}
@@ -356,9 +359,9 @@ export default function EventsPanel({ data, visibility, locale, selected, onPick
           })}
           {list.length > limit && (
             <li className="px-3 py-2">
-              <button type="button" onClick={() => setLimit((l) => l + PAGE)} className="text-sm font-medium text-ds-primary hover:underline">
+              <Button variant="text" onClick={() => setLimit((l) => l + PAGE)} className="min-h-11">
                 {t("more")} ({list.length - limit})
-              </button>
+              </Button>
             </li>
           )}
         </ul>

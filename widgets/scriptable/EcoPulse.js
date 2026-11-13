@@ -6,11 +6,13 @@
 
 const APP = "https://ecopulse-eta-two.vercel.app";
 const C = {
-  bg: new Color("#0f1013"),
-  track: new Color("#ffffff", 0.12),
+  bg: new Color("#050811"),
+  track: new Color("#ffffff", 0.1),
   text: new Color("#ffffff"),
-  muted: new Color("#ffffff", 0.6),
-  brand: new Color("#a8c7fa"),
+  muted: new Color("#94a3b8"),
+  brand: new Color("#38bdf8"),
+  live: new Color("#00e676"),
+  warn: new Color("#ffd600"),
 };
 
 async function load() {
@@ -94,14 +96,14 @@ async function build() {
   } catch (e) {
     addText(w, "EcoPulse", Font.semiboldSystemFont(13), C.brand);
     w.addSpacer();
-    addText(w, "Sin conexión", Font.semiboldSystemFont(17), C.text);
+    addText(w, "Sin conexión", Font.semiboldSystemFont(17), C.warn);
     addText(w, "Se reintentará pronto", Font.systemFont(12), C.muted);
     return w;
   }
 
   const q = data.quakes.nearest || data.quakes.strongest;
   if (!q) {
-    addText(w, "EcoPulse", Font.semiboldSystemFont(13), C.brand);
+    addText(w, "EcoPulse", Font.semiboldSystemFont(13), C.live);
     w.addSpacer();
     addText(w, "Sin sismos", Font.semiboldSystemFont(20), C.text);
     addText(w, "en las últimas 24 h", Font.systemFont(12), C.muted);

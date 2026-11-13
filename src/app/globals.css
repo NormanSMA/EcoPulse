@@ -15,7 +15,9 @@
     font-family: var(--ds-font-sans);
     font-optical-sizing: auto;
     color: rgb(var(--ds-text-primary));
-    background: rgb(var(--ds-canvas));
+    background-color: rgb(var(--ds-canvas));
+    background-image: var(--ds-halo-blue),
+      linear-gradient(180deg, rgb(var(--ds-canvas)) 0%, rgb(var(--ds-canvas-deep)) 100%);
     overflow: hidden;
     -webkit-tap-highlight-color: transparent;
     transition: background-color var(--ds-duration-theme) var(--ds-ease),
@@ -81,6 +83,49 @@
     --ep-inset-bottom: 16px;
     --ep-inset-left: 16px;
   }
+
+  /* Superficie de vidrio: obsidiana translúcida, puntos, blur y borde claro. */
+  .ds-glass {
+    background-color: var(--ds-glass-bg);
+    background-image: var(--ds-glass-dots);
+    background-size: var(--ds-glass-dots-size);
+    backdrop-filter: blur(var(--ds-glass-blur)) saturate(140%);
+    -webkit-backdrop-filter: blur(var(--ds-glass-blur)) saturate(140%);
+    border: 1px solid var(--ds-glass-border);
+    box-shadow: var(--ds-glass-inset), var(--ds-shadow-2);
+  }
+
+  /* Etiqueta de sección en versalitas. */
+  .ds-eyebrow {
+    font-size: 11px;
+    line-height: 16px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: rgb(var(--ds-text-secondary));
+  }
+
+  /* Halo neón con el acento de la capa (--ep-accent). */
+  .ds-glow {
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--ep-accent, #38bdf8) 60%, transparent),
+      0 0 14px color-mix(in srgb, var(--ep-accent, #38bdf8) 55%, transparent),
+      inset 0 0 8px color-mix(in srgb, var(--ep-accent, #38bdf8) 45%, transparent);
+  }
+}
+
+@media (max-width: 639px) {
+  :root {
+    --ds-glass-blur: 12px;
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .ds-glass {
+    background-color: rgb(var(--ds-surface));
+    background-image: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
 }
 
 .ep-map-stage .maplibregl-ctrl-top-right {
@@ -97,14 +142,16 @@
   margin: 0;
 }
 
-/* Grupo de zoom/brújula: columna pill, como los controles de Weather Lab. */
+/* Grupo de zoom/brújula: columna pill de vidrio. */
 .ep-map-stage .maplibregl-ctrl-group {
-  background: var(--ds-panel-strong);
-  backdrop-filter: blur(var(--ds-panel-blur));
-  -webkit-backdrop-filter: blur(var(--ds-panel-blur));
-  border: 1px solid rgb(var(--ds-outline-variant));
+  background-color: var(--ds-glass-bg);
+  background-image: var(--ds-glass-dots);
+  background-size: var(--ds-glass-dots-size);
+  backdrop-filter: blur(var(--ds-glass-blur)) saturate(140%);
+  -webkit-backdrop-filter: blur(var(--ds-glass-blur)) saturate(140%);
+  border: 1px solid var(--ds-glass-border);
   border-radius: var(--ds-radius-pill);
-  box-shadow: var(--ds-shadow-2);
+  box-shadow: var(--ds-glass-inset), var(--ds-shadow-2);
   overflow: hidden;
 }
 .ep-map-stage .maplibregl-ctrl-group button {
@@ -113,10 +160,10 @@
   background-color: transparent;
 }
 .ep-map-stage .maplibregl-ctrl-group button + button {
-  border-top: 1px solid rgb(var(--ds-outline-variant));
+  border-top: 1px solid var(--ds-divider);
 }
 .ep-map-stage .maplibregl-ctrl-group button:not(:disabled):hover {
-  background-color: var(--ds-state-hover);
+  background-color: rgb(var(--ds-primary-strong) / 0.18);
 }
 .ep-map-stage .maplibregl-ctrl-group button:not(:disabled):active {
   background-color: var(--ds-state-press);
@@ -148,9 +195,9 @@
   mask-size: 22px;
 }
 
-/* Atribución compacta: pill discreta. */
+/* Atribución compacta: pill de vidrio discreta. */
 .ep-map-stage .maplibregl-ctrl-attrib {
-  background: var(--ds-panel-strong);
+  background: var(--ds-glass-bg);
   color: rgb(var(--ds-text-secondary));
   border-radius: var(--ds-radius-pill);
   font-size: 11px;
@@ -162,9 +209,6 @@
   background-color: transparent;
   filter: var(--ep-attrib-filter, invert(1));
 }
-:root[data-theme="light"] .ep-map-stage {
-  --ep-attrib-filter: none;
-}
 
 /* ------------------------------------------------------------------ */
 /* Popups (MapLibre). El HTML interno lo genera          */
@@ -173,13 +217,15 @@
 /* ------------------------------------------------------------------ */
 
 .maplibregl-popup-content {
-  background: var(--ds-panel-strong) !important;
-  backdrop-filter: blur(var(--ds-panel-blur));
-  -webkit-backdrop-filter: blur(var(--ds-panel-blur));
+  background-color: var(--ds-glass-bg) !important;
+  background-image: var(--ds-glass-dots);
+  background-size: var(--ds-glass-dots-size);
+  backdrop-filter: blur(var(--ds-glass-blur)) saturate(140%);
+  -webkit-backdrop-filter: blur(var(--ds-glass-blur)) saturate(140%);
   color: rgb(var(--ds-text-primary)) !important;
-  border-radius: 20px !important;
-  border: 1px solid rgb(var(--ds-outline-variant)) !important;
-  box-shadow: var(--ds-shadow-3) !important;
+  border-radius: var(--ds-radius-card) !important;
+  border: 1px solid var(--ds-glass-border) !important;
+  box-shadow: var(--ds-glass-inset), var(--ds-shadow-3) !important;
   padding: 14px 16px !important;
   font-family: var(--ds-font-sans);
 }
@@ -190,18 +236,18 @@
 .maplibregl-popup-anchor-top .maplibregl-popup-tip,
 .maplibregl-popup-anchor-top-left .maplibregl-popup-tip,
 .maplibregl-popup-anchor-top-right .maplibregl-popup-tip {
-  border-bottom-color: rgb(var(--ds-outline-variant)) !important;
+  border-bottom-color: rgb(18 22 31 / 0.9) !important;
 }
 .maplibregl-popup-anchor-bottom .maplibregl-popup-tip,
 .maplibregl-popup-anchor-bottom-left .maplibregl-popup-tip,
 .maplibregl-popup-anchor-bottom-right .maplibregl-popup-tip {
-  border-top-color: rgb(var(--ds-outline-variant)) !important;
+  border-top-color: rgb(18 22 31 / 0.9) !important;
 }
 .maplibregl-popup-anchor-left .maplibregl-popup-tip {
-  border-right-color: rgb(var(--ds-outline-variant)) !important;
+  border-right-color: rgb(18 22 31 / 0.9) !important;
 }
 .maplibregl-popup-anchor-right .maplibregl-popup-tip {
-  border-left-color: rgb(var(--ds-outline-variant)) !important;
+  border-left-color: rgb(18 22 31 / 0.9) !important;
 }
 
 .maplibregl-popup-close-button {
@@ -242,8 +288,9 @@
   width: 10px;
   height: 10px;
   flex-shrink: 0;
-  border-radius: 3px;
+  border-radius: 999px;
   background: var(--ep-accent);
+  box-shadow: 0 0 8px var(--ep-accent);
 }
 .ep-popup__title {
   font-size: 15px;
@@ -284,7 +331,8 @@
   flex-direction: column;
   padding: 8px 10px;
   border-radius: 12px;
-  background: rgb(var(--ds-surface-container-high));
+  background: rgb(255 255 255 / 0.04);
+  border: 1px solid var(--ds-divider);
 }
 .ep-popup__stat-label {
   font-size: 11px;

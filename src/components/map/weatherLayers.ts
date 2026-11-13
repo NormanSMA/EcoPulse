@@ -17,6 +17,10 @@ export const WEATHER_LAYER_IDS = {
 const { palette } = colors;
 const WIND_ARROW = "ep-weather-wind-arrow";
 
+export function windArrowsVisible(layerOn: boolean, reducedMotion: boolean, hasField: boolean): boolean {
+  return layerOn && (reducedMotion || !hasField);
+}
+
 function fieldRadius(cellDeg: number): ExpressionSpecification {
   const radius = (cellDeg * 512 / 360) * 1.6;
   return ["interpolate", ["exponential", 2], ["zoom"], 0, radius, 22, radius * 2 ** 22];
@@ -123,7 +127,7 @@ export function addWeatherLayers(
         0.2, palette.blueLight,
         0.5, palette.blue,
         0.75, palette.blueDark,
-        1, palette.purple,
+        1, palette.violet,
       ],
     },
   }, beforeId);
@@ -154,7 +158,7 @@ export function addWeatherLayers(
       "icon-allow-overlap": true,
     },
     paint: {
-      "icon-color": ["interpolate", ["linear"], ["get", "windSpeed"], 0, palette.blueLight, 30, palette.teal, 60, palette.purple],
+      "icon-color": ["interpolate", ["linear"], ["get", "windSpeed"], 0, palette.blueLight, 30, palette.cyan, 60, palette.violet],
       "icon-halo-color": palette.ink,
       "icon-halo-width": 1,
     },

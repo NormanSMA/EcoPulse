@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import { scales, layers, marker, type LayerKey } from "@/design-system/tokens";
 import { boundaryColor } from "@/design-system/tokens";
@@ -21,7 +21,7 @@ const AQI_ORDER = ["good", "moderate", "unhealthy", "hazardous"] as const;
 function Block({ title, children }: { title: string; children: ReactNode }) {
   return (
     <div className="flex min-w-0 flex-col gap-1.5">
-      <span className="text-xs text-ds-text-secondary">{title}</span>
+      <span className="ds-eyebrow">{title}</span>
       {children}
     </div>
   );
@@ -34,7 +34,7 @@ export function Legend({ variant = "inline", visibility, className }: LegendProp
 
   const magnitude = on("earthquakes") && (
     <Block title={t("magnitude")}>
-      <div className="h-2 w-full rounded-ds-full" style={{ background: MAG_GRADIENT }} />
+      <div className="h-2 w-full rounded-full bg-[image:var(--ep-gradient)]" style={{ "--ep-gradient": MAG_GRADIENT } as CSSProperties} />
       <div className="flex justify-between text-[11px] tabular-nums text-ds-text-muted">
         {scales.magnitude.map((s) => (
           <span key={s.stop}>{s.stop}</span>
@@ -47,7 +47,7 @@ export function Legend({ variant = "inline", visibility, className }: LegendProp
     <Block title={t("storm")}>
       <div className="flex h-2 w-full overflow-hidden rounded-ds-full">
         {scales.storm.map((s) => (
-          <span key={s.key} className="flex-1" style={{ backgroundColor: s.color }} />
+          <span key={s.key} className="flex-1 bg-[color:var(--ep-accent)]" style={{ "--ep-accent": s.color } as CSSProperties} />
         ))}
       </div>
       <div className="flex justify-between text-[11px] tabular-nums text-ds-text-muted">
@@ -63,7 +63,7 @@ export function Legend({ variant = "inline", visibility, className }: LegendProp
     return (
       <div
         className={cn(
-          "flex w-64 flex-col gap-3 rounded-ds-2xl border border-ds-outline-variant bg-ds-panel px-4 py-3 shadow-ds-2 backdrop-blur-ds-panel",
+          "ds-glass flex w-64 max-w-full flex-col gap-3 rounded-ds-card px-3 py-3",
           className
         )}
       >
@@ -75,7 +75,7 @@ export function Legend({ variant = "inline", visibility, className }: LegendProp
 
   const fires = on("fires") && (
     <Block title={t("fires")}>
-      <div className="h-2 w-full rounded-ds-full" style={{ background: FIRE_GRADIENT }} />
+      <div className="h-2 w-full rounded-full bg-[image:var(--ep-gradient)]" style={{ "--ep-gradient": FIRE_GRADIENT } as CSSProperties} />
       <div className="flex justify-between text-[11px] text-ds-text-muted">
         <span>{t("low")}</span>
         <span>{t("high")}</span>
@@ -88,7 +88,7 @@ export function Legend({ variant = "inline", visibility, className }: LegendProp
       <ul className="grid grid-cols-2 gap-x-3 gap-y-2">
         {AQI_ORDER.map((k) => (
           <li key={k} className="flex items-center gap-2 text-xs text-ds-text-primary">
-            <span className="h-3 w-3 shrink-0 rounded-[3px]" style={{ backgroundColor: scales.aqi[k] }} />
+            <span aria-hidden="true" className="ds-glow h-3 w-3 shrink-0 rounded-full bg-[color:var(--ep-accent)]" style={{ "--ep-accent": scales.aqi[k] } as CSSProperties} />
             {t(`aqiLevels.${k}`)}
           </li>
         ))}
@@ -101,7 +101,7 @@ export function Legend({ variant = "inline", visibility, className }: LegendProp
       <ul className="flex flex-wrap gap-x-4 gap-y-2">
         {(["Green", "Orange", "Red"] as const).map((k) => (
           <li key={k} className="flex items-center gap-2 text-xs text-ds-text-primary">
-            <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: scales.alert[k] }} />
+            <span aria-hidden="true" className="ds-glow h-3 w-3 shrink-0 rounded-full bg-[color:var(--ep-accent)]" style={{ "--ep-accent": scales.alert[k] } as CSSProperties} />
             {t(`alertLevels.${k}`)}
           </li>
         ))}
@@ -117,7 +117,7 @@ export function Legend({ variant = "inline", visibility, className }: LegendProp
           ["continuing", marker.volcanoContinuing],
         ] as const).map(([k, color]) => (
           <li key={k} className="flex items-center gap-2 text-xs text-ds-text-primary">
-            <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: color }} />
+            <span aria-hidden="true" className="ds-glow h-3 w-3 shrink-0 rounded-full bg-[color:var(--ep-accent)]" style={{ "--ep-accent": color } as CSSProperties} />
             {t(`volcanoStatus.${k}`)}
           </li>
         ))}
@@ -127,7 +127,7 @@ export function Legend({ variant = "inline", visibility, className }: LegendProp
 
   const radar = on("radar") && (
     <Block title={t("radar")}>
-      <div className="h-2 w-full rounded-ds-full" style={{ background: RADAR_GRADIENT }} />
+      <div className="h-2 w-full rounded-full bg-[image:var(--ep-gradient)]" style={{ "--ep-gradient": RADAR_GRADIENT } as CSSProperties} />
       <div className="flex justify-between text-[11px] text-ds-text-muted">
         <span>{t("light")}</span>
         <span>{t("heavy")}</span>
@@ -140,17 +140,11 @@ export function Legend({ variant = "inline", visibility, className }: LegendProp
       <ul className="flex flex-col gap-2">
         {(["divergent", "convergent", "transform"] as const).map((k) => (
           <li key={k} className="flex items-center gap-2 text-xs text-ds-text-primary">
-            <svg width="24" height="4" className="shrink-0" aria-hidden>
-              <line
-                x1="0"
-                y1="2"
-                x2="24"
-                y2="2"
-                stroke={boundaryColor(k)}
-                strokeWidth="3"
-                strokeDasharray={k === "transform" ? "5 3" : undefined}
-              />
-            </svg>
+            <span
+              aria-hidden="true"
+              className={cn("ds-glow h-3 w-3 shrink-0 rounded-full border-2 border-[color:var(--ep-accent)] bg-[color:color-mix(in_srgb,var(--ep-accent)_30%,transparent)]", k === "transform" && "border-dashed")}
+              style={{ "--ep-accent": boundaryColor(k) } as CSSProperties}
+            />
             {t(`boundaryTypes.${k}`)}
           </li>
         ))}
@@ -160,7 +154,7 @@ export function Legend({ variant = "inline", visibility, className }: LegendProp
 
   const empty = ![magnitude, storms, fires, aqi, alerts, volcanoes, radar, boundaries].some(Boolean);
   return (
-    <div className={cn("flex flex-col gap-4 px-3", className)}>
+    <div className={cn("ds-glass flex min-w-0 flex-col gap-3 rounded-ds-card p-3", className)}>
       {magnitude}
       {storms}
       {fires}

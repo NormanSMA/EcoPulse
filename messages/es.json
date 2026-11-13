@@ -1,4 +1,15 @@
 {
+  "time": {
+    "groupPast": "Pasado",
+    "groupLive": "LIVE",
+    "groupForecast": "Pronóstico"
+  },
+  "mode": {
+    "live": "EN VIVO",
+    "history": "HISTORIAL",
+    "forecast": "PRONÓSTICO",
+    "offline": "SIN CONEXIÓN"
+  },
   "mapKeyboard": {
     "mapLabel": "Mapa interactivo. Pulsa Enter o Espacio para seleccionar el elemento más cercano al centro o el punto central.",
     "globeLabel": "Globo interactivo. Pulsa Enter o Espacio para seleccionar el elemento más cercano al centro o el punto central.",
@@ -45,8 +56,8 @@
   },
   "metrics": {
     "earthquakes24h": "Sismos 24h",
-    "maxMagnitude": "Magnitud máx.",
-    "active": "Eventos activos"
+    "maxMagnitude": "Mag. máx.",
+    "active": "Activos"
   },
   "status": {
     "live": "Live",
@@ -58,10 +69,6 @@
     "placeholder": "Buscar sismos por lugar",
     "shortcutHint": "Ctrl+K",
     "toggle": "Mostrar búsqueda"
-  },
-  "theme": {
-    "toLight": "Cambiar a tema claro",
-    "toDark": "Cambiar a tema oscuro"
   },
   "language": {
     "es": "Español",
@@ -517,6 +524,7 @@
     "clearFilter": "Quitar filtro de radio"
   },
   "zones": {
+    "readyOffline": "Zona lista sin conexión",
     "title": "Zonas sin conexión",
     "intro": "Descarga el pronóstico de 72 h y los eventos cercanos para consultarlos sin internet.",
     "tierLabel": "Tamaño de la zona",

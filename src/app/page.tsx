@@ -3,11 +3,11 @@
 import { useState, useEffect, useMemo, useCallback, useReducer, useRef, type CSSProperties, type ReactNode } from "react";
 import dynamic from "next/dynamic";
 import { useTranslations } from "next-intl";
-import { ChevronDown, Clock, Download, Inbox, SlidersHorizontal, WifiOff, X } from "lucide";
+import { ChevronDown, Clock, Download, Inbox, SlidersHorizontal, X } from "lucide";
 import type { IconNode } from "lucide";
 import { MorphIcon } from "morphicons/react";
 import { I18nProvider, useLocale } from "@/design-system/i18n/I18nProvider";
-import { useFreshness, useTheme, useBasemap } from "@/design-system/hooks";
+import { useBasemap } from "@/design-system/hooks";
 import type { LayerKey } from "@/design-system/tokens";
 import { cn } from "@/design-system/utils/cn";
 import { DEFAULT_MAP_VIEW, type MapView } from "@/lib/mapView";
@@ -30,10 +30,9 @@ import ControlsPanel from "@/components/ui/ControlsPanel";
 import EventsPanel, { type EventItem } from "@/components/ui/EventsPanel";
 import { DetailPanel, preloadDetailCharts } from "@/components/ui/DetailPanel";
 import { Button, IconButton } from "@/components/ui/Button";
-import { StatusBadge } from "@/components/ui/StatusBadge";
 import { TimeControl } from "@/components/ui/TimeControl";
 import { explorerReducer, initialExplorerState, inSpatialFilter, mobileSheet, type Layout } from "@/lib/explorerState";
-import { HOUR_MS, playbackEnded, resolveTimeline, seekTime, type TimeWindow } from "@/lib/timeline";
+import { HOUR_MS, globalMode, playbackEnded, resolveTimeline, seekTime, type TimeWindow } from "@/lib/timeline";
 import { Legend } from "@/components/ui/Legend";
 
 const MAP_LOADING = (
@@ -73,9 +72,9 @@ const INITIAL_VISIBILITY: LayerVisibility = {
 /** Cabecera de panel flotante: título + cerrar (como "Controls ✕" de Weather Lab). */
 function PanelHeader({ title, icon, meta, onClose, closeLabel, autoFocusClose }: { title: string; icon: IconNode; meta?: ReactNode; onClose: () => void; closeLabel: string; autoFocusClose?: boolean }) {
   return (
-    <div className="flex h-16 shrink-0 items-center gap-3 border-b border-ds-outline-variant pl-5 pr-3">
+    <div className="flex h-14 shrink-0 items-center gap-3 border-b border-ds-divider pl-5 pr-2">
       <MorphIcon icon={icon} size={20} reducedMotion="user" className="shrink-0 text-ds-text-secondary" />
-      <h2 className="min-w-0 flex-1 truncate text-lg font-medium text-ds-text-primary">{title}</h2>
+      <h2 className="ds-eyebrow min-w-0 flex-1 truncate !text-[12px] !text-ds-text-primary">{title}</h2>
       {meta}
       <IconButton aria-label={closeLabel} onClick={onClose} autoFocus={autoFocusClose}>
         <MorphIcon icon={X} size={20} reducedMotion="user" />
@@ -118,8 +117,7 @@ function HomePageContent() {
   const [playing, setPlaying] = useState(false);
   const [mapMode, setMapMode] = useState<MapMode>("2d");
   const [mapView, setMapView] = useState<MapView>(DEFAULT_MAP_VIEW);
-  const { theme, toggleTheme } = useTheme();
-  const { basemap, setBasemap } = useBasemap(theme);
+  const { basemap, setBasemap } = useBasemap();
   const [timeOpen, setTimeOpen] = useState(true);
 
   // ---------- Conexión y arranque sin red ----------
@@ -315,8 +313,6 @@ function HomePageContent() {
     () => Object.fromEntries(Object.entries(live.sourceStatus).map(([key, s]) => [key, s.status === "error" || s.status === "timeout"])),
     [live.sourceStatus]
   );
-  const feedStatus = useFreshness(live.earthquakes.metadata.generated || null);
-  const feedBadge = live.earthquakes.metadata.generated ? <StatusBadge status={feedStatus} size="sm" /> : null;
 
   // ---------- Selección (misma para 2D y 3D) ----------
   const resolved = useMemo(() => resolveSelection(selection, data, live.weekQuakes?.features), [selection, data, live.weekQuakes]);
@@ -422,16 +418,27 @@ function HomePageContent() {
   const shownBasemap = online ? basemap : "offline";
   const shownMode: MapMode = online ? mapMode : "2d";
 
+  // Texto del indicador sin conexión (antes era un banner bajo el header).
+  const offlineNote = [
+    tOffline("banner"),
+    live.snapshotAt != null
+      ? tOffline("snapshot", { date: new Date(live.snapshotAt).toLocaleString(locale, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) })
+      : "",
+    mapMode === "3d" ? `${tOffline("globeDisabled")}.` : "",
+  ].filter(Boolean).join(" ");
+
   // Desplazamientos de los controles nativos del mapa para no quedar bajo los paneles.
   const stageStyle = {
-    "--ep-inset-right-lg": eventsOpen ? "408px" : "16px",
-    "--ep-inset-top-lg": eventsOpen ? "16px" : "80px",
+    "--ep-inset-right-lg": eventsOpen ? "392px" : "16px",
+    // Con el panel derecho cerrado, el botón "Eventos" (48 px) ocupa la esquina:
+    // el zoom baja debajo de él para no taparse.
+    "--ep-inset-top-lg": eventsOpen ? "88px" : "148px",
   } as CSSProperties;
 
   // Los paneles de escritorio solo se montan en escritorio: ocultos por CSS
   // seguirían pidiendo datos del detalle y recalculando la lista de eventos.
   const floatingPanel =
-    `absolute ${timeOpen ? "bottom-[128px]" : "bottom-[80px]"} top-4 z-10 hidden animate-ds-pop-in flex-col overflow-hidden rounded-ds-panel border border-ds-outline-variant bg-ds-panel shadow-ds-2 backdrop-blur-ds-panel lg:flex`;
+    `ds-glass absolute ${timeOpen ? "bottom-[128px]" : "bottom-[80px]"} top-[88px] z-10 hidden animate-ds-pop-in flex-col overflow-hidden rounded-ds-panel lg:flex`;
 
   return (
     <main className="relative flex h-dvh w-full flex-col overflow-hidden bg-ds-canvas">
@@ -443,27 +450,17 @@ function HomePageContent() {
         onMapModeChange={changeMapMode}
         basemap={basemap}
         onBasemapChange={setBasemap}
-        theme={theme}
-        onToggleTheme={toggleTheme}
+        mode={globalMode({ online, window: timeWindow, playing })}
+        offlineNote={online ? undefined : offlineNote}
       />
 
-      {!online && (
-        <p role="status" className="flex shrink-0 items-center gap-2 border-b border-ds-outline-variant bg-ds-surface-container px-4 py-2 text-xs font-medium text-ds-warning">
-          <MorphIcon icon={WifiOff} size={16} reducedMotion="user" className="shrink-0" />
-          <span className="min-w-0 flex-1">
-            {tOffline("banner")}
-            {live.snapshotAt != null && ` ${tOffline("snapshot", { date: new Date(live.snapshotAt).toLocaleString(locale, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) })}`}
-            {mapMode === "3d" && ` ${tOffline("globeDisabled")}.`}
-          </span>
-        </p>
-      )}
 
       <div
         style={stageStyle}
         className={cn(
           "ep-map-stage relative min-h-0 flex-1 overflow-hidden",
           timeOpen ? "[--ep-inset-bottom:172px]" : "[--ep-inset-bottom:72px]",
-          "[--ep-inset-left:12px] [--ep-inset-right:12px] [--ep-inset-top:12px]",
+          "[--ep-inset-left:12px] [--ep-inset-right:12px] [--ep-inset-top:84px]",
           "lg:[--ep-inset-bottom:16px] lg:[--ep-inset-left:16px] lg:[--ep-inset-right:var(--ep-inset-right-lg)] lg:[--ep-inset-top:var(--ep-inset-top-lg)]"
         )}
       >
@@ -478,14 +475,14 @@ function HomePageContent() {
 
         {/* ---------- Escritorio: panel "Controles" (izquierda) ---------- */}
         {controlsOpen && isDesktop ? (
-          <aside aria-label={tPanel("controls")} className={cn(floatingPanel, "left-4 w-[360px]")}>
+          <aside aria-label={tPanel("controls")} className={cn(floatingPanel, "left-4 w-72")}>
             <PanelHeader title={tPanel("controls")} icon={SlidersHorizontal} onClose={closeControls} closeLabel={tPanel("close")} />
             <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain py-2">
               <ControlsPanel visibility={visibility} onChange={setLayer} minMag={minMag} onMinMagChange={setMinMag} down={layersDown} extra={zonesSection} />
             </div>
           </aside>
         ) : (
-          <Button variant="elevated" size="lg" onClick={openControls} className="absolute left-4 top-4 z-10 hidden lg:inline-flex">
+          <Button variant="elevated" size="lg" onClick={openControls} className="absolute left-4 top-[88px] z-10 hidden lg:inline-flex">
             <MorphIcon icon={SlidersHorizontal} size={20} reducedMotion="user" />
             {tPanel("controls")}
           </Button>
@@ -493,18 +490,18 @@ function HomePageContent() {
 
         {/* ---------- Escritorio: eventos o detalle (derecha) ---------- */}
         {eventsOpen && isDesktop ? (
-          <aside aria-label={selection ? tPanel("detail") : t("title")} className={cn(floatingPanel, "right-4 w-[376px]")}>
+          <aside aria-label={selection ? tPanel("detail") : t("title")} className={cn(floatingPanel, "right-4 w-[360px]")}>
             {selection ? (
               <DetailPanel kind={selection.kind} resolved={resolved} tectonics={data.tectonics} locale={locale} onClose={closeDetail} cursorTime={forecastMode ? refTime : null} backToEvents className="h-full" />
             ) : (
               <>
-                <PanelHeader title={t("title")} icon={Inbox} meta={feedBadge} onClose={closeEvents} closeLabel={tPanel("close")} />
+                <PanelHeader title={t("title")} icon={Inbox} onClose={closeEvents} closeLabel={tPanel("close")} />
                 {events("min-h-0 flex-1 p-3")}
               </>
             )}
           </aside>
         ) : (
-          <Button variant="elevated" size="lg" onClick={openEvents} className="absolute right-4 top-4 z-10 hidden lg:inline-flex">
+          <Button variant="elevated" size="lg" onClick={openEvents} className="absolute right-4 top-[88px] z-10 hidden lg:inline-flex">
             <MorphIcon icon={Inbox} size={20} reducedMotion="user" />
             {t("title")}
           </Button>
@@ -545,7 +542,7 @@ function HomePageContent() {
             onClick={() => setTimeOpen(false)}
             aria-label={tTime("hide")}
             title={tTime("hide")}
-            className="absolute -top-3 left-1/2 z-10 grid h-7 w-12 -translate-x-1/2 place-items-center rounded-ds-full border border-ds-outline-variant bg-ds-panel text-ds-text-secondary shadow-ds-1 backdrop-blur-ds-panel hover:text-ds-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ds-primary"
+            className="ds-glass absolute -top-3 left-1/2 z-10 grid h-7 w-12 -translate-x-1/2 place-items-center rounded-ds-full text-ds-text-secondary hover:text-ds-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ds-primary"
           >
             <MorphIcon icon={ChevronDown} size={18} reducedMotion="user" />
           </button>
@@ -572,7 +569,7 @@ function HomePageContent() {
             todayLabel={tTime("today")}
             yesterdayLabel={tTime("yesterday")}
             note={timeWindow === "7d" ? tTime("weekNote") : undefined}
-            className="w-full"
+            className="w-full pt-4 sm:pt-3"
           />
           </div>
 
@@ -596,9 +593,9 @@ function HomePageContent() {
               role="dialog"
               aria-modal="true"
               aria-label={sheet === "layers" ? tPanel("controls") : sheet === "detail" ? tPanel("detail") : t("title")}
-              className="relative flex max-h-[85%] w-full animate-ds-sheet-in flex-col overflow-hidden rounded-t-ds-sheet bg-ds-surface-container shadow-ds-3 sm:mx-auto sm:max-w-xl"
+              className="ds-glass relative flex max-h-[85%] w-full animate-ds-sheet-in flex-col overflow-hidden rounded-t-ds-sheet !border-b-0 sm:mx-auto sm:max-w-xl"
             >
-              <div className="mx-auto mt-3 h-1 w-8 shrink-0 rounded-full bg-ds-outline" aria-hidden="true" />
+              <div className="mx-auto mt-2.5 h-1.5 w-10 shrink-0 rounded-full bg-white/25" aria-hidden="true" />
               {sheet === "detail" && selection ? (
                 <DetailPanel kind={selection.kind} resolved={resolved} tectonics={data.tectonics} locale={locale} onClose={closeDetail} cursorTime={forecastMode ? refTime : null} className="min-h-0 flex-1 pb-[env(safe-area-inset-bottom)]" />
               ) : (
@@ -606,7 +603,6 @@ function HomePageContent() {
                   <PanelHeader
                     title={sheet === "layers" ? tPanel("controls") : t("title")}
                     icon={sheet === "layers" ? SlidersHorizontal : Inbox}
-                    meta={sheet === "events" ? feedBadge : undefined}
                     autoFocusClose
                     onClose={closeSheet}
                     closeLabel={tPanel("close")}

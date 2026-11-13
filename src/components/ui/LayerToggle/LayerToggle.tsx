@@ -1,16 +1,16 @@
-import { Check, Minus } from "lucide";
-import { MorphIcon } from "morphicons/react";
+import type { CSSProperties } from "react";
 import { cn } from "@/design-system/utils/cn";
 
-/** Switch Material 3 (track 52×32, handle que crece al activarse). */
 export function Switch({
   checked,
+  mixed,
   onChange,
   label,
   disabled,
   className,
 }: {
   checked: boolean;
+  mixed?: boolean;
   onChange: (checked: boolean) => void;
   label: string;
   disabled?: boolean;
@@ -26,39 +26,24 @@ export function Switch({
       disabled={disabled}
       onClick={() => onChange(!checked)}
       className={cn(
-        "group relative inline-flex h-8 w-[52px] shrink-0 items-center rounded-ds-full border-2 transition-colors duration-ds-base ease-ds-standard",
+        "group relative mr-1 inline-flex h-6 w-11 shrink-0 items-center rounded-full border",
         "after:absolute after:left-1/2 after:top-1/2 after:h-full after:w-full after:min-h-11 after:min-w-11 after:-translate-x-1/2 after:-translate-y-1/2",
         "disabled:opacity-40 disabled:pointer-events-none",
-        on ? "bg-ds-primary border-ds-primary" : "bg-ds-surface-highest border-ds-outline",
+        "hover:border-ds-primary/60 hover:shadow-ds-glow active:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ds-primary focus-visible:ring-offset-2 focus-visible:ring-offset-ds-canvas",
+        on ? "border-ds-primary bg-gradient-to-r from-[#0070ff] to-[#38bdf8] shadow-ds-glow" : "border-ds-control bg-ds-glass",
         className
       )}
     >
       <span
         className={cn(
-          "absolute left-0.5 h-6 w-6 rounded-ds-full transition-transform duration-ds-base ease-ds-out",
-          "before:absolute before:-inset-2 before:rounded-full before:bg-current before:opacity-0 group-hover:before:opacity-[0.08]",
+          "absolute left-0.5 h-4 w-4 overflow-hidden rounded-full transition-transform duration-ds-base ease-ds-out motion-reduce:transition-none",
+          mixed && "border border-white before:absolute before:inset-y-0 before:left-0 before:w-1/2 before:bg-white",
           on
-            ? "translate-x-5 bg-ds-primary-on text-ds-primary"
-            : "scale-[0.666667] bg-ds-outline text-ds-text-primary"
+            ? cn("translate-x-5", !mixed && "bg-white")
+            : "bg-ds-text-muted"
         )}
       />
     </button>
-  );
-}
-
-/** Checkbox Material 3 (18px, esquina 2px, check sobre primary). */
-export function Checkbox({ checked, mixed }: { checked: boolean; mixed?: boolean }) {
-  const on = checked || !!mixed;
-  return (
-    <span
-      aria-hidden="true"
-      className={cn(
-        "grid h-[18px] w-[18px] shrink-0 place-items-center rounded-[3px] border-2 transition-colors duration-ds-fast",
-        on ? "bg-ds-primary border-ds-primary text-ds-primary-on" : "border-ds-text-secondary"
-      )}
-    >
-      {on && <MorphIcon icon={mixed ? Minus : Check} size={14} strokeWidth={3} reducedMotion="user" />}
-    </span>
   );
 }
 
@@ -66,58 +51,55 @@ export interface LayerToggleProps {
   label: string;
   /** Color identitario de la capa (tokens/colors.ts → layers). */
   swatch?: string;
-  /** Swatch como anillo (capas "contorno", p.ej. aire modelado). */
+  /** Conserva compatibilidad con capas de contorno. */
   swatchRing?: boolean;
-  /** Etiqueta de fuente (USGS, OpenAQ…), estilo "Operational" de Weather Lab. */
+  /** Fuente de datos (USGS, OpenAQ…). */
   tag?: string;
-  /** Aviso que sustituye a la etiqueta de fuente (p.ej. fuente caída). */
+  /** Aviso de fuente caída, sin ocultar su nombre. */
   alert?: string;
   checked: boolean;
+  mixed?: boolean;
   onChange: (checked: boolean) => void;
   disabled?: boolean;
   className?: string;
 }
 
-/**
- * Fila de capa: swatch cuadrado + nombre + tag de fuente + checkbox, igual
- * que la lista de modelos del panel "Controls" de Weather Lab. Toda la fila
- * es el área táctil (≥ 44px de alto).
- */
-export function LayerToggle({ label, swatch, swatchRing, tag, alert, checked, onChange, disabled, className }: LayerToggleProps) {
+export function LayerToggle({ label, swatch, tag, alert, checked, mixed, onChange, disabled, className }: LayerToggleProps) {
+  const on = checked || !!mixed;
   return (
-    <label
+    <button
+      type="button"
+      aria-pressed={mixed ? "mixed" : on}
+      disabled={disabled}
+      onClick={() => onChange(!!mixed || !checked)}
       className={cn(
-        "relative flex min-h-11 min-w-11 cursor-pointer items-center gap-3 rounded-ds-control px-3 py-2",
-        "transition-colors duration-ds-fast hover:bg-ds-hover active:bg-ds-press has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-ds-primary",
-        disabled && "opacity-40 cursor-not-allowed",
+        "relative flex min-h-11 w-full min-w-11 items-center gap-2 rounded-full px-2 py-1.5 text-left",
+        "hover:bg-ds-hover active:bg-ds-press focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ds-primary",
+        "disabled:pointer-events-none disabled:opacity-40",
         className
       )}
     >
-      {swatch && (
-        <span
-          aria-hidden="true"
-          className={cn("h-4 w-4 shrink-0 rounded-[4px]", swatchRing && "border-[3px] bg-transparent")}
-          style={swatchRing ? { borderColor: swatch } : { backgroundColor: swatch }}
-        />
-      )}
-      <span className="min-w-0 flex-1 truncate text-sm text-ds-text-primary">{label}</span>
-      {alert ? (
-        <span role="status" className="inline-flex h-6 shrink-0 items-center rounded-ds-full border border-ds-warning px-2 text-[11px] font-medium text-ds-warning">
-          {alert}
-        </span>
-      ) : tag && (
-        <span className="inline-flex h-6 shrink-0 items-center rounded-ds-full border border-ds-outline-variant px-2 text-[11px] font-medium text-ds-text-secondary">
-          {tag}
-        </span>
-      )}
-      <Checkbox checked={checked} />
-      <input
-        type="checkbox"
-        checked={checked}
-        onChange={(e) => onChange(e.target.checked)}
-        disabled={disabled}
-        className="sr-only"
+      <span
+        aria-hidden="true"
+        className={cn(
+          "relative h-3.5 w-3.5 shrink-0 rounded-full border-[1.5px]",
+          on ? "ds-glow border-[color:var(--ep-accent)]" : "border-[color:color-mix(in_srgb,var(--ep-accent)_45%,transparent)]",
+          on && !mixed && "bg-[color:var(--ep-accent)]",
+          mixed && "overflow-hidden before:absolute before:inset-y-0 before:left-0 before:w-1/2 before:bg-[color:var(--ep-accent)]"
+        )}
+        style={{ "--ep-accent": swatch ?? "rgb(var(--ds-primary))" } as CSSProperties}
       />
-    </label>
+      <span className="min-w-0 flex-1 text-sm leading-5 text-ds-text-primary">{label}</span>
+      {(tag || alert) && (
+        <span className="inline-flex shrink-0 items-center gap-1 text-[10px] uppercase tracking-[0.12em] text-ds-text-muted">
+          {tag}
+          {alert && (
+            <span role="status" title={alert} className="h-1.5 w-1.5 shrink-0 rounded-full bg-ds-danger">
+              <span className="sr-only">{alert}</span>
+            </span>
+          )}
+        </span>
+      )}
+    </button>
   );
 }

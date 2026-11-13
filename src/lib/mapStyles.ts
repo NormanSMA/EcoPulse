@@ -56,12 +56,28 @@ const ESRI_SATELLITE_STYLE: StyleSpecification = {
       maxzoom: 19,
       attribution: "Esri, Maxar, Earthstar Geographics",
     },
+    // Etiquetas de lugares y límites (raster transparente del mismo proveedor):
+    // sin esta capa la imagen satelital no muestra nombres.
+    "esri-reference-places": {
+      type: "raster",
+      tiles: [
+        "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}",
+      ],
+      tileSize: 256,
+      maxzoom: 19,
+      attribution: "Esri",
+    },
   },
   layers: [
     {
       id: "esri-world-imagery-layer",
       type: "raster",
       source: "esri-world-imagery",
+    },
+    {
+      id: "esri-reference-places-layer",
+      type: "raster",
+      source: "esri-reference-places",
     },
   ],
 };

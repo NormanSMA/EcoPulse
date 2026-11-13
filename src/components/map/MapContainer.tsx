@@ -13,7 +13,7 @@ import maplibregl, {
 import type { EarthquakeGeoJSON, FireGeoJSON, IssGeoJSON, AirQualityGeoJSON } from "@/lib/types";
 import { DEFAULT_MAP_VIEW } from "@/lib/mapView";
 import { BASEMAP_STYLES, type Basemap } from "@/lib/mapStyles";
-import { layers, scales, marker, withAlpha, type LayerKey } from "@/design-system/tokens";
+import { colors, layers, scales, marker, withAlpha, type LayerKey } from "@/design-system/tokens";
 import { registerMapIcons } from "@/lib/mapIcons";
 import { nightPolygon, footprintRing, unwrapLongitudes } from "@/lib/geoShapes";
 import type { Selection } from "@/lib/selection";
@@ -21,7 +21,7 @@ import { resolveSelection } from "@/lib/resolveSelection";
 import { nearestCandidate, type PickCandidate, type Pixel } from "@/lib/screenPick";
 import { circleRing } from "@/lib/geo";
 import { buildFrameFields } from "@/lib/forecast/field";
-import { WEATHER_LAYER_IDS, addWeatherLayers, setWeatherFrame } from "./weatherLayers";
+import { WEATHER_LAYER_IDS, addWeatherLayers, setWeatherFrame, windArrowsVisible } from "./weatherLayers";
 import type { SpatialFilter } from "@/lib/explorerState";
 import type { MapViewProps } from "./types";
 import { applyProjection, introStartZoom, shouldPlayIntro, type MapProjection } from "./projection";
@@ -60,6 +60,7 @@ const INTERACTIVE = ["iss", "cyclone-position", "disasters", "volcanoes", "quake
 
 const EMPTY: GeoJSON.FeatureCollection = { type: "FeatureCollection", features: [] };
 const FONT_BOLD = ["Noto Sans Bold"];
+const { palette } = colors;
 const NOT_CLUSTER: FilterSpecification = ["!", ["has", "point_count"]];
 const HOUR_MS = 3_600_000;
 const PULSE_WINDOW_MS = HOUR_MS;
@@ -299,8 +300,8 @@ export default function MapContainer(props: MapContainerProps) {
     if (p.radarTiles) addRadar(map, p.radarTiles);
 
     // Pronóstico sobre la malla: bajo los eventos, sobre la sombra nocturna.
-    const showWindArrows = window.matchMedia("(prefers-reduced-motion: reduce)").matches || !p.weatherFrame?.features.length;
-    addWeatherLayers(map, p.weatherFrame ?? null, { wind: p.visibility.wind && showWindArrows, clouds: p.visibility.clouds, rain: p.visibility.rain });
+    const showWindArrows = windArrowsVisible(p.visibility.wind, window.matchMedia("(prefers-reduced-motion: reduce)").matches, Boolean(p.weatherFrame?.features.length));
+    addWeatherLayers(map, p.weatherFrame ?? null, { wind: showWindArrows, clouds: p.visibility.clouds, rain: p.visibility.rain });
     setGridPointsVisible(map, p);
 
     map.addLayer({
@@ -466,11 +467,12 @@ export default function MapContainer(props: MapContainerProps) {
       filter: ["has", "point_count"],
       layout: { visibility: vis("earthquakes") },
       paint: {
+        // El color codifica la magnitud máxima del grupo (escala neón).
         "circle-color": ["interpolate", ["linear"], ["get", "maxMag"], ...scales.magnitude.flatMap((s) => [s.stop, s.color])] as ExpressionSpecification,
         "circle-radius": ["step", ["get", "point_count"], 13, 10, 17, 50, 23],
         "circle-opacity": 0.9,
         "circle-stroke-width": 2,
-        "circle-stroke-color": marker.stroke,
+        "circle-stroke-color": palette.ink,
         "circle-stroke-opacity": 0.85,
       },
     });
@@ -595,10 +597,16 @@ export default function MapContainer(props: MapContainerProps) {
 
     // Anillo del filtro de radio del buscador ("managua @50km").
     map.addLayer({
+      id: "filter-ring-halo",
+      type: "line",
+      source: "filter-ring",
+      paint: { "line-color": palette.blueLight, "line-width": 2, "line-blur": 6, "line-opacity": 0.35 },
+    });
+    map.addLayer({
       id: "filter-ring",
       type: "line",
       source: "filter-ring",
-      paint: { "line-color": marker.selected, "line-width": 2, "line-dasharray": [2, 2], "line-opacity": 0.9 },
+      paint: { "line-color": palette.blueLight, "line-width": 2, "line-dasharray": [2, 2], "line-opacity": 0.9 },
     });
 
     // Anillo de selección (cualquier tipo de elemento o punto del mapa).
@@ -612,7 +620,7 @@ export default function MapContainer(props: MapContainerProps) {
       id: "selection",
       type: "circle",
       source: "selection",
-      paint: { "circle-radius": 17, "circle-color": "rgba(0,0,0,0)", "circle-stroke-width": 3, "circle-stroke-color": marker.selected },
+      paint: { "circle-radius": 17, "circle-color": withAlpha(marker.selected, 0), "circle-stroke-width": 3, "circle-stroke-color": marker.selected },
     });
     applyProjection(map, propsRef.current.projection ?? "mercator", onLight);
     playIntro(map);
@@ -901,7 +909,7 @@ export default function MapContainer(props: MapContainerProps) {
     const map = mapRef.current;
     if (!map || !isMapLoadedRef.current) return;
     for (const [key, ids] of Object.entries(LAYER_GROUPS) as [LayerKey, string[]][]) {
-      const showLayer = visibility[key] && (key !== "wind" || reducedMotion || !frameFields);
+      const showLayer = key === "wind" ? windArrowsVisible(visibility.wind, reducedMotion, Boolean(frameFields)) : visibility[key];
       const value = showLayer ? "visible" : "none";
       for (const id of ids) if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", value);
     }

@@ -1,4 +1,3 @@
 export { useFreshness, getFreshness } from "./useFreshness";
-export { useTheme, type Theme } from "./useTheme";
 export { useBasemap } from "./useBasemap";
 export { useMediaQuery } from "./useMediaQuery";

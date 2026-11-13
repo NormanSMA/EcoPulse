@@ -2,9 +2,6 @@ import { forwardRef, type ButtonHTMLAttributes } from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/design-system/utils/cn";
 
-// Botones Material 3 en pill (DS 4.0). El "state layer" de hover/press se
-// pinta con un ::before del color del contenido, como en Weather Lab, para
-// que funcione igual sobre cualquier fondo (filled, tonal o transparente).
 const stateLayer =
   "before:absolute before:inset-0 before:rounded-[inherit] before:bg-current before:opacity-0 " +
   "before:transition-opacity before:duration-ds-fast hover:before:opacity-[0.08] active:before:opacity-[0.12]";
@@ -12,19 +9,24 @@ const stateLayer =
 const touchTarget =
   "after:absolute after:left-1/2 after:top-1/2 after:h-full after:w-full after:min-h-11 after:min-w-11 after:-translate-x-1/2 after:-translate-y-1/2";
 
+const interaction =
+  "hover:border-ds-primary/60 hover:shadow-ds-glow focus-visible:border-ds-primary/60 focus-visible:shadow-ds-glow " +
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ds-primary focus-visible:ring-offset-2 focus-visible:ring-offset-ds-canvas " +
+  "[&_svg]:transition-transform [&_svg]:duration-ds-fast motion-safe:hover:[&_svg]:scale-105 motion-reduce:[&_svg]:transition-none";
+
 const buttonVariants = cva(
-  "relative isolate inline-flex items-center justify-center gap-2 rounded-ds-full font-medium select-none whitespace-nowrap " +
-    "transition-[background-color,color,box-shadow] duration-ds-fast ease-ds-standard " +
+  "relative isolate inline-flex items-center justify-center gap-2 rounded-full font-medium select-none whitespace-nowrap " +
+    "duration-ds-fast ease-ds-standard " + interaction + " " +
     "disabled:opacity-40 disabled:pointer-events-none " +
     stateLayer + " " + touchTarget,
   {
     variants: {
       variant: {
-        filled: "bg-ds-primary text-ds-primary-on hover:shadow-ds-1",
+        filled: "border border-transparent bg-ds-primary-strong text-white",
         tonal: "bg-ds-secondary-container text-ds-secondary-on-container",
-        outlined: "border border-ds-outline text-ds-primary",
+        outlined: "border border-ds-control bg-ds-glass text-ds-primary",
         text: "text-ds-primary",
-        elevated: "bg-ds-panel-strong backdrop-blur-ds-panel text-ds-text-primary shadow-ds-2 border border-ds-outline-variant",
+        elevated: "border border-ds-control bg-ds-glass text-ds-text-primary backdrop-blur-ds-glass shadow-ds-2",
       },
       size: {
         sm: "h-8 px-3 text-[13px]",
@@ -57,7 +59,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         {...props}
       >
         {loading && (
-          <span className="h-4 w-4 rounded-full border-2 border-current border-t-transparent animate-spin" />
+          <span aria-hidden="true" className="h-4 w-4 rounded-full border-2 border-current border-t-transparent motion-safe:animate-spin" />
         )}
         {children}
       </button>
@@ -68,17 +70,18 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
 Button.displayName = "Button";
 
 const iconButtonVariants = cva(
-  "relative isolate inline-flex shrink-0 items-center justify-center rounded-ds-full select-none " +
-    "transition-[background-color,color] duration-ds-fast ease-ds-standard " +
+  "relative isolate inline-flex shrink-0 items-center justify-center rounded-full select-none " +
+    "duration-ds-fast ease-ds-standard " + interaction + " " +
     "disabled:opacity-40 disabled:pointer-events-none " +
     stateLayer + " " + touchTarget,
   {
     variants: {
       variant: {
         standard: "text-ds-text-secondary hover:text-ds-text-primary",
-        filled: "bg-ds-primary text-ds-primary-on",
+        filled: "border border-transparent bg-ds-primary-strong text-white",
         tonal: "bg-ds-secondary-container text-ds-secondary-on-container",
-        elevated: "bg-ds-panel-strong backdrop-blur-ds-panel text-ds-text-primary shadow-ds-2 border border-ds-outline-variant",
+        outlined: "border border-ds-control bg-ds-glass text-ds-primary",
+        elevated: "border border-ds-control bg-ds-glass text-ds-text-primary backdrop-blur-ds-glass shadow-ds-2",
       },
       size: {
         sm: "h-8 w-8",

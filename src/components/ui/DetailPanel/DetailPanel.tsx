@@ -1,12 +1,13 @@
 'use client';
 
-import { useEffect, useState, type ReactNode } from "react";
+import { Children, isValidElement, useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import dynamic from "next/dynamic";
 import { useTranslations } from "next-intl";
 import { ArrowLeft, X, ExternalLink, Waves, Flame, AlertTriangle, Mountain, Wind, Satellite, MapPin, Tornado, TriangleAlert, Layers, Activity } from "lucide";
 import type { IconNode } from "lucide";
 import { MorphIcon } from "morphicons/react";
 import { Button, IconButton } from "@/components/ui/Button";
+import { StatStrip } from "@/components/ui/MetricCard";
 import { cn } from "@/design-system/utils/cn";
 import { layers, marker, boundaryColor, magnitudeColor, alertColor, aqiColor, stormColor, scales } from "@/design-system/tokens";
 import type { ResolvedSelection } from "@/lib/resolveSelection";
@@ -74,10 +75,12 @@ function useJson<T>(url: string | null) {
 
 // ---------- Piezas de maquetación ----------
 
-function Stat({ label, value, hint }: { label: string; value: ReactNode; hint?: ReactNode }) {
+interface StatProps { label: string; value: ReactNode; hint?: ReactNode }
+
+function Stat({ label, value, hint }: StatProps) {
   return (
-    <div className="flex min-w-0 flex-col rounded-ds-xl bg-ds-surface-container px-3 py-2">
-      <span className="truncate text-xs text-ds-text-secondary">{label}</span>
+    <div className="flex min-w-0 flex-col px-3 py-2">
+      <span className="ds-eyebrow">{label}</span>
       <span className="truncate text-base font-medium tabular-nums text-ds-text-primary">{value}</span>
       {hint && <span className="truncate text-[11px] text-ds-text-secondary">{hint}</span>}
     </div>
@@ -85,14 +88,32 @@ function Stat({ label, value, hint }: { label: string; value: ReactNode; hint?: 
 }
 
 function Stats({ children }: { children: ReactNode }) {
-  return <div className="grid grid-cols-2 gap-2">{children}</div>;
+  const items = Children.toArray(children).flatMap((child) => isValidElement<StatProps>(child) ? [child.props] : []);
+  const rowSize = items.length === 5 ? 3 : 4;
+  return (
+    <div className="flex min-w-0 flex-col gap-2">
+      {Array.from({ length: Math.ceil(items.length / rowSize) }, (_, index) => (
+        <StatStrip key={index} items={items.slice(index * rowSize, (index + 1) * rowSize)} className="[&>div]:min-w-0 [&_dd]:block [&_dd]:break-words [&_dd]:text-lg [&_dd]:leading-6" />
+      ))}
+      {items.some((item) => item.hint) && (
+        <dl className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-ds-text-secondary">
+          {items.filter((item) => item.hint).map((item) => (
+            <div key={item.label} className="min-w-0">
+              <dt className="sr-only">{item.label}</dt>
+              <dd>{item.hint}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
+    </div>
+  );
 }
 
 function Block({ title, subtitle, children }: { title: string; subtitle?: string; children: ReactNode }) {
   return (
-    <section className="flex flex-col gap-2 border-t border-ds-outline-variant pt-4">
+    <section className="flex flex-col gap-2 border-t border-ds-divider pt-4">
       <div>
-        <h3 className="text-sm font-medium text-ds-text-primary">{title}</h3>
+        <h3 className="ds-eyebrow">{title}</h3>
         {subtitle && <p className="text-xs text-ds-text-muted">{subtitle}</p>}
       </div>
       {children}
@@ -103,10 +124,10 @@ function Block({ title, subtitle, children }: { title: string; subtitle?: string
 function Badge({ color, children, icon }: { color: string; children: ReactNode; icon?: IconNode }) {
   return (
     <span
-      className="inline-flex h-6 items-center gap-1.5 rounded-ds-full border px-2.5 text-xs font-medium text-ds-text-primary"
-      style={{ borderColor: `${color}88`, backgroundColor: `${color}26` }}
+      className="inline-flex h-6 items-center gap-1.5 rounded-full border border-[color:color-mix(in_srgb,var(--ep-accent)_55%,transparent)] bg-[color:color-mix(in_srgb,var(--ep-accent)_15%,transparent)] px-2.5 text-xs font-medium text-ds-text-primary"
+      style={{ "--ep-accent": color } as CSSProperties}
     >
-      {icon && <MorphIcon icon={icon} size={13} reducedMotion="user" style={{ color }} />}
+      {icon && <MorphIcon icon={icon} size={13} reducedMotion="user" className="text-[color:var(--ep-accent)]" />}
       {children}
     </span>
   );
@@ -119,7 +140,7 @@ function SourceLink({ href, children }: { href: string; children: ReactNode }) {
       href={href}
       target="_blank"
       rel="noopener noreferrer"
-      className="inline-flex items-center gap-1.5 self-start rounded-ds-full px-1 text-sm font-medium text-ds-primary hover:underline"
+      className="inline-flex min-h-11 items-center gap-1.5 self-start rounded-full px-1 text-sm font-medium text-ds-primary hover:underline active:bg-ds-press focus-visible:ring-2 focus-visible:ring-ds-primary"
     >
       {children}
       <MorphIcon icon={ExternalLink} size={14} reducedMotion="user" />
@@ -226,7 +247,7 @@ function PointWeather({ info, loading, error, onRetry, locale, cursorTime, packZ
         <Stat label={t("precip")} value={`${formatNumber(c.precipitation, locale)} mm`} />
         <Stat label={t("cloudCover")} value={`${Math.round(c.cloudCover)}%`} />
         {pm25 != null && (
-          <Stat label={t("airModel")} value={`${formatNumber(pm25, locale, 1)} µg/m³`} hint={<span style={{ color: aqiColor(getAQICategory(pm25)) }}>●</span>} />
+          <Stat label={t("airModel")} value={`${formatNumber(pm25, locale, 1)} µg/m³`} hint={<span className="inline-block h-2 w-2 rounded-full bg-[color:var(--ep-accent)]" style={{ "--ep-accent": aqiColor(getAQICategory(pm25)) } as CSSProperties} />} />
         )}
       </Stats>
       {info.weather && info.weather.time.length > 0 && (
@@ -363,21 +384,21 @@ export function DetailPanel({ kind, resolved, locale, tectonics, onClose, backTo
   return (
     <div className={cn("flex min-h-0 flex-col", className)}>
       {/* Cabecera */}
-      <div className="flex shrink-0 items-start gap-3 border-b border-ds-outline-variant px-4 py-3">
+      <div className="flex shrink-0 items-start gap-3 border-b border-ds-divider px-4 py-4">
         {backToEvents && (
           <IconButton aria-label={t("back")} onClick={onClose} className="-ml-2 mt-1">
             <MorphIcon icon={ArrowLeft} size={20} reducedMotion="user" />
           </IconButton>
         )}
         <span
-          className="mt-1 grid h-10 w-10 shrink-0 place-items-center rounded-ds-full"
-          style={{ color: accent, backgroundColor: `${accent}26` }}
+          className="ds-glow mt-1 grid h-10 w-10 shrink-0 place-items-center rounded-full border-[1.5px] border-[color:var(--ep-accent)] bg-[color:color-mix(in_srgb,var(--ep-accent)_12%,transparent)] text-[color:var(--ep-accent)]"
+          style={{ "--ep-accent": accent } as CSSProperties}
         >
           <MorphIcon icon={KIND_ICON[kind]} size={20} reducedMotion="user" />
         </span>
         <div className="min-w-0 flex-1">
-          <p className="text-xs font-medium uppercase tracking-wide text-ds-text-secondary">{t(`kinds.${kind}`)}</p>
-          <h2 className="line-clamp-2 text-lg font-medium leading-6 text-ds-text-primary">{title}</h2>
+          <p className="ds-eyebrow">{t(`kinds.${kind}`)}</p>
+          <h2 className="mt-1 line-clamp-2 text-2xl font-semibold leading-7 text-white">{title}</h2>
           {coords && <p className="text-xs tabular-nums text-ds-text-muted">{formatCoords(coords[0], coords[1])}</p>}
         </div>
         {!backToEvents && (

@@ -1,1 +1,1 @@
-export { LayerToggle, Switch, Checkbox, type LayerToggleProps } from "./LayerToggle";
+export { LayerToggle, Switch, type LayerToggleProps } from "./LayerToggle";
