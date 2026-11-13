@@ -44,7 +44,6 @@ const MAP_LOADING = (
 );
 
 const MapContainer = dynamic(() => import("@/components/map/MapContainer"), { ssr: false, loading: () => MAP_LOADING });
-const GlobeContainer = dynamic(() => import("@/components/map/GlobeContainer"), { ssr: false, loading: () => MAP_LOADING });
 
 const PLAYBACK_DURATION_MS = 20_000;
 const PLAYBACK_TICK_MS = 100;
@@ -296,8 +295,8 @@ function HomePageContent() {
   // corresponde a lo que se ve (país, metropolitana o táctica según el zoom).
   const weatherOn = visibility.wind || visibility.clouds || visibility.rain;
   const autoZone = useMemo(
-    () => (weatherOn && online && !activePack && mapMode === "2d" ? pickZone(mapView.lng, mapView.lat, mapView.zoom) : null),
-    [weatherOn, online, activePack, mapMode, mapView]
+    () => (weatherOn && online && !activePack ? pickZone(mapView.lng, mapView.lat, mapView.zoom) : null),
+    [weatherOn, online, activePack, mapView]
   );
   const liveGrid = useWeatherGrid(autoZone);
   const grid = activePack?.forecast ?? liveGrid.grid;
@@ -469,11 +468,12 @@ function HomePageContent() {
         )}
       >
         <div className="absolute inset-0">
-          {shownMode === "2d" ? (
-            <MapContainer {...viewProps} onViewChange={setMapView} basemap={shownBasemap} />
-          ) : (
-            <GlobeContainer {...viewProps} onViewChange={setMapView} theme={theme} />
-          )}
+          <MapContainer
+            {...viewProps}
+            onViewChange={setMapView}
+            basemap={shownBasemap}
+            projection={shownMode === "3d" ? "globe" : "mercator"}
+          />
         </div>
 
         {/* ---------- Escritorio: panel "Controles" (izquierda) ---------- */}

@@ -23,9 +23,11 @@ import { circleRing } from "@/lib/geo";
 import { WEATHER_LAYER_IDS, addWeatherLayers, setWeatherFrame } from "./weatherLayers";
 import type { SpatialFilter } from "@/lib/explorerState";
 import type { MapViewProps } from "./types";
+import { applyProjection, introStartZoom, shouldPlayIntro, type MapProjection } from "./projection";
 
 interface MapContainerProps extends MapViewProps {
   basemap: Basemap;
+  projection?: MapProjection;
 }
 
 // Capas de MapLibre que controla cada toggle del panel.
@@ -177,7 +179,7 @@ function toSelection(layerId: string, f: MapGeoJSONFeature): Selection | null {
 }
 
 export default function MapContainer(props: MapContainerProps) {
-  const { data, visibility, refTime, radarTiles, selectedPoint, focus, spatialFilter, weatherFrame, showGridPoints, basemap, initialView = DEFAULT_MAP_VIEW } = props;
+  const { data, visibility, refTime, radarTiles, selectedPoint, focus, spatialFilter, weatherFrame, showGridPoints, basemap, projection = "mercator", initialView = DEFAULT_MAP_VIEW } = props;
   const tKeyboard = useTranslations("mapKeyboard");
   const [announcement, setAnnouncement] = useState<{ selection: Selection; count: number } | null>(null);
   const item = resolveSelection(announcement?.selection ?? null, data)?.item;
@@ -190,11 +192,48 @@ export default function MapContainer(props: MapContainerProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const isMapLoadedRef = useRef<boolean>(false);
+  const cancelIntroRef = useRef<(() => void) | null>(null);
 
   // Props más recientes: setupLayers() corre en el "load" inicial y tras cada
   // map.setStyle() (que borra fuentes y capas); los handlers se registran una vez.
   const propsRef = useRef(props);
   propsRef.current = props;
+
+  function playIntro(map: MapLibreMap) {
+    if (propsRef.current.projection !== "globe" || cancelIntroRef.current) return;
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    let storage: Storage | null = null;
+    try {
+      storage = window.sessionStorage;
+    } catch {
+      return;
+    }
+    if (!shouldPlayIntro(storage, reducedMotion)) return;
+
+    const target = { center: map.getCenter(), zoom: map.getZoom() };
+    const canvas = map.getCanvas();
+    const clearIntro = () => {
+      window.removeEventListener("keydown", onIntroKeyDown);
+      canvas.removeEventListener("pointerdown", cancelIntro, true);
+      map.off("moveend", clearIntro);
+      cancelIntroRef.current = null;
+    };
+    const cancelIntro = () => {
+      clearIntro();
+      map.stop();
+      map.jumpTo(target);
+    };
+    const onIntroKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") cancelIntro();
+    };
+
+    map.jumpTo({ ...target, zoom: introStartZoom(target.zoom) });
+    cancelIntroRef.current = cancelIntro;
+    window.addEventListener("keydown", onIntroKeyDown);
+    canvas.addEventListener("pointerdown", cancelIntro, true);
+    map.once("moveend", clearIntro);
+    map.easeTo({ zoom: target.zoom, duration: 2500, essential: true });
+  }
 
   function addRadar(map: MapLibreMap, tiles: string) {
     map.addSource("radar", { type: "raster", tiles: [tiles], tileSize: 256, maxzoom: RADAR_MAX_ZOOM, attribution: "RainViewer" });
@@ -568,6 +607,8 @@ export default function MapContainer(props: MapContainerProps) {
       source: "selection",
       paint: { "circle-radius": 17, "circle-color": "rgba(0,0,0,0)", "circle-stroke-width": 3, "circle-stroke-color": marker.selected },
     });
+    applyProjection(map, propsRef.current.projection ?? "mercator", onLight);
+    playIntro(map);
   }
 
   // 1. Inicialización única del mapa.
@@ -712,6 +753,7 @@ export default function MapContainer(props: MapContainerProps) {
     mapRef.current = map;
 
     return () => {
+      cancelIntroRef.current?.();
       cancelAnimationFrame(raf);
       resizeObserver.disconnect();
       canvas.removeEventListener("keydown", onKeyDown);
@@ -747,6 +789,15 @@ export default function MapContainer(props: MapContainerProps) {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [basemap]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (map && isMapLoadedRef.current) {
+      applyProjection(map, projection, propsRef.current.basemap === "light");
+      playIntro(map);
+    }
+    return () => { cancelIntroRef.current?.(); };
+  }, [projection]);
 
   // 1c. Centrar en un elemento elegido desde la lista o el buscador.
   useEffect(() => {
