@@ -2,7 +2,22 @@ import { describe, expect, it, vi } from "vitest";
 import type { GeoJSONSourceSpecification, LayerSpecification, Map as MapLibreMap } from "maplibre-gl";
 import type { WeatherFrame } from "../../lib/forecast/types";
 import { buildFrameFields } from "../../lib/forecast/field";
-import { addWeatherLayers, setWeatherFrame, weatherFrameToGeoJSON } from "./weatherLayers";
+import { addWeatherLayers, setWeatherFrame, weatherFrameToGeoJSON, windArrowsVisible } from "./weatherLayers";
+
+describe("windArrowsVisible", () => {
+  it.each([
+    [false, false, false, false],
+    [false, false, true, false],
+    [false, true, false, false],
+    [false, true, true, false],
+    [true, false, false, true],
+    [true, false, true, false],
+    [true, true, false, true],
+    [true, true, true, true],
+  ])("capa=%s, movimiento reducido=%s, campo=%s devuelve %s", (layerOn, reducedMotion, hasField, expected) => {
+    expect(windArrowsVisible(layerOn, reducedMotion, hasField)).toBe(expected);
+  });
+});
 
 const frame: WeatherFrame = {
   time: 1_700_000_000_000,

@@ -22,9 +22,9 @@ export function applyProjection(map: maplibregl.Map, projection: MapProjection, 
 
   map.setSky({
     "sky-color": onLight ? themes.light.secondaryContainer : themes.dark.canvas,
-    "horizon-color": onLight ? themes.light.surface : themes.dark.primary,
-    "fog-color": onLight ? themes.light.canvas : themes.dark.surface,
-    "sky-horizon-blend": 0.4,
+    "horizon-color": onLight ? themes.light.surface : themes.dark.primaryStrong,
+    "fog-color": onLight ? themes.light.canvas : themes.dark.canvasDeep,
+    "sky-horizon-blend": onLight ? 0.4 : 0.6,
     "horizon-fog-blend": 0.5,
     "fog-ground-blend": 0.9,
     "atmosphere-blend": ["interpolate", ["linear"], ["zoom"], 0, 1, 3, 1, 7, 0],

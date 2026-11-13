@@ -17,6 +17,10 @@ export const WEATHER_LAYER_IDS = {
 const { palette } = colors;
 const WIND_ARROW = "ep-weather-wind-arrow";
 
+export function windArrowsVisible(layerOn: boolean, reducedMotion: boolean, hasField: boolean): boolean {
+  return layerOn && (reducedMotion || !hasField);
+}
+
 function fieldRadius(cellDeg: number): ExpressionSpecification {
   const radius = (cellDeg * 512 / 360) * 1.6;
   return ["interpolate", ["exponential", 2], ["zoom"], 0, radius, 22, radius * 2 ** 22];
