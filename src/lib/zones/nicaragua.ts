@@ -1,4 +1,4 @@
-import { bboxContains, haversineKm, pointInPolygon, type BBox } from "../geo";
+import { bboxContains, haversineKm, pointInPolygon, pointToSegmentKm, type BBox } from "../geo";
 import data from "./nicaragua.data.json";
 
 export interface Department {
@@ -21,8 +21,15 @@ export const CAPITALS: { name: string; department: string; lon: number; lat: num
   lat: d.capitalLat,
 }));
 
+/** Tolerancia al borde: el contorno simplificado puede dejar una cabecera costera fuera por pocos km. */
+const BORDER_TOLERANCE_KM = 2.5;
+
 export function inNicaragua(lon: number, lat: number): boolean {
-  return pointInPolygon(lon, lat, NICARAGUA_OUTLINE);
+  if (pointInPolygon(lon, lat, NICARAGUA_OUTLINE)) return true;
+  for (let i = 1; i < NICARAGUA_OUTLINE.length; i++) {
+    if (pointToSegmentKm([lon, lat], NICARAGUA_OUTLINE[i - 1], NICARAGUA_OUTLINE[i]) <= BORDER_TOLERANCE_KM) return true;
+  }
+  return false;
 }
 
 export function departmentAt(lon: number, lat: number): Department | null {
